@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import sampleHeader from './assets/sample header.png'
 
 interface Module {
   id: number
@@ -122,8 +123,11 @@ function App() {
             </div>
 
             <div className="hero-content">
-              <h1>Accueil</h1>
-              <p>Bienvenue dans PERLE, votre système de pilotage intégré.</p>
+              <div className="hero-text">
+                <h1>Accueil</h1>
+                <p>Bienvenue dans PERLE, votre système de pilotage intégré.</p>
+              </div>
+              <img src={sampleHeader} alt="Header Sample" className="hero-image" />
             </div>
             <div className="hero-background"></div>
           </section>
