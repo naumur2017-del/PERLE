@@ -354,7 +354,7 @@ body {
 }
 
 .hero-image {
-  height: 120px;
+  height: 200px;
   width: auto;
   object-fit: contain;
   flex-shrink: 0;
