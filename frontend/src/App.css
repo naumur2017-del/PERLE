@@ -1286,6 +1286,180 @@ body {
 .task-totals .purple strong { color: #5432d4; }
 .edit-project { color: #4030d9; font-size: 9px; font-weight: 700; white-space: nowrap; }
 
+.charges-step-card {
+  width: min(760px, calc(100% - 32px));
+  margin: 22px auto 36px;
+  padding: 18px;
+  border: 1px solid #e1e3f1;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 3px 12px rgba(42, 34, 110, 0.06);
+  color: #17205f;
+}
+
+.charges-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  padding: 24px;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  background: rgba(22, 16, 63, 0.45);
+  backdrop-filter: blur(3px);
+  animation: overlay-fade-in 180ms ease-out;
+}
+
+.charges-overlay-content {
+  width: 100%;
+  animation: overlay-panel-in 220ms ease-out;
+}
+
+.charges-overlay .charges-step-card {
+  margin-top: 10px;
+  margin-bottom: 24px;
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes overlay-panel-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+}
+
+.charges-steps {
+  padding-bottom: 18px;
+}
+
+.charges-steps .creation-step {
+  min-width: 190px;
+}
+
+.charges-heading {
+  padding: 4px 2px 16px;
+}
+
+.charges-heading h2 {
+  margin-bottom: 14px;
+  color: #11175c;
+  font-size: 18px;
+}
+
+.charges-heading p {
+  color: #5e54b7;
+  font-size: 11px;
+}
+
+.charge-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.charge-group {
+  overflow: hidden;
+  border: 1px solid #e1e2ef;
+  border-radius: 7px;
+  background: #faf9ff;
+}
+
+.charge-group-title {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: #f7f5ff;
+  color: #2f23bd;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.charge-group.open .charge-group-title {
+  border-bottom: 1px solid #e3e3f0;
+}
+
+.charge-group-content {
+  padding: 10px;
+  background: white;
+}
+
+.charge-table-wrap {
+  overflow-x: auto;
+}
+
+.charge-table-wrap table {
+  width: 100%;
+  min-width: 690px;
+  border-collapse: collapse;
+  font-size: 8px;
+}
+
+.charge-table-wrap th,
+.charge-table-wrap td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #ececf4;
+  text-align: left;
+}
+
+.charge-table-wrap th {
+  color: #303675;
+  font-size: 7px;
+}
+
+.charge-table-wrap td small {
+  display: block;
+  color: #ee5c52;
+  font-size: 6px;
+}
+
+.add-charge {
+  margin-top: 9px;
+  padding: 8px 11px;
+  border: 1px solid #6b4be6;
+  border-radius: 5px;
+  background: white;
+  color: #412bd2;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.charge-legend {
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: 6px;
+  background: #f3f0ff;
+  color: #4a36d4;
+  font-size: 9px;
+}
+
+.charges-actions {
+  display: flex;
+  margin-top: 22px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.charges-actions > div {
+  display: flex;
+  gap: 10px;
+}
+
+.save-project {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 5px;
+  background: #3515e8;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 /* =============== FOOTER =============== */
 .app-footer {
   background: white;
@@ -1476,6 +1650,21 @@ body {
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .charges-step-card {
+    width: calc(100% - 16px);
+    padding: 12px;
+  }
+
+  .charges-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .charges-actions > div {
+    justify-content: space-between;
   }
 
   .step-line {

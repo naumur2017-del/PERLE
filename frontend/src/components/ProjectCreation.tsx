@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 const tasks = [
   ['PRJ.001', 'Étude de faisabilité', 'E', '15,00', '0', '15,00', 'Ajara Lamare', 'Herman Tsaffock', '06/05/2025', '15/05/2025'],
   ['PRJ.002', 'Conception détaillée', 'E', '31,00', '0', '31,00', 'Ajara Lamare', 'Belomo Edwige', '16/05/2025', '15/06/2025'],
@@ -9,8 +11,18 @@ const tasks = [
 ]
 
 export default function ProjectCreation() {
+  const [step, setStep] = useState(1)
+
+  useEffect(() => {
+    if (step !== 2) return
+    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && setStep(1)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [step])
+
   return (
-    <section className="creation-page">
+    <>
+    <section className="creation-page" aria-hidden={step === 2}>
       <div className="creation-layout">
         <aside className="creation-form-card">
           <div className="creation-steps">
@@ -40,7 +52,7 @@ export default function ProjectCreation() {
             <label className="field"><span>Date de fin du projet <em>*</em></span><input type="date" defaultValue="2025-12-31" /></label>
           </div>
           <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>245 jours.</strong></div>
-          <div className="form-actions"><button className="secondary-action">Annuler</button><button className="primary-action">Suivant &nbsp;→</button></div>
+          <div className="form-actions"><button className="secondary-action">Annuler</button><button className="primary-action" onClick={() => setStep(2)}>Suivant &nbsp;→</button></div>
         </aside>
 
         <div className="creation-overview">
@@ -68,5 +80,48 @@ export default function ProjectCreation() {
         </div>
       </div>
     </section>
+    {step === 2 && <div className="charges-overlay" role="dialog" aria-modal="true" aria-label="Charges et planification" onMouseDown={() => setStep(1)}>
+      <div className="charges-overlay-content" onMouseDown={(event) => event.stopPropagation()}>
+        <ProjectChargesStep onBack={() => setStep(1)} />
+      </div>
+    </div>}
+    </>
   )
+}
+
+function ProjectChargesStep({ onBack }: { onBack: () => void }) {
+  const [openGroups, setOpenGroups] = useState(['bo', 'mo'])
+  const groups = [
+    { id: 'bo', icon: '▣', title: 'BO – Back Office', task: ['BO101', 'Rédaction du livrable', 'BO', 'E', '18', '0', '18', '05/09/2025', '18/09/2025', '10j'] },
+    { id: 'mo', icon: '♙', title: 'MO – Maîtrise d’œuvre', task: ['MO204', 'Descente terrain', 'MO', 'E', '24', '0', '24', '10/10/2026', '24/10/2026', '11j'] },
+    { id: 'fo', icon: '♙', title: 'FO – Fonctions support' },
+    { id: 'op', icon: '⚙', title: 'OP – Opérations' },
+    { id: 'pi', icon: '⚒', title: 'PI – Pilotage et amélioration' },
+    { id: 'it', icon: '♙', title: 'IT – Systèmes d’information' },
+  ]
+  const toggleGroup = (id: string) => setOpenGroups((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+
+  return <section className="charges-step-card">
+    <div className="creation-steps charges-steps">
+      <div className="creation-step"><b>1</b><span><strong>Informations générales</strong><small>Détails du projet</small></span></div>
+      <div className="step-line" />
+      <div className="creation-step active"><b>2</b><span><strong>Charges et planification</strong><small>Sélection des charges</small></span></div>
+    </div>
+
+    <div className="charges-heading"><h2>Étape 2 : Tâches liées au projet</h2><p>ⓘ &nbsp; Les tâches sont alimentées par le module <strong>Architecture des tâches.</strong></p></div>
+
+    <div className="charge-groups">{groups.map((group) => {
+      const isOpen = openGroups.includes(group.id)
+      return <article className={`charge-group ${isOpen ? 'open' : ''}`} key={group.id}>
+        <button className="charge-group-title" onClick={() => toggleGroup(group.id)}><span>{group.icon} &nbsp; {group.title}</span><b>{isOpen ? '⌃' : '⌄'}</b></button>
+        {isOpen && group.task && <div className="charge-group-content">
+          <div className="charge-table-wrap"><table><thead><tr><th>Code de la tâche</th><th>Nom de la tâche</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}</tr></tbody></table></div>
+          <button className="add-charge">＋ &nbsp; Ajouter une tâche/charge</button>
+        </div>}
+      </article>
+    })}</div>
+
+    <div className="charge-legend">ⓘ &nbsp; <b>E</b> = consomme les EHS &nbsp;&nbsp; | &nbsp;&nbsp; <b>D</b> = consomme directement de la monnaie</div>
+    <div className="charges-actions"><button className="secondary-action" onClick={onBack}>← &nbsp; Précédent</button><div><button className="secondary-action">Annuler</button><button className="save-project">▣ &nbsp; Enregistrer le projet</button></div></div>
+  </section>
 }
