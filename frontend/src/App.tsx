@@ -3,13 +3,35 @@ import './App.css'
 import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
 import SplashScreen from './components/SplashScreen'
-import ProjectCreation from './components/ProjectCreation'
+import HomePage from './pages/HomePage'
+import PilotagePage from './pages/PilotagePage'
+import CreationProjetPage from './pages/CreationProjetPage'
+import StaffingPage from './pages/StaffingPage'
+import GestionEquipesPage from './pages/GestionEquipesPage'
+import TresoreriePage from './pages/TresoreriePage'
+import SalariePage from './pages/SalariePage'
+import ArchitecturePage from './pages/ArchitecturePage'
+import ParametresPage from './pages/ParametresPage'
+import DeconnexionPage from './pages/DeconnexionPage'
 
 interface Module {
   id: number
   icon: ReactNode
   title: string
   description: string
+}
+
+const pageConfig: Record<string, { path: string; title: string; description: string }> = {
+  accueil: { path: '/', title: 'Accueil', description: 'Bienvenue dans PERLE, votre système de pilotage intégré.' },
+  pilotage: { path: '/pilotage', title: 'Pilotage des projets', description: 'Suivez vos projets, leurs indicateurs et leur avancement.' },
+  creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
+  staffing: { path: '/staffing', title: 'Staffing', description: 'Affectez les collaborateurs et suivez les allocations des équipes.' },
+  gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Gérez les collaborateurs, les grades et les compétences.' },
+  tresorerie: { path: '/tresorerie', title: 'Trésorerie', description: 'Suivez les paiements, transferts et flux financiers.' },
+  salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
+  architecture: { path: '/architecture', title: 'Architecture', description: 'Gérez les référentiels et les architectures de tâches.' },
+  parametres: { path: '/parametres', title: 'Paramètres', description: 'Configurez les préférences et les paramètres de PERLE.' },
+  deconnexion: { path: '/deconnexion', title: 'Déconnexion', description: 'Quittez votre session PERLE en toute sécurité.' },
 }
 
 function AppIcon({ children }: { children: ReactNode }) {
@@ -33,9 +55,7 @@ function AppIcon({ children }: { children: ReactNode }) {
 
 function App() {
   const getPageFromPath = () => {
-    if (window.location.pathname === '/pilotage') return 'pilotage'
-    if (window.location.pathname === '/creation-projet') return 'creation'
-    return 'accueil'
+    return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
   }
 
   const [activeNav, setActiveNav] = useState(getPageFromPath)
@@ -53,8 +73,8 @@ function App() {
   } as CSSProperties
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setSplashFading(true), 2500)
-    const hideTimer = setTimeout(() => setSplashVisible(false), 3000)
+    const fadeTimer = setTimeout(() => setSplashFading(true), 5000)
+    const hideTimer = setTimeout(() => setSplashVisible(false), 5500)
     return () => {
       clearTimeout(fadeTimer)
       clearTimeout(hideTimer)
@@ -77,9 +97,8 @@ function App() {
     mainContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     setHeaderCollapse(0)
 
-    if (page === 'accueil' || page === 'pilotage' || page === 'creation') {
-      const paths: Record<string, string> = { accueil: '/', pilotage: '/pilotage', creation: '/creation-projet' }
-      const path = paths[page]
+    if (pageConfig[page]) {
+      const path = pageConfig[page].path
       if (window.location.pathname !== path) window.history.pushState({}, '', path)
     }
   }
@@ -155,14 +174,25 @@ function App() {
     },
   ]
 
-  const isPilotagePage = activeNav === 'pilotage'
-  const isCreationPage = activeNav === 'creation'
-  const pageTitle = isPilotagePage ? 'Pilotage des projets' : isCreationPage ? 'Création de projet' : 'Accueil'
-  const pageDescription = isPilotagePage
-    ? 'Suivez vos projets, leurs indicateurs et leur avancement.'
-    : isCreationPage
-      ? 'Créez et planifiez un nouveau projet.'
-      : 'Bienvenue dans PERLE, votre système de pilotage intégré.'
+  const isHomePage = activeNav === 'accueil'
+  const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
+  const pageTitle = currentPage.title
+  const pageDescription = currentPage.description
+
+  const renderPage = () => {
+    switch (activeNav) {
+      case 'pilotage': return <PilotagePage />
+      case 'creation': return <CreationProjetPage />
+      case 'staffing': return <StaffingPage />
+      case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
+      case 'tresorerie': return <TresoreriePage icon={icons.tresorerie} />
+      case 'salarie': return <SalariePage icon={icons.salarie} />
+      case 'architecture': return <ArchitecturePage icon={icons.architecture} />
+      case 'parametres': return <ParametresPage icon={icons.parametres} />
+      case 'deconnexion': return <DeconnexionPage icon={icons.deconnexion} />
+      default: return <HomePage modules={modules} navigateTo={navigateTo} />
+    }
+  }
 
   return (
     <>
@@ -198,13 +228,19 @@ function App() {
 
       {/* Main Content */}
       <main ref={mainContentRef} className="main-content" onScroll={handleMainScroll}>
-        {/* Header with Hero Section */}
         <header
           className={`app-header ${headerCollapse > 0.85 ? 'is-collapsed' : ''}`}
           style={headerStyle}
         >
           {/* Hero Section */}
           <section className="hero-section">
+            <nav className="hero-breadcrumb" aria-label="Fil d’Ariane">
+              <button onClick={() => navigateTo('accueil')}>Accueil</button>
+              {!isHomePage && <>
+                <span>›</span>
+                <button onClick={() => navigateTo(activeNav)}>{pageTitle}</button>
+              </>}
+            </nav>
             {/* Hero Top with Controls */}
             <div className="hero-top-controls">
               <button className="team-button">
@@ -234,59 +270,11 @@ function App() {
           </section>
         </header>
 
-        {!isPilotagePage && !isCreationPage ? <section className="modules-section">
-          <h2>Modules</h2>
-          <div className="modules-grid">
-            {modules.map((module) => (
-              <div key={module.id} className="module-card">
-                <div className="module-icon">{module.icon}</div>
-                <h3>{module.title}</h3>
-                <p>{module.description}</p>
-                <button
-                  className="acceder-btn"
-                  onClick={() => module.id === 1 ? navigateTo('pilotage') : module.id === 2 ? navigateTo('creation') : undefined}
-                >
-                  Accéder →
-                </button>
-              </div>
-            ))}
-          </div>
-        </section> : isPilotagePage ? <section className="pilotage-section">
-          <div className="pilotage-heading">
-            <div>
-              <span className="section-eyebrow">Tableau de bord</span>
-              <h2>Vue d’ensemble des projets</h2>
-              <p>Consultez rapidement la situation de votre portefeuille de projets.</p>
-            </div>
-            <button className="primary-action">Créer un projet</button>
-          </div>
-
-          <div className="pilotage-stats">
-            <article className="stat-card"><span>Projets actifs</span><strong>12</strong><small>3 projets prioritaires</small></article>
-            <article className="stat-card"><span>Avancement moyen</span><strong>68%</strong><small>+6% ce mois-ci</small></article>
-            <article className="stat-card"><span>Budget engagé</span><strong>74%</strong><small>Dans les objectifs</small></article>
-          </div>
-
-          <div className="projects-panel">
-            <div className="panel-heading"><h3>Projets récents</h3><button>Voir tous les projets</button></div>
-            {[
-              ['Transformation digitale', 'En cours', '78%'],
-              ['Optimisation des opérations', 'En cours', '62%'],
-              ['Déploiement régional', 'À surveiller', '45%'],
-              ['Programme qualité', 'En cours', '81%'],
-            ].map(([name, status, progress]) => (
-              <div className="project-row" key={name}>
-                <div><strong>{name}</strong><span>Dernière mise à jour aujourd’hui</span></div>
-                <span className={`status-pill ${status === 'À surveiller' ? 'warning' : ''}`}>{status}</span>
-                <div className="progress-cell"><span>{progress}</span><div><i style={{ width: progress }} /></div></div>
-              </div>
-            ))}
-          </div>
-        </section> : <ProjectCreation />}
+        {renderPage()}
 
         {/* Footer */}
         <footer className="app-footer">
-          <p>PERLE - Pilotage par les EHS | © 2024 NAUMUR</p>
+          <p>PERLE - Pilotage par les EHS | © {new Date().getFullYear()} NAUMUR</p>
         </footer>
       </main>
       </div>

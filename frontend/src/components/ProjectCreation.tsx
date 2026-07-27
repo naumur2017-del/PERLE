@@ -11,12 +11,6 @@ const tasks = [
 export default function ProjectCreation() {
   return (
     <section className="creation-page">
-      <div className="creation-intro">
-        <span className="section-eyebrow">Accueil &nbsp;›&nbsp; Création de projet</span>
-        <h2>Création de projet</h2>
-        <p>Créez un nouveau projet en quelques étapes simples.</p>
-      </div>
-
       <div className="creation-layout">
         <aside className="creation-form-card">
           <div className="creation-steps">
