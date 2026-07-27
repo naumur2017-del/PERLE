@@ -1,6 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
 import './App.css'
 import sampleHeader from './assets/sample header.png'
+import AnimatedLogo from './components/AnimatedLogo'
+import SplashScreen from './components/SplashScreen'
+import ProjectCreation from './components/ProjectCreation'
 
 interface Module {
   id: number
@@ -29,7 +32,57 @@ function AppIcon({ children }: { children: ReactNode }) {
 }
 
 function App() {
-  const [activeNav, setActiveNav] = useState('accueil')
+  const getPageFromPath = () => {
+    if (window.location.pathname === '/pilotage') return 'pilotage'
+    if (window.location.pathname === '/creation-projet') return 'creation'
+    return 'accueil'
+  }
+
+  const [activeNav, setActiveNav] = useState(getPageFromPath)
+  const [splashVisible, setSplashVisible] = useState(true)
+  const [splashFading, setSplashFading] = useState(false)
+  const [headerCollapse, setHeaderCollapse] = useState(0)
+  const mainContentRef = useRef<HTMLElement>(null)
+
+  const handleMainScroll = (event: UIEvent<HTMLElement>) => {
+    setHeaderCollapse(Math.min(event.currentTarget.scrollTop / 110, 1))
+  }
+
+  const headerStyle = {
+    '--header-collapse': headerCollapse,
+  } as CSSProperties
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFading(true), 2500)
+    const hideTimer = setTimeout(() => setSplashVisible(false), 3000)
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveNav(getPageFromPath())
+      mainContentRef.current?.scrollTo({ top: 0 })
+      setHeaderCollapse(0)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigateTo = (page: string) => {
+    setActiveNav(page)
+    mainContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    setHeaderCollapse(0)
+
+    if (page === 'accueil' || page === 'pilotage' || page === 'creation') {
+      const paths: Record<string, string> = { accueil: '/', pilotage: '/pilotage', creation: '/creation-projet' }
+      const path = paths[page]
+      if (window.location.pathname !== path) window.history.pushState({}, '', path)
+    }
+  }
 
   const icons = {
     accueil: <AppIcon><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></AppIcon>,
@@ -102,13 +155,26 @@ function App() {
     },
   ]
 
+  const isPilotagePage = activeNav === 'pilotage'
+  const isCreationPage = activeNav === 'creation'
+  const pageTitle = isPilotagePage ? 'Pilotage des projets' : isCreationPage ? 'Création de projet' : 'Accueil'
+  const pageDescription = isPilotagePage
+    ? 'Suivez vos projets, leurs indicateurs et leur avancement.'
+    : isCreationPage
+      ? 'Créez et planifiez un nouveau projet.'
+      : 'Bienvenue dans PERLE, votre système de pilotage intégré.'
+
   return (
-    <div className="app-container">
+    <>
+      {splashVisible && <SplashScreen fadingOut={splashFading} />}
+      <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="logo">
-            <span className="logo-icon">P</span>
+          <div className="logo" onClick={() => navigateTo('accueil')}>
+            <span className="logo-icon">
+              <AnimatedLogo size={40} animate uid="sidebar-logo" />
+            </span>
             <div className="logo-text">
               <h3>PERLE</h3>
               <p>Pilotage par les EHS</p>
@@ -121,7 +187,7 @@ function App() {
             <button
               key={item.id}
               className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-              onClick={() => setActiveNav(item.id)}
+              onClick={() => navigateTo(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
@@ -131,9 +197,12 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="main-content">
+      <main ref={mainContentRef} className="main-content" onScroll={handleMainScroll}>
         {/* Header with Hero Section */}
-        <header className="app-header">
+        <header
+          className={`app-header ${headerCollapse > 0.85 ? 'is-collapsed' : ''}`}
+          style={headerStyle}
+        >
           {/* Hero Section */}
           <section className="hero-section">
             {/* Hero Top with Controls */}
@@ -156,8 +225,8 @@ function App() {
 
             <div className="hero-content">
               <div className="hero-text">
-                <h1>Accueil</h1>
-                <p>Bienvenue dans PERLE, votre système de pilotage intégré.</p>
+                <h1>{pageTitle}</h1>
+                <p>{pageDescription}</p>
               </div>
               <img src={sampleHeader} alt="Header Sample" className="hero-image" />
             </div>
@@ -165,8 +234,7 @@ function App() {
           </section>
         </header>
 
-        {/* Modules Section */}
-        <section className="modules-section">
+        {!isPilotagePage && !isCreationPage ? <section className="modules-section">
           <h2>Modules</h2>
           <div className="modules-grid">
             {modules.map((module) => (
@@ -174,18 +242,55 @@ function App() {
                 <div className="module-icon">{module.icon}</div>
                 <h3>{module.title}</h3>
                 <p>{module.description}</p>
-                <button className="acceder-btn">Accéder →</button>
+                <button
+                  className="acceder-btn"
+                  onClick={() => module.id === 1 ? navigateTo('pilotage') : module.id === 2 ? navigateTo('creation') : undefined}
+                >
+                  Accéder →
+                </button>
               </div>
             ))}
           </div>
-        </section>
+        </section> : isPilotagePage ? <section className="pilotage-section">
+          <div className="pilotage-heading">
+            <div>
+              <span className="section-eyebrow">Tableau de bord</span>
+              <h2>Vue d’ensemble des projets</h2>
+              <p>Consultez rapidement la situation de votre portefeuille de projets.</p>
+            </div>
+            <button className="primary-action">Créer un projet</button>
+          </div>
+
+          <div className="pilotage-stats">
+            <article className="stat-card"><span>Projets actifs</span><strong>12</strong><small>3 projets prioritaires</small></article>
+            <article className="stat-card"><span>Avancement moyen</span><strong>68%</strong><small>+6% ce mois-ci</small></article>
+            <article className="stat-card"><span>Budget engagé</span><strong>74%</strong><small>Dans les objectifs</small></article>
+          </div>
+
+          <div className="projects-panel">
+            <div className="panel-heading"><h3>Projets récents</h3><button>Voir tous les projets</button></div>
+            {[
+              ['Transformation digitale', 'En cours', '78%'],
+              ['Optimisation des opérations', 'En cours', '62%'],
+              ['Déploiement régional', 'À surveiller', '45%'],
+              ['Programme qualité', 'En cours', '81%'],
+            ].map(([name, status, progress]) => (
+              <div className="project-row" key={name}>
+                <div><strong>{name}</strong><span>Dernière mise à jour aujourd’hui</span></div>
+                <span className={`status-pill ${status === 'À surveiller' ? 'warning' : ''}`}>{status}</span>
+                <div className="progress-cell"><span>{progress}</span><div><i style={{ width: progress }} /></div></div>
+              </div>
+            ))}
+          </div>
+        </section> : <ProjectCreation />}
 
         {/* Footer */}
         <footer className="app-footer">
           <p>PERLE - Pilotage par les EHS | © 2024 NAUMUR</p>
         </footer>
       </main>
-    </div>
+      </div>
+    </>
   )
 }
 
