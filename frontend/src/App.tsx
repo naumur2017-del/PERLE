@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import sampleHeader from './assets/sample header.png'
+import AnimatedLogo from './components/AnimatedLogo'
+import SplashScreen from './components/SplashScreen'
 
 interface Module {
   id: number
@@ -11,6 +13,17 @@ interface Module {
 
 function App() {
   const [activeNav, setActiveNav] = useState('accueil')
+  const [splashVisible, setSplashVisible] = useState(true)
+  const [splashFading, setSplashFading] = useState(false)
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFading(true), 2500)
+    const hideTimer = setTimeout(() => setSplashVisible(false), 3000)
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+    }
+  }, [])
 
   const navItems = [
     { id: 'accueil', label: 'Accueil', icon: '🏠' },
@@ -71,12 +84,16 @@ function App() {
   ]
 
   return (
-    <div className="app-container">
+    <>
+      {splashVisible && <SplashScreen fadingOut={splashFading} />}
+      <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo">
-            <span className="logo-icon">P</span>
+            <span className="logo-icon">
+              <AnimatedLogo size={40} animate gradientId="sidebar-logo-gradient" />
+            </span>
             <div className="logo-text">
               <h3>PERLE</h3>
               <p>Pilotage par les EHS</p>
@@ -153,7 +170,8 @@ function App() {
           <p>PERLE - Pilotage par les EHS | © 2024 NAUMUR</p>
         </footer>
       </main>
-    </div>
+      </div>
+    </>
   )
 }
 
