@@ -14,7 +14,7 @@ function SplashScreen({ fadingOut }: SplashScreenProps) {
       </div>
 
       <div className="splash-content">
-        <AnimatedLogo size={140} animate gradientId="splash-logo-gradient" />
+        <AnimatedLogo size={140} animate uid="splash-logo" />
         <h1 className="splash-title">
           <span className="splash-title-letter" style={{ animationDelay: '0.6s' }}>P</span>
           <span className="splash-title-letter" style={{ animationDelay: '0.75s' }}>E</span>
