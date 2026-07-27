@@ -13,6 +13,7 @@ import SalariePage from './pages/SalariePage'
 import ArchitecturePage from './pages/ArchitecturePage'
 import ParametresPage from './pages/ParametresPage'
 import DeconnexionPage from './pages/DeconnexionPage'
+import { useI18n, type Language } from './i18n/I18nContext'
 
 interface Module {
   id: number
@@ -54,6 +55,7 @@ function AppIcon({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  const { language, setLanguage, t } = useI18n()
   const getPageFromPath = () => {
     return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
   }
@@ -176,8 +178,8 @@ function App() {
 
   const isHomePage = activeNav === 'accueil'
   const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
-  const pageTitle = currentPage.title
-  const pageDescription = currentPage.description
+  const pageTitle = t(currentPage.title)
+  const pageDescription = t(currentPage.description)
 
   const renderPage = () => {
     switch (activeNav) {
@@ -220,7 +222,7 @@ function App() {
               onClick={() => navigateTo(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
+              <span className="nav-label">{t(item.label)}</span>
             </button>
           ))}
         </nav>
@@ -235,7 +237,7 @@ function App() {
           {/* Hero Section */}
           <section className="hero-section">
             <nav className="hero-breadcrumb" aria-label="Fil d’Ariane">
-              <button onClick={() => navigateTo('accueil')}>Accueil</button>
+              <button onClick={() => navigateTo('accueil')}>{t('Accueil')}</button>
               {!isHomePage && <>
                 <span>›</span>
                 <button onClick={() => navigateTo(activeNav)}>{pageTitle}</button>
@@ -243,8 +245,14 @@ function App() {
             </nav>
             {/* Hero Top with Controls */}
             <div className="hero-top-controls">
+              <label className="language-selector" aria-label="Language">
+                <span>🌐</span>
+                <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
+                  <option value="fr">Français</option><option value="en">English</option><option value="pt">Português</option><option value="es">Español</option><option value="ar">العربية</option>
+                </select>
+              </label>
               <button className="team-button">
-                <span>Équipe de pilotage</span>
+                <span>{t('Équipe de pilotage')}</span>
                 <span className="dropdown-icon">▼</span>
               </button>
               <div className="hero-actions">
@@ -274,7 +282,7 @@ function App() {
 
         {/* Footer */}
         <footer className="app-footer">
-          <p>PERLE - Pilotage par les EHS | © {new Date().getFullYear()} NAUMUR</p>
+          <p>PERLE - {t('Pilotage par les EHS')} | © {new Date().getFullYear()} NAUMUR</p>
         </footer>
       </main>
       </div>
