@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const tasks = [
+const initialTasks = [
   ['PRJ.001', 'Étude de faisabilité', 'E', '15,00', '0', '15,00', 'Ajara Lamare', 'Herman Tsaffock', '06/05/2025', '15/05/2025'],
   ['PRJ.002', 'Conception détaillée', 'E', '31,00', '0', '31,00', 'Ajara Lamare', 'Belomo Edwige', '16/05/2025', '15/06/2025'],
   ['PRJ.003', 'Achat matériel', 'D', '0', '6 000 000', '15,00', 'Herman Tsaffock', 'Essogo Eric', '01/06/2025', '30/07/2025'],
@@ -12,6 +12,24 @@ const tasks = [
 
 export default function ProjectCreation() {
   const [step, setStep] = useState(1)
+  const [unexpectedAmount, setUnexpectedAmount] = useState('0')
+  const [projectTasks, setProjectTasks] = useState(initialTasks)
+
+  const goToChargesStep = () => {
+    if (Number(unexpectedAmount) < 0) {
+      window.alert('La valeur du champ Imprévu ne peut pas être négative.')
+      return
+    }
+    setStep(2)
+  }
+
+  const saveTaskToProject = () => {
+    setProjectTasks((currentTasks) => [
+      ...currentTasks,
+      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Allocation des ressources', 'E', '12,00', '0', '12,00', 'Équipe Pilotage', 'Ressources', '01/11/2026', '08/11/2026'],
+    ])
+    setStep(1)
+  }
 
   useEffect(() => {
     if (step !== 2) return
@@ -52,7 +70,8 @@ export default function ProjectCreation() {
             <label className="field"><span>Date de fin du projet <em>*</em></span><input type="date" defaultValue="2025-12-31" /></label>
           </div>
           <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>245 jours.</strong></div>
-          <div className="form-actions"><button className="secondary-action">Annuler</button><button className="primary-action" onClick={() => setStep(2)}>Suivant &nbsp;→</button></div>
+          <label className="field unexpected-field"><span>Imprévu (FCFA)</span><input type="number" min="0" value={unexpectedAmount} onChange={(event) => setUnexpectedAmount(event.target.value)} onInvalid={(event) => event.currentTarget.setCustomValidity('Veuillez saisir une valeur positive ou égale à zéro.')} onInput={(event) => event.currentTarget.setCustomValidity('')} /></label>
+          <div className="form-actions"><button className="primary-action" onClick={goToChargesStep}>Suivant &nbsp;→</button></div>
         </aside>
 
         <div className="creation-overview">
@@ -74,22 +93,22 @@ export default function ProjectCreation() {
 
           <div className="task-toolbar"><div><button>◉ &nbsp; Masquer / Afficher colonnes</button><button>▽ &nbsp; Filtres</button><button>↶ &nbsp; Réinitialiser</button></div><label>Type de tâche<select><option>Tous</option></select></label><button className="excel-button">▣ &nbsp; Export Excel</button></div>
 
-          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Action</th><th>Nom de la tâche</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{tasks.map((task) => <tr key={task[0]}>{task.map((cell, index) => <td key={`${task[0]}-${index}`}>{index === 1 ? <button className="select-action">Sélectionner⌄</button> : index === 3 ? <span className={`task-type ${cell === 'D' ? 'money' : ''}`}>{cell}</span> : cell}</td>)}</tr>)}</tbody><tfoot><tr><td colSpan={4}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={4} /></tr></tfoot></table></div>
+          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la tâche</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={4} /></tr></tfoot></table></div>
 
-          <div className="task-totals"><article><span>Nombre de tâches</span><strong>7</strong></article><article className="green"><span>Tâches de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Tâches de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article><button className="edit-project">✎ &nbsp; Modifier le projet</button></div>
+          <div className="task-totals"><article><span>Nombre de tâches</span><strong>{projectTasks.length}</strong></article><article className="green"><span>Tâches de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Tâches de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article></div>
         </div>
       </div>
     </section>
     {step === 2 && <div className="charges-overlay" role="dialog" aria-modal="true" aria-label="Charges et planification" onMouseDown={() => setStep(1)}>
       <div className="charges-overlay-content" onMouseDown={(event) => event.stopPropagation()}>
-        <ProjectChargesStep onBack={() => setStep(1)} />
+        <ProjectChargesStep onBack={() => setStep(1)} onSaveTask={saveTaskToProject} />
       </div>
     </div>}
     </>
   )
 }
 
-function ProjectChargesStep({ onBack }: { onBack: () => void }) {
+function ProjectChargesStep({ onBack, onSaveTask }: { onBack: () => void; onSaveTask: () => void }) {
   const [openGroups, setOpenGroups] = useState(['bo', 'mo'])
   const groups = [
     { id: 'bo', icon: '▣', title: 'BO – Back Office', task: ['BO101', 'Rédaction du livrable', 'BO', 'E', '18', '0', '18', '05/09/2025', '18/09/2025', '10j'] },
@@ -98,6 +117,7 @@ function ProjectChargesStep({ onBack }: { onBack: () => void }) {
     { id: 'op', icon: '⚙', title: 'OP – Opérations' },
     { id: 'pi', icon: '⚒', title: 'PI – Pilotage et amélioration' },
     { id: 'it', icon: '♙', title: 'IT – Systèmes d’information' },
+    { id: 'res', icon: '♜', title: 'RES – Ressources', task: ['RES301', 'Allocation des ressources', 'RES', 'E', '12', '0', '12', '01/11/2026', '08/11/2026', '6j'] },
   ]
   const toggleGroup = (id: string) => setOpenGroups((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
 
@@ -115,13 +135,13 @@ function ProjectChargesStep({ onBack }: { onBack: () => void }) {
       return <article className={`charge-group ${isOpen ? 'open' : ''}`} key={group.id}>
         <button className="charge-group-title" onClick={() => toggleGroup(group.id)}><span>{group.icon} &nbsp; {group.title}</span><b>{isOpen ? '⌃' : '⌄'}</b></button>
         {isOpen && group.task && <div className="charge-group-content">
-          <div className="charge-table-wrap"><table><thead><tr><th>Code de la tâche</th><th>Nom de la tâche</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}</tr></tbody></table></div>
-          <button className="add-charge">＋ &nbsp; Ajouter une tâche/charge</button>
+          <div className="charge-table-wrap"><table><thead><tr><th>Code de la tâche</th><th>Nom de la tâche</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la tâche ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
+          <button className="add-charge" onClick={() => window.alert(`Ajouter une tâche dans ${group.title}`)}>＋ &nbsp; Ajouter une tâche/charge</button>
         </div>}
       </article>
     })}</div>
 
     <div className="charge-legend">ⓘ &nbsp; <b>E</b> = consomme les EHS &nbsp;&nbsp; | &nbsp;&nbsp; <b>D</b> = consomme directement de la monnaie</div>
-    <div className="charges-actions"><button className="secondary-action" onClick={onBack}>← &nbsp; Précédent</button><div><button className="secondary-action">Annuler</button><button className="save-project">▣ &nbsp; Enregistrer le projet</button></div></div>
+    <div className="charges-actions"><button className="secondary-action" onClick={onBack}>← &nbsp; Précédent</button><div><button className="save-task" onClick={onSaveTask}>＋ &nbsp; Enregistrer la tâche</button><button className="secondary-action" onClick={onBack}>Annuler</button><button className="save-project" onClick={() => window.alert('Le projet a été enregistré.')}>▣ &nbsp; Enregistrer le projet</button></div></div>
   </section>
 }

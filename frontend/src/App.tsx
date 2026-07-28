@@ -196,6 +196,10 @@ function App() {
   const pageTitle = t(currentPage.title)
   const pageDescription = t(currentPage.description)
 
+  useEffect(() => {
+    document.title = `${pageTitle} | PERLE`
+  }, [pageTitle])
+
   const renderPage = () => {
     switch (activeNav) {
       case 'pilotage': return <PilotagePage />
