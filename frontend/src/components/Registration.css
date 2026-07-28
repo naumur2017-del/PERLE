@@ -33,8 +33,147 @@
   overflow-y: auto;
 }
 
+.created-organization {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid #cce8d4;
+  border-radius: 8px;
+  background: #f4fff7;
+}
+
+.created-organization > i {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #16a34a;
+  color: white;
+  font-style: normal;
+}
+
+.created-organization > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.created-organization small {
+  color: #578066;
+}
+
+.organization-role-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.organization-role-fieldset legend {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.organization-role-fieldset > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.organization-role-fieldset label {
+  display: grid;
+  grid-template-columns: 34px 1fr 15px;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dfe1ef;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.organization-role-fieldset label.selected {
+  border-color: #6b46c1;
+  background: #f7f4ff;
+}
+
+.organization-role-fieldset input {
+  position: absolute;
+  opacity: 0;
+}
+
+.organization-role-fieldset label > i {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #ece7ff;
+  color: #5b37d3;
+  font-style: normal;
+}
+
+.organization-role-fieldset label > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.organization-role-fieldset small {
+  color: #737797;
+  font-size: 9px;
+}
+
+.organization-role-fieldset label > b {
+  visibility: hidden;
+  color: #5b37d3;
+}
+
+.organization-role-fieldset label.selected > b {
+  visibility: visible;
+}
+
+.domain-email-field {
+  display: flex;
+  height: 45px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #dfe1ee;
+  border-radius: 7px;
+}
+
+.domain-email-field:focus-within {
+  border-color: #6b46c1;
+  box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.1);
+}
+
+.domain-email-field input {
+  height: 100%;
+  flex: 1;
+  border: 0;
+  box-shadow: none !important;
+}
+
+.domain-email-field span {
+  padding: 0 12px;
+  color: #553399;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-field > small {
+  color: #737797;
+  font-size: 9px;
+}
+
 @media (max-width: 480px) {
   .registration-row {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-role-fieldset > div {
     grid-template-columns: 1fr;
   }
 }

@@ -281,7 +281,9 @@ function App() {
           </section>
         </header>
 
-        {renderPage()}
+        <div className="page-transition" key={activeNav}>
+          {renderPage()}
+        </div>
 
         {/* Footer */}
         <footer className="app-footer">

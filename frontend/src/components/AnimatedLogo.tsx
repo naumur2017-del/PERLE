@@ -4,6 +4,7 @@ interface AnimatedLogoProps {
   showBackground?: boolean
   uid?: string
   duration?: number
+  loop?: boolean
 }
 
 const P_PATH = 'M 120 30 A 60 60 0 1 1 75 130 L 75 210'
@@ -14,6 +15,7 @@ function AnimatedLogo({
   showBackground = true,
   uid = 'perle-logo',
   duration = 2.2,
+  loop = false,
 }: AnimatedLogoProps) {
   const strokeGradId = `${uid}-stroke`
   const dotGradId = `${uid}-dot`
@@ -23,7 +25,7 @@ function AnimatedLogo({
 
   return (
     <svg
-      className={`animated-logo-neon ${animate ? 'is-animating' : ''}`}
+      className={`animated-logo-neon ${animate ? 'is-animating' : ''} ${loop ? 'is-looping' : ''}`}
       width={size}
       height={size}
       viewBox="0 0 240 240"
@@ -101,7 +103,7 @@ function AnimatedLogo({
         cy="30"
       >
         {animate && (
-          <animateMotion dur={`${duration}s`} fill="freeze" calcMode="linear" rotate="auto">
+          <animateMotion dur={`${duration}s`} fill="freeze" calcMode="linear" rotate="auto" repeatCount={loop ? 'indefinite' : 1}>
             <mpath href={`#${pathId}`} />
           </animateMotion>
         )}
@@ -117,7 +119,7 @@ function AnimatedLogo({
         cy="30"
       >
         {animate && (
-          <animateMotion dur={`${duration}s`} fill="freeze" calcMode="linear">
+          <animateMotion dur={`${duration}s`} fill="freeze" calcMode="linear" repeatCount={loop ? 'indefinite' : 1}>
             <mpath href={`#${pathId}`} />
           </animateMotion>
         )}
