@@ -1,0 +1,40 @@
+.register-switch {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #6b46c1;
+  border-radius: 7px;
+  background: #fff;
+  color: #5d3bc5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.register-switch:hover {
+  background: #f7f4ff;
+}
+
+.registration-fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.registration-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.registration-submit {
+  margin-top: 22px;
+}
+
+.login-form-panel {
+  overflow-y: auto;
+}
+
+@media (max-width: 480px) {
+  .registration-row {
+    grid-template-columns: 1fr;
+  }
+}

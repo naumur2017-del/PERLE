@@ -3,6 +3,7 @@ import './App.css'
 import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
 import SplashScreen from './components/SplashScreen'
+import LoginScreen from './components/LoginScreen'
 import HomePage from './pages/HomePage'
 import PilotagePage from './pages/PilotagePage'
 import CreationProjetPage from './pages/CreationProjetPage'
@@ -63,6 +64,7 @@ function App() {
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [splashVisible, setSplashVisible] = useState(true)
   const [splashFading, setSplashFading] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [headerCollapse, setHeaderCollapse] = useState(0)
   const mainContentRef = useRef<HTMLElement>(null)
 
@@ -199,7 +201,8 @@ function App() {
   return (
     <>
       {splashVisible && <SplashScreen fadingOut={splashFading} />}
-      <div className="app-container">
+      {!splashVisible && !isAuthenticated && <LoginScreen onLogin={() => setIsAuthenticated(true)} />}
+      {isAuthenticated && <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -285,7 +288,7 @@ function App() {
           <p>PERLE - {t('Pilotage par les EHS')} | © {new Date().getFullYear()} NAUMUR</p>
         </footer>
       </main>
-      </div>
+      </div>}
     </>
   )
 }
