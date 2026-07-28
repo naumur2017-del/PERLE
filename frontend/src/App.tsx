@@ -64,7 +64,7 @@ function App() {
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [splashVisible, setSplashVisible] = useState(true)
   const [splashFading, setSplashFading] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('perle-authenticated') === 'true')
   const [headerCollapse, setHeaderCollapse] = useState(0)
   const mainContentRef = useRef<HTMLElement>(null)
 
@@ -97,6 +97,14 @@ function App() {
   }, [])
 
   const navigateTo = (page: string) => {
+    if (page === 'deconnexion') {
+      localStorage.removeItem('perle-authenticated')
+      setIsAuthenticated(false)
+      setActiveNav('accueil')
+      window.history.replaceState({}, '', '/')
+      return
+    }
+
     setActiveNav(page)
     mainContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     setHeaderCollapse(0)
@@ -105,6 +113,11 @@ function App() {
       const path = pageConfig[page].path
       if (window.location.pathname !== path) window.history.pushState({}, '', path)
     }
+  }
+
+  const completeLogin = () => {
+    localStorage.setItem('perle-authenticated', 'true')
+    setIsAuthenticated(true)
   }
 
   const icons = {
@@ -201,7 +214,7 @@ function App() {
   return (
     <>
       {splashVisible && <SplashScreen fadingOut={splashFading} />}
-      {!splashVisible && !isAuthenticated && <LoginScreen onLogin={() => setIsAuthenticated(true)} />}
+      {!splashVisible && !isAuthenticated && <LoginScreen onLogin={completeLogin} />}
       {isAuthenticated && <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
@@ -283,12 +296,11 @@ function App() {
 
         <div className="page-transition" key={activeNav}>
           {renderPage()}
+          <footer className="app-footer">
+            <p>PERLE - {t('Pilotage par les EHS')} | © {new Date().getFullYear()} NAUMUR</p>
+          </footer>
         </div>
 
-        {/* Footer */}
-        <footer className="app-footer">
-          <p>PERLE - {t('Pilotage par les EHS')} | © {new Date().getFullYear()} NAUMUR</p>
-        </footer>
       </main>
       </div>}
     </>
