@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import AnimatedLogo from './AnimatedLogo'
 import { searchOrganisations, type Organisation } from './organisations'
+import { resolveRole, type UserRole } from '../auth/roles'
 import './LoginScreen.css'
 import './Registration.css'
 
@@ -15,7 +16,7 @@ const CLOSE_MS = 620
 const FORM_SWEEP_MS = 320
 const CASCADE_BARS = [0, 1, 2, 3, 4, 5, 6]
 
-export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
+export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [chooser, setChooser] = useState<'open' | 'closing' | null>(null)
   const [step, setStep] = useState<Step>('type')
@@ -55,12 +56,21 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
   const isCompany = accountType === 'organization' && orgKind === 'company'
 
+  /* Le rôle est déduit de l’adresse saisie : administrateur applicatif vers l’espace
+     d’administration, directeur d’entreprise vers l’accueil métier. */
+  const submitLogin = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const email = String(new FormData(event.currentTarget).get('email') ?? '')
+    onLogin(resolveRole(email))
+  }
+
   /* Le passage à l’étape 2 se fait par la soumission du formulaire : la validation
      native des champs de l’étape 1 s’applique donc avant d’avancer. */
   const submitRegistration = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isCompany && companyStep === 1) { goCompanyStep(2, 'next'); return }
-    onLogin()
+    // Une inscription crée toujours un administrateur d’entreprise : espace métier.
+    onLogin('directeur')
   }
 
   const goCompanyStep = (next: 1 | 2, direction: FormDirection) => {
@@ -155,7 +165,7 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
     </section>
 
     <section className="login-form-panel">
-      <form className="login-form" onSubmit={mode === 'login' ? (event => { event.preventDefault(); onLogin() }) : submitRegistration}>
+      <form className="login-form" onSubmit={mode === 'login' ? submitLogin : submitRegistration}>
         <span className="login-eyebrow">Bienvenue sur PERLE</span>
         <h2>{mode === 'login' ? 'Connectez-vous à votre espace' : 'Créer votre compte'}</h2>
         <p className="login-intro">
@@ -167,7 +177,7 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </p>
 
         {mode === 'login' ? <>
-          <label className="login-field"><span>Adresse e-mail</span><input type="email" placeholder="nom@entreprise.com" required /></label>
+          <label className="login-field"><span>Adresse e-mail</span><input type="email" name="email" placeholder="nom@entreprise.com" required /></label>
           <label className="login-field"><span>Mot de passe</span><input type="password" placeholder="Saisissez votre mot de passe" required minLength={4} /></label>
           <div className="login-options"><label><input type="checkbox" /> Se souvenir de moi</label><button type="button">Mot de passe oublié ?</button></div>
           <button className="login-submit" type="submit">Se connecter &nbsp;→</button>

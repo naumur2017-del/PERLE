@@ -4,6 +4,7 @@ import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
 import SplashScreen from './components/SplashScreen'
 import LoginScreen from './components/LoginScreen'
+import type { UserRole } from './auth/roles'
 import HomePage from './pages/HomePage'
 import PilotagePage from './pages/PilotagePage'
 import CreationProjetPage from './pages/CreationProjetPage'
@@ -14,6 +15,7 @@ import SalariePage from './pages/SalariePage'
 import ArchitecturePage from './pages/ArchitecturePage'
 import ParametresPage from './pages/ParametresPage'
 import DeconnexionPage from './pages/DeconnexionPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import { useI18n, type Language } from './i18n/I18nContext'
 
 interface Module {
@@ -32,6 +34,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   tresorerie: { path: '/tresorerie', title: 'Trésorerie', description: 'Suivez les paiements, transferts et flux financiers.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture', description: 'Gérez les référentiels et les architectures de tâches.' },
+  administration: { path: '/administration', title: 'Administration', description: 'Supervision de l’activité, de la sécurité et de la santé du système.' },
   parametres: { path: '/parametres', title: 'Paramètres', description: 'Configurez les préférences et les paramètres de PERLE.' },
   deconnexion: { path: '/deconnexion', title: 'Déconnexion', description: 'Quittez votre session PERLE en toute sécurité.' },
 }
@@ -64,7 +67,7 @@ function App() {
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [splashVisible, setSplashVisible] = useState(true)
   const [splashFading, setSplashFading] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [role, setRole] = useState<UserRole | null>(null)
   const [headerCollapse, setHeaderCollapse] = useState(0)
   const mainContentRef = useRef<HTMLElement>(null)
 
@@ -107,6 +110,24 @@ function App() {
     }
   }
 
+  const isAuthenticated = role !== null
+
+  /* L’administrateur applicatif ouvre l’espace d’administration, le directeur
+     (administrateur d’une entreprise) arrive sur l’accueil métier. */
+  const handleLogin = (nextRole: UserRole) => {
+    setRole(nextRole)
+    navigateTo(nextRole === 'admin' ? 'administration' : 'accueil')
+  }
+
+  const handleLogout = () => {
+    setRole(null)
+    navigateTo('accueil')
+  }
+
+  /* L’espace d’administration reste inaccessible à un directeur, y compris par l’URL. */
+  const isAdminWorkspace = role === 'admin' && activeNav === 'administration'
+  const safeNav = activeNav === 'administration' && role !== 'admin' ? 'accueil' : activeNav
+
   const icons = {
     accueil: <AppIcon><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></AppIcon>,
     pilotage: <AppIcon><path d="M5 21v-6" /><path d="M12 21V9" /><path d="M19 21V3" /></AppIcon>,
@@ -116,6 +137,7 @@ function App() {
     tresorerie: <AppIcon><path d="M10 18v-7" /><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /><path d="M14 18v-7" /><path d="M18 18v-7" /><path d="M3 22h18" /><path d="M6 18v-7" /></AppIcon>,
     salarie: <AppIcon><path d="M15 13a3 3 0 1 0-6 0" /><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" /><circle cx="12" cy="8" r="2" /></AppIcon>,
     architecture: <AppIcon><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" /></AppIcon>,
+    administration: <AppIcon><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /><path d="m9 12 2 2 4-4" /></AppIcon>,
     parametres: <AppIcon><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></AppIcon>,
     deconnexion: <AppIcon><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></AppIcon>,
   }
@@ -129,6 +151,8 @@ function App() {
     { id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
     { id: 'architecture', label: 'Architecture', icon: icons.architecture },
+    // L’entrée d’administration n’apparaît que pour l’administrateur applicatif.
+    ...(role === 'admin' ? [{ id: 'administration', label: 'Administration', icon: icons.administration }] : []),
     { id: 'parametres', label: 'Paramètres', icon: icons.parametres },
     { id: 'deconnexion', label: 'Déconnexion', icon: icons.deconnexion },
   ]
@@ -178,13 +202,13 @@ function App() {
     },
   ]
 
-  const isHomePage = activeNav === 'accueil'
-  const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
+  const isHomePage = safeNav === 'accueil'
+  const currentPage = pageConfig[safeNav] ?? pageConfig.accueil
   const pageTitle = t(currentPage.title)
   const pageDescription = t(currentPage.description)
 
   const renderPage = () => {
-    switch (activeNav) {
+    switch (safeNav) {
       case 'pilotage': return <PilotagePage />
       case 'creation': return <CreationProjetPage />
       case 'staffing': return <StaffingPage />
@@ -201,8 +225,10 @@ function App() {
   return (
     <>
       {splashVisible && <SplashScreen fadingOut={splashFading} />}
-      {!splashVisible && !isAuthenticated && <LoginScreen onLogin={() => setIsAuthenticated(true)} />}
-      {isAuthenticated && <div className="app-container">
+      {!splashVisible && !isAuthenticated && <LoginScreen onLogin={handleLogin} />}
+      {/* L’administration dispose de son propre shell (barre supérieure + menu dédié). */}
+      {isAdminWorkspace && <AdminDashboardPage onExit={() => navigateTo('accueil')} onLogout={handleLogout} />}
+      {isAuthenticated && !isAdminWorkspace && <div className="app-container">
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -221,7 +247,7 @@ function App() {
           {navItems.map((item) => (
             <button
               key={item.id}
-              className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
+              className={`nav-item ${safeNav === item.id ? 'active' : ''}`}
               onClick={() => navigateTo(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -243,7 +269,7 @@ function App() {
               <button onClick={() => navigateTo('accueil')}>{t('Accueil')}</button>
               {!isHomePage && <>
                 <span>›</span>
-                <button onClick={() => navigateTo(activeNav)}>{pageTitle}</button>
+                <button onClick={() => navigateTo(safeNav)}>{pageTitle}</button>
               </>}
             </nav>
             {/* Hero Top with Controls */}
