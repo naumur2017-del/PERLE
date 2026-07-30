@@ -1,0 +1,5 @@
+/* Le tableau de bord de direction partage la feuille de styles des composants
+   de dashboard. Ce fichier existe pour respecter la convention « une page, sa
+   feuille homonyme » vérifiée par scripts/check-page-structure.mjs. */
+
+@import '../components/dashboard/dashboard.css';
