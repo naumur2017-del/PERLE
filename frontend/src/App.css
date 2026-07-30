@@ -1236,7 +1236,8 @@ body {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   height: 34px;
   min-width: 0;
@@ -1249,6 +1250,41 @@ body {
   font-size: 10px;
   font-weight: 600;
 }
+
+.field textarea {
+  height: auto;
+  min-height: 82px;
+  padding-top: 10px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.project-text-field { margin-top: 13px; }
+.project-form-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 8px;
+}
+
+.project-form-actions button {
+  width: 100%;
+  height: 42px;
+  padding: 0 6px;
+  border: 1px solid #d9dceb;
+  border-radius: 6px;
+  background: #fff;
+  color: #252a68;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.15;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.project-form-actions button:hover { color: #fff; transform: translateY(-1px); }
+.project-form-actions .secondary-action:hover { border-color: #dc2626; background: #dc2626; }
+.project-form-actions .primary-action:hover { border-color: #16a34a; background: #16a34a; }
+.project-form-actions .save-project:hover { border-color: #6d28d9; background: #6d28d9; }
 
 .input-suffix { position: relative; }
 .input-suffix input { padding-right: 37px; }

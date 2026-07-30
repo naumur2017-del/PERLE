@@ -10,8 +10,11 @@ const initialTasks = [
   ['PRJ.007', 'Mise en production', 'E', '15,00', '1 000 000', '6,67', 'Ajara Lamare', 'Belomo Edwige', '01/12/2025', '15/12/2025'],
 ]
 
-export default function ProjectCreation() {
+export default function ProjectCreation({ onCancel }: { onCancel: () => void }) {
   const [step, setStep] = useState(1)
+  const [projectName, setProjectName] = useState('Projet d’étude et de mise en œuvre du système ERP')
+  const [clientName, setClientName] = useState('')
+  const [projectDescription, setProjectDescription] = useState('')
   const [unexpectedAmount, setUnexpectedAmount] = useState('0')
   const [projectTasks, setProjectTasks] = useState(initialTasks)
 
@@ -30,6 +33,8 @@ export default function ProjectCreation() {
     ])
     setStep(1)
   }
+
+  const saveProject = () => window.alert('Le projet a été enregistré.')
 
   useEffect(() => {
     if (step !== 2) return
@@ -50,7 +55,9 @@ export default function ProjectCreation() {
           </div>
 
           <div className="form-heading"><strong>Étape 1 : Informations générales du projet</strong><span>Renseignez les informations de base de votre projet.</span></div>
-          <label className="field full"><span>Nom du projet <em>*</em></span><input value="Projet d’étude et de mise en œuvre du système ERP" readOnly /></label>
+          <label className="field full"><span>Nom du projet <em>*</em></span><input value={projectName} onChange={(event) => setProjectName(event.target.value)} /></label>
+          <label className="field full project-text-field"><span>Nom du client <em>*</em></span><input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
+          <label className="field full project-text-field"><span>Description du projet</span><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} rows={4} /></label>
           <div className="form-grid three">
             <label className="field"><span>Montant HT du projet <em>*</em></span><div className="input-suffix"><input value="80 000 000" readOnly /><i>FCFA</i></div></label>
             <label className="field"><span>Type de montant <em>*</em></span><select defaultValue="HT"><option>HT</option><option>TTC</option></select></label>
@@ -71,7 +78,7 @@ export default function ProjectCreation() {
           </div>
           <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>245 jours.</strong></div>
           <label className="field unexpected-field"><span>Imprévu (FCFA)</span><input type="number" min="0" value={unexpectedAmount} onChange={(event) => setUnexpectedAmount(event.target.value)} onInvalid={(event) => event.currentTarget.setCustomValidity('Veuillez saisir une valeur positive ou égale à zéro.')} onInput={(event) => event.currentTarget.setCustomValidity('')} /></label>
-          <div className="form-actions"><button className="primary-action" onClick={goToChargesStep}>Suivant &nbsp;→</button></div>
+          <div className="form-actions project-form-actions"><button className="secondary-action" onClick={onCancel}>Annuler</button><button className="primary-action" onClick={goToChargesStep}>Configurer les Tâches</button><button className="save-project" onClick={saveProject}>Enregistrer le projet</button></div>
         </aside>
 
         <div className="creation-overview">
@@ -101,14 +108,14 @@ export default function ProjectCreation() {
     </section>
     {step === 2 && <div className="charges-overlay" role="dialog" aria-modal="true" aria-label="Charges et planification" onMouseDown={() => setStep(1)}>
       <div className="charges-overlay-content" onMouseDown={(event) => event.stopPropagation()}>
-        <ProjectChargesStep onBack={() => setStep(1)} onSaveTask={saveTaskToProject} />
+        <ProjectChargesStep onSaveTasks={saveTaskToProject} />
       </div>
     </div>}
     </>
   )
 }
 
-function ProjectChargesStep({ onBack, onSaveTask }: { onBack: () => void; onSaveTask: () => void }) {
+function ProjectChargesStep({ onSaveTasks }: { onSaveTasks: () => void }) {
   const [openGroups, setOpenGroups] = useState(['bo', 'mo'])
   const groups = [
     { id: 'bo', icon: '▣', title: 'BO – Back Office', task: ['BO101', 'Rédaction du livrable', 'BO', 'E', '18', '0', '18', '05/09/2025', '18/09/2025', '10j'] },
@@ -142,6 +149,6 @@ function ProjectChargesStep({ onBack, onSaveTask }: { onBack: () => void; onSave
     })}</div>
 
     <div className="charge-legend">ⓘ &nbsp; <b>E</b> = consomme les EHS &nbsp;&nbsp; | &nbsp;&nbsp; <b>D</b> = consomme directement de la monnaie</div>
-    <div className="charges-actions"><button className="secondary-action" onClick={onBack}>← &nbsp; Précédent</button><div><button className="save-task" onClick={onSaveTask}>＋ &nbsp; Enregistrer la tâche</button><button className="secondary-action" onClick={onBack}>Annuler</button><button className="save-project" onClick={() => window.alert('Le projet a été enregistré.')}>▣ &nbsp; Enregistrer le projet</button></div></div>
+    <div className="charges-actions single-action"><button className="save-project" onClick={onSaveTasks}>Enregistrer les Tâches</button></div>
   </section>
 }

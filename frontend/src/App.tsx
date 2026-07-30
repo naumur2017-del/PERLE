@@ -202,8 +202,8 @@ function App() {
 
   const renderPage = () => {
     switch (activeNav) {
-      case 'pilotage': return <PilotagePage />
-      case 'creation': return <CreationProjetPage />
+      case 'pilotage': return <PilotagePage onCreateProject={() => navigateTo('creation')} />
+      case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage />
       case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage icon={icons.tresorerie} />

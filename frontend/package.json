@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:pages": "node scripts/check-page-structure.mjs",
     "lint": "eslint .",
+    "check": "npm run check:pages && npm run lint && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
