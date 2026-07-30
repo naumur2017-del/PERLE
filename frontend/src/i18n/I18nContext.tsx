@@ -67,8 +67,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const translateTextNode = (node: Text) => {
         const parent = node.parentElement
         if (!parent || ['SCRIPT', 'STYLE'].includes(parent.tagName)) return
+        const currentKey = (node.nodeValue ?? '').trim()
+        const storedOriginal = originalText.get(node)
+        if (storedOriginal) {
+          const storedKey = storedOriginal.trim()
+          const storedTranslation = translations[language][storedKey] ?? (language === 'fr' ? storedKey : translations.en[storedKey]) ?? storedKey
+          if (currentKey !== storedKey && currentKey !== storedTranslation && translatableFrenchText.has(currentKey)) {
+            originalText.set(node, node.nodeValue ?? '')
+          }
+        }
         if (!originalText.has(node)) {
-          if (!translatableFrenchText.has((node.nodeValue ?? '').trim())) return
+          if (!translatableFrenchText.has(currentKey)) return
           originalText.set(node, node.nodeValue ?? '')
         }
         const original = originalText.get(node) ?? ''

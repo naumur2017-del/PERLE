@@ -1,5 +1,18 @@
 # React + TypeScript + Vite
 
+## Page organization
+
+Every interface page lives in `src/pages` and must have a stylesheet with the
+same base name. The page component imports that stylesheet directly:
+
+```text
+src/pages/ExamplePage.tsx
+src/pages/ExamplePage.css
+```
+
+Run `npm run check:pages` to validate this convention, or `npm run check` to
+validate the page structure, lint the project, and create a production build.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
