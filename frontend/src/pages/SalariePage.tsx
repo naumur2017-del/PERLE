@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  ArrowDownToLine,
   ArrowRight,
   Banknote,
   BarChart3,
@@ -21,10 +22,12 @@ import {
   FileText,
   Gift,
   Hand,
+  HelpCircle,
   IdCard,
   Info,
   LayoutDashboard,
   ListChecks,
+  Percent,
   Plus,
   ShieldAlert,
   Sparkles,
@@ -32,6 +35,7 @@ import {
   UploadCloud,
   User,
   Wallet,
+  Wallet2,
   X,
 } from 'lucide-react'
 import passportCover from '../assets/passport.jpg'
@@ -127,6 +131,7 @@ export default function SalariePage() {
       </nav>
 
       {activeTab === 'dashboard' ? <DashboardTab />
+        : activeTab === 'remuneration' ? <RemunerationTab />
         : activeTab === 'demandes' ? <DemandesTab />
         : activeTab === 'profil' ? <ProfilTab />
         : <ComingSoon label={activeLabel} icon={tabs.find((tab) => tab.id === activeTab)!.icon} />}
@@ -949,6 +954,291 @@ function DashboardTab() {
           </article>
         ))}
       </div>
+    </div>
+  )
+}
+
+interface LigneRemu {
+  label: string
+  montant: number
+}
+
+const frMontant = (value: number) => Math.round(value).toLocaleString('fr-FR')
+
+const elementsPositifs: LigneRemu[] = [
+  { label: 'Salaire de base (fixe)', montant: 2000000 },
+  { label: 'Primes de performance', montant: 58000 },
+  { label: 'Prime de rattrapage', montant: 40000 },
+]
+
+const deductionsLegales: LigneRemu[] = [
+  { label: 'Charges sociales (10,5%)', montant: 208290 },
+  { label: 'Impôt sur le revenu', montant: 80000 },
+  { label: 'Autres retenues', montant: 20000 },
+]
+
+const penalitesLignes: LigneRemu[] = [
+  { label: 'Retard', montant: 15000 },
+  { label: 'Demande d’explication', montant: 10000 },
+  { label: 'Rappel à l’ordre', montant: 5000 },
+]
+
+const sumMontants = (lignes: LigneRemu[]) => lignes.reduce((sum, ligne) => sum + ligne.montant, 0)
+
+const totalPositifs = sumMontants(elementsPositifs)
+const totalDeductionsLegales = sumMontants(deductionsLegales)
+const totalPenalites = sumMontants(penalitesLignes)
+const netAPayer = totalPositifs - totalDeductionsLegales - totalPenalites
+
+const penalitesDetails = [
+  { type: 'Retard', motif: 'Retard sur tâche « Collecte des données »', montant: 15000, statut: 'Appliquée' },
+  { type: 'Demande d’explication', motif: 'Justification demandée sur livrable en retard', montant: 10000, statut: 'Appliquée' },
+  { type: 'Rappel à l’ordre', motif: 'Manquement aux règles internes', montant: 5000, statut: 'Appliquée' },
+]
+
+interface BulletinHistorique {
+  mois: string
+  brut: number
+  primesPerformance: number
+  primesRattrapage: number
+  deductions: number
+  penalites: number
+  statut: 'À venir' | 'Payé'
+}
+
+const bulletinsHistorique: BulletinHistorique[] = [
+  { mois: 'Mai 2025', brut: 2000000, primesPerformance: 58000, primesRattrapage: 40000, deductions: 308290, penalites: 30000, statut: 'À venir' },
+  { mois: 'Avril 2025', brut: 2000000, primesPerformance: 52000, primesRattrapage: 0, deductions: 250000, penalites: 20000, statut: 'Payé' },
+  { mois: 'Mars 2025', brut: 2000000, primesPerformance: 50000, primesRattrapage: 0, deductions: 245000, penalites: 10000, statut: 'Payé' },
+  { mois: 'Février 2025', brut: 2000000, primesPerformance: 45000, primesRattrapage: 0, deductions: 245000, penalites: 0, statut: 'Payé' },
+  { mois: 'Janvier 2025', brut: 2000000, primesPerformance: 45000, primesRattrapage: 0, deductions: 245000, penalites: 0, statut: 'Payé' },
+]
+
+const netBulletin = (bulletin: BulletinHistorique) =>
+  bulletin.brut + bulletin.primesPerformance + bulletin.primesRattrapage - bulletin.deductions - bulletin.penalites
+
+const remuStats = [
+  { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(2000000), unit: 'FCFA', sub: 'Fixe mensuel' },
+  { icon: Gift, iconClass: 'prime', label: 'Primes du mois', value: frMontant(58000), unit: 'FCFA', sub: 'Selon résultats' },
+  { icon: Clock, iconClass: 'rattrapage', label: 'Prime de rattrapage', value: frMontant(40000), unit: 'FCFA', sub: 'Ajustement exceptionnel', tooltip: 'Régularisation exceptionnelle décidée par le pilotage.' },
+  { icon: Percent, iconClass: 'taux', label: 'Taux de charges sociales', value: '10,5', unit: '%', sub: 'Employeur' },
+  { icon: ArrowDownToLine, iconClass: 'deductions', label: 'Total déductions', value: `- ${frMontant(totalDeductionsLegales + totalPenalites)}`, unit: 'FCFA', sub: 'Retenues & sanctions' },
+  { icon: Wallet2, iconClass: 'net', label: 'Net à payer', value: frMontant(netAPayer), unit: 'FCFA', sub: 'Après déductions' },
+]
+
+const repartitionElements = [
+  { name: 'Salaire de base', montant: 2000000, color: '#2a78d6' },
+  { name: 'Déductions légales', montant: totalDeductionsLegales, color: '#eb6834' },
+  { name: 'Pénalités / Sanctions', montant: totalPenalites, color: '#4a3aa7' },
+  { name: 'Primes (performance + rattrapage)', montant: 98000, color: '#1baf7a' },
+]
+
+function RemuColumn({ title, tone, lignes, totalLabel, total }: { title: string; tone: string; lignes: LigneRemu[]; totalLabel: string; total: number }) {
+  return (
+    <div className={`salarie-remu-col ${tone}`}>
+      <h4>{title}</h4>
+      <ul>
+        {lignes.map((ligne) => (
+          <li key={ligne.label}><span>{ligne.label}</span><b>{frMontant(ligne.montant)}</b></li>
+        ))}
+      </ul>
+      <div className="salarie-remu-total"><span>{totalLabel}</span><b>{frMontant(total)}</b></div>
+    </div>
+  )
+}
+
+function RemuDonut() {
+  const size = 200
+  const center = size / 2
+  const radius = 70
+  const strokeWidth = 30
+  const circumference = 2 * Math.PI * radius
+  const gap = 4
+  const weightTotal = repartitionElements.reduce((sum, entry) => sum + entry.montant, 0)
+
+  const segments = repartitionElements.reduce<{ name: string; montant: number; color: string; dash: number; offset: number; percent: number }[]>((acc, entry) => {
+    const offset = acc.length > 0 ? acc[acc.length - 1].offset + (acc[acc.length - 1].dash + gap) : 0
+    const raw = (entry.montant / weightTotal) * circumference
+    acc.push({ ...entry, dash: Math.max(raw - gap, 0), offset, percent: (entry.montant / totalPositifs) * 100 })
+    return acc
+  }, [])
+
+  return (
+    <div className="salarie-donut-wrap column">
+      <svg viewBox={`0 0 ${size} ${size}`} className="salarie-donut" role="img" aria-label="Répartition des éléments de la rémunération">
+        <g transform={`rotate(-90 ${center} ${center})`}>
+          {segments.map((segment) => (
+            <circle
+              key={segment.name}
+              cx={center} cy={center} r={radius} fill="none"
+              stroke={segment.color} strokeWidth={strokeWidth}
+              strokeDasharray={`${segment.dash} ${circumference - segment.dash}`}
+              strokeDashoffset={-segment.offset}
+            />
+          ))}
+        </g>
+        <text x={center} y={center - 6} textAnchor="middle" className="salarie-donut-label">Total brut</text>
+        <text x={center} y={center + 14} textAnchor="middle" className="salarie-donut-total">{frMontant(totalPositifs)}</text>
+        <text x={center} y={center + 30} textAnchor="middle" className="salarie-donut-label">FCFA</text>
+      </svg>
+      <ul className="salarie-donut-legend remu">
+        {segments.map((segment) => (
+          <li key={segment.name}>
+            <span style={{ background: segment.color }} />
+            <strong>{segment.name}</strong>
+            <div className="salarie-remu-legend-values">
+              <b>{frNumber(segment.percent, 1)}%</b>
+              <small>{frMontant(segment.montant)} FCFA</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function RemunerationTab() {
+  return (
+    <div className="salarie-remuneration">
+      <div className="salarie-remu-heading">
+        <div>
+          <h2>Récapitulatif de rémunération</h2>
+          <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Période : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+        </div>
+        <button className="salarie-primary-btn"><Download size={14} strokeWidth={2.4} />Télécharger le bulletin de paie (PDF)</button>
+      </div>
+
+      <div className="salarie-dash-stats salarie-remu-stats">
+        {remuStats.map((stat) => (
+          <article key={stat.label} className="salarie-dash-stat">
+            <span className={`salarie-dash-stat-icon ${stat.iconClass}`}><stat.icon size={18} strokeWidth={2} /></span>
+            <div>
+              <span className="salarie-dash-stat-label">{stat.label}{stat.tooltip && <span className="salarie-remu-tooltip" title={stat.tooltip}><HelpCircle size={11} strokeWidth={2} /></span>}</span>
+              <strong>{stat.value}{stat.unit && <small> {stat.unit}</small>}</strong>
+              <small className="salarie-dash-stat-sub">{stat.sub}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="salarie-remu-panels">
+        <section className="salarie-panel salarie-remu-detail-card">
+          <div className="salarie-dash-panel-heading">
+            <h3>Détail de la rémunération</h3>
+            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Période : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+          </div>
+          <div className="salarie-remu-columns">
+            <RemuColumn title="1. Éléments positifs" tone="positif" lignes={elementsPositifs} totalLabel="Total éléments positifs (A)" total={totalPositifs} />
+            <span className="salarie-remu-op">+</span>
+            <RemuColumn title="2. Déductions légales" tone="deduction" lignes={deductionsLegales} totalLabel="Total déductions légales (B)" total={totalDeductionsLegales} />
+            <span className="salarie-remu-op">+</span>
+            <RemuColumn title="3. Pénalités / Sanctions" tone="penalite" lignes={penalitesLignes} totalLabel="Total pénalités (C)" total={totalPenalites} />
+            <span className="salarie-remu-op">=</span>
+            <div className="salarie-remu-col resultat">
+              <h4>Résultat</h4>
+              <ul>
+                <li><span>Éléments positifs (A)</span><b>{frMontant(totalPositifs)}</b></li>
+                <li><span>- Déductions légales (B)</span><b>- {frMontant(totalDeductionsLegales)}</b></li>
+                <li><span>- Pénalités (C)</span><b>- {frMontant(totalPenalites)}</b></li>
+              </ul>
+              <div className="salarie-remu-total net"><span>Net à payer (A - B - C)</span><b>{frMontant(netAPayer)}</b></div>
+            </div>
+          </div>
+          <Note>Les montants sont exprimés en FCFA.</Note>
+        </section>
+
+        <div className="salarie-remu-side">
+          <section className="salarie-panel salarie-remu-donut-card">
+            <div className="salarie-dash-panel-heading"><h3>Répartition des éléments</h3></div>
+            <RemuDonut />
+          </section>
+
+          <section className="salarie-panel salarie-remu-penalites-card">
+            <div className="salarie-dash-panel-heading"><h3>Détails des pénalités - Mai 2025</h3></div>
+            <div className="salarie-table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Type de pénalité</th><th>Motif</th><th>Montant (FCFA)</th><th>Statut</th></tr>
+                </thead>
+                <tbody>
+                  {penalitesDetails.map((ligne) => (
+                    <tr key={ligne.type}>
+                      <td><strong>{ligne.type}</strong></td>
+                      <td>{ligne.motif}</td>
+                      <td>- {frMontant(ligne.montant)}</td>
+                      <td><span className="salarie-pill refusee">{ligne.statut}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="salarie-remu-total penalites"><span>Total pénalités</span><b>- {frMontant(totalPenalites)} FCFA</b></div>
+          </section>
+
+          <div className="salarie-info">
+            <Info size={18} strokeWidth={2} />
+            <div>
+              <strong>Informations importantes</strong>
+              <ul>
+                <li>La valeur d’un EHS est fixée à 3 000 FCFA.</li>
+                <li>Les primes sont calculées selon les critères définis par le pilotage.</li>
+                <li>Les bulletins de paie sont disponibles après validation.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section className="salarie-panel salarie-remu-history-card">
+        <div className="salarie-dash-panel-heading">
+          <h3>Historique des bulletins de paie</h3>
+          <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+        </div>
+        <div className="salarie-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th rowSpan={2}>Mois</th>
+                <th rowSpan={2}>Salaire brut (FCFA)</th>
+                <th colSpan={2}>Primes (FCFA)</th>
+                <th rowSpan={2}>Déductions légales (FCFA)</th>
+                <th rowSpan={2}>Pénalités (FCFA)</th>
+                <th rowSpan={2}>Net à payer (FCFA)</th>
+                <th rowSpan={2}>Statut</th>
+                <th rowSpan={2}>Bulletin</th>
+              </tr>
+              <tr><th>Performance</th><th>Rattrapage</th></tr>
+            </thead>
+            <tbody>
+              {bulletinsHistorique.map((bulletin) => (
+                <tr key={bulletin.mois}>
+                  <td><strong>{bulletin.mois}</strong></td>
+                  <td>{frMontant(bulletin.brut)}</td>
+                  <td>{frMontant(bulletin.primesPerformance)}</td>
+                  <td>{bulletin.primesRattrapage ? frMontant(bulletin.primesRattrapage) : '0'}</td>
+                  <td>{frMontant(bulletin.deductions)}</td>
+                  <td>{frMontant(bulletin.penalites)}</td>
+                  <td><strong>{frMontant(netBulletin(bulletin))}</strong></td>
+                  <td><span className={`salarie-pill ${bulletin.statut === 'Payé' ? 'approuvee' : 'attente'}`}>{bulletin.statut}</span></td>
+                  <td className="salarie-actions"><button aria-label="Télécharger le bulletin"><Download size={14} strokeWidth={2} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="salarie-table-footer">
+          <span>Affichage de 1 à 5 sur 12 bulletins</span>
+          <div className="salarie-pagination">
+            <button disabled><ChevronsLeft size={13} /></button>
+            <button disabled><ChevronLeft size={13} /></button>
+            <button className="active">1</button>
+            <button>2</button>
+            <button>3</button>
+            <button><ChevronRight size={13} /></button>
+            <button><ChevronsRight size={13} /></button>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

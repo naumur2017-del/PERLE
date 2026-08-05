@@ -260,6 +260,53 @@
 .salarie-notif-list small { color: #a3a6c2; font-size: 9px; }
 .salarie-notif-footer { display: flex; justify-content: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid #ececf4; }
 
+/* Onglet Rémunération */
+.salarie-remuneration { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.salarie-remu-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.salarie-remu-heading h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 19px; }
+.salarie-remu-tooltip { display: inline-grid; margin-left: 4px; color: #b3b6d1; cursor: help; vertical-align: -1px; }
+
+.salarie-remu-panels { display: grid; grid-template-columns: 2.2fr 1fr; gap: 14px; align-items: start; }
+.salarie-remu-detail-card,
+.salarie-remu-donut-card,
+.salarie-remu-penalites-card,
+.salarie-remu-history-card { padding: 18px; }
+.salarie-remu-side { display: flex; flex-direction: column; gap: 14px; }
+
+.salarie-remu-columns { display: flex; align-items: stretch; gap: 8px; }
+.salarie-remu-col { display: flex; flex: 1; min-width: 0; flex-direction: column; padding: 14px; border: 1px solid #ececf4; border-radius: 10px; }
+.salarie-remu-col h4 { margin: 0 0 10px; font-size: 11px; font-weight: 700; }
+.salarie-remu-col.positif h4 { color: #15803d; }
+.salarie-remu-col.deduction h4 { color: #dc2626; }
+.salarie-remu-col.penalite h4 { color: #c2410c; }
+.salarie-remu-col.resultat h4 { color: #5b21b6; }
+.salarie-remu-col.resultat { background: #faf9ff; border-color: #e6e3f7; }
+.salarie-remu-col ul { display: flex; flex: 1; flex-direction: column; gap: 8px; margin: 0 0 10px; padding: 0; list-style: none; }
+.salarie-remu-col li { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; }
+.salarie-remu-col li span { color: #6b6f8f; }
+.salarie-remu-col li b { color: #1a1a2e; font-weight: 700; white-space: nowrap; }
+.salarie-remu-total { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #ececf4; font-size: 10.5px; font-weight: 700; }
+.salarie-remu-col.positif .salarie-remu-total { color: #15803d; }
+.salarie-remu-col.deduction .salarie-remu-total { color: #dc2626; }
+.salarie-remu-col.penalite .salarie-remu-total { color: #c2410c; }
+.salarie-remu-total.net { border-top: 0; margin-top: 4px; padding: 10px; border-radius: 8px; background: #dcfce7; color: #15803d; font-size: 12px; }
+.salarie-remu-total.net span { color: #15803d; }
+.salarie-remu-op { display: flex; flex: 0 0 auto; align-self: center; color: #b3b6d1; font-size: 18px; font-weight: 700; }
+
+.salarie-donut-wrap.column { flex-direction: column; align-items: stretch; gap: 14px; }
+.salarie-donut-wrap.column .salarie-donut { width: 150px; height: 150px; flex: none; margin: 0 auto; }
+.salarie-donut-legend.remu li { align-items: center; }
+.salarie-donut-legend.remu li > span { margin-top: 0; }
+.salarie-donut-legend.remu strong { flex: 1; }
+.salarie-remu-legend-values { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.salarie-remu-legend-values b { color: #1a1a2e; font-size: 11px; }
+.salarie-remu-legend-values small { color: #8286a8; font-size: 9px; white-space: nowrap; }
+
+.salarie-remu-penalites-card .salarie-table-wrap table { min-width: 0; font-size: 10px; }
+.salarie-remu-penalites-card th,
+.salarie-remu-penalites-card td { padding: 9px 8px; }
+.salarie-remu-total.penalites { display: flex; justify-content: space-between; margin-top: 6px; padding: 10px 12px; border-radius: 8px; background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 700; }
+
 @media (max-width: 1150px) {
   .salarie-profil-row.row-1,
   .salarie-profil-row.row-2 { grid-template-columns: 1fr; }
@@ -267,6 +314,9 @@
   .salarie-dash-stats { grid-template-columns: repeat(3, 1fr); }
   .salarie-dash-stats-bottom { grid-template-columns: repeat(2, 1fr); }
   .salarie-dash-panels { grid-template-columns: 1fr; }
+  .salarie-remu-panels { grid-template-columns: 1fr; }
+  .salarie-remu-columns { flex-direction: column; }
+  .salarie-remu-op { align-self: center; transform: rotate(90deg); }
 }
 
 @media (max-width: 640px) {
