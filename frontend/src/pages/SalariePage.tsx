@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowRight,
@@ -67,14 +67,33 @@ interface AvanceDemande {
   dateReponse: string
 }
 
-const congeDemandes: CongeDemande[] = [
+const initialCongeDemandes: CongeDemande[] = [
   { id: 'CONG-2025-005', dateDemande: '15/05/2025', type: 'Congé annuel payé', dateDebut: '02/06/2025', dateFin: '06/06/2025', duree: 5, motif: 'Vacances personnelles', statut: 'Approuvée', approuvePar: 'Ajara LAMARE', approuveRole: 'Manager', dateReponse: '17/05/2025' },
   { id: 'CONG-2025-004', dateDemande: '05/05/2025', type: 'Congé exceptionnel', dateDebut: '20/05/2025', dateFin: '21/05/2025', duree: 2, motif: 'Événement familial', statut: 'En attente', approuvePar: 'Ajara LAMARE', approuveRole: 'Manager', dateReponse: '-' },
 ]
 
-const avanceDemandes: AvanceDemande[] = [
+const initialAvanceDemandes: AvanceDemande[] = [
   { id: 'AVC-2025-003', dateDemande: '12/05/2025', montant: 150000, motif: 'Frais médicaux', remboursement: 'Prélèvement sur 3 salaires', remboursementDetail: '(50 000 FCFA / mois)', statut: 'En attente', approuvePar: 'Théodore BESSALA', approuveRole: 'Responsable des Ressources (RE)', dateReponse: '-' },
 ]
+
+const formatDateFr = (date: Date) => date.toLocaleDateString('fr-FR')
+
+const formatInputDate = (value: string) => {
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
+
+const daysBetween = (startValue: string, endValue: string) => {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
+}
+
+const nextId = (prefix: string, items: { id: string }[]) => {
+  const numbers = items.map((item) => parseInt(item.id.split('-').pop() ?? '0', 10)).filter((value) => !Number.isNaN(value))
+  const next = (numbers.length ? Math.max(...numbers) : 0) + 1
+  return `${prefix}-${String(next).padStart(3, '0')}`
+}
 
 function countByStatut<T extends { statut: Statut }>(items: T[], statut: Statut) {
   return items.filter((item) => item.statut === statut).length
@@ -195,7 +214,130 @@ function SummaryCard({ icon, iconClass, title, total, totalLabel, attente, appro
   )
 }
 
+interface CongeFormValues {
+  type: string
+  dateDebut: string
+  dateFin: string
+  motif: string
+}
+
+function CongeForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (values: CongeFormValues) => void }) {
+  const [type, setType] = useState('Congé annuel payé')
+  const [dateDebut, setDateDebut] = useState('')
+  const [dateFin, setDateFin] = useState('')
+  const [motif, setMotif] = useState('')
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!dateDebut || !dateFin || !motif.trim()) return
+    onCreate({ type, dateDebut, dateFin, motif: motif.trim() })
+  }
+
+  return (
+    <form className="salarie-form" onSubmit={handleSubmit}>
+      <label>Type de congé
+        <select value={type} onChange={(event) => setType(event.target.value)}>
+          <option>Congé annuel payé</option>
+          <option>Congé exceptionnel</option>
+          <option>Congé maladie</option>
+          <option>Congé sans solde</option>
+        </select>
+      </label>
+      <div className="salarie-form-row">
+        <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
+        <label>Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+      </div>
+      <label>Motif<textarea required rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
+      <div className="salarie-form-actions">
+        <button type="button" className="salarie-ghost-btn" onClick={onCancel}>Annuler</button>
+        <button type="submit" className="salarie-primary-btn"><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
+      </div>
+    </form>
+  )
+}
+
+interface AvanceFormValues {
+  montant: number
+  motif: string
+  mois: number
+}
+
+function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (values: AvanceFormValues) => void }) {
+  const [montant, setMontant] = useState('')
+  const [motif, setMotif] = useState('')
+  const [mois, setMois] = useState('3')
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    const montantValue = Number(montant)
+    if (!montantValue || montantValue <= 0 || !motif.trim()) return
+    onCreate({ montant: montantValue, motif: motif.trim(), mois: Number(mois) })
+  }
+
+  return (
+    <form className="salarie-form" onSubmit={handleSubmit}>
+      <label>Montant demandé (FCFA)<input type="number" required min={1000} step={1000} value={montant} placeholder="Ex. 150000" onChange={(event) => setMontant(event.target.value)} /></label>
+      <label>Motif<textarea required rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
+      <label>Remboursement proposé
+        <select value={mois} onChange={(event) => setMois(event.target.value)}>
+          <option value="1">Prélèvement sur 1 salaire</option>
+          <option value="2">Prélèvement sur 2 salaires</option>
+          <option value="3">Prélèvement sur 3 salaires</option>
+          <option value="6">Prélèvement sur 6 salaires</option>
+        </select>
+      </label>
+      <div className="salarie-form-actions">
+        <button type="button" className="salarie-ghost-btn" onClick={onCancel}>Annuler</button>
+        <button type="submit" className="salarie-primary-btn"><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
+      </div>
+    </form>
+  )
+}
+
 function DemandesTab() {
+  const [congeDemandes, setCongeDemandes] = useState<CongeDemande[]>(initialCongeDemandes)
+  const [avanceDemandes, setAvanceDemandes] = useState<AvanceDemande[]>(initialAvanceDemandes)
+  const [viewConge, setViewConge] = useState<CongeDemande | null>(null)
+  const [viewAvance, setViewAvance] = useState<AvanceDemande | null>(null)
+  const [showCongeForm, setShowCongeForm] = useState(false)
+  const [showAvanceForm, setShowAvanceForm] = useState(false)
+
+  const handleCreateConge = (values: CongeFormValues) => {
+    const newDemande: CongeDemande = {
+      id: nextId('CONG-2025', congeDemandes),
+      dateDemande: formatDateFr(new Date()),
+      type: values.type,
+      dateDebut: formatInputDate(values.dateDebut),
+      dateFin: formatInputDate(values.dateFin),
+      duree: daysBetween(values.dateDebut, values.dateFin),
+      motif: values.motif,
+      statut: 'En attente',
+      approuvePar: 'Ajara LAMARE',
+      approuveRole: 'Manager',
+      dateReponse: '-',
+    }
+    setCongeDemandes((prev) => [newDemande, ...prev])
+    setShowCongeForm(false)
+  }
+
+  const handleCreateAvance = (values: AvanceFormValues) => {
+    const monthly = Math.round(values.montant / values.mois)
+    const newDemande: AvanceDemande = {
+      id: nextId('AVC-2025', avanceDemandes),
+      dateDemande: formatDateFr(new Date()),
+      montant: values.montant,
+      motif: values.motif,
+      remboursement: `Prélèvement sur ${values.mois} salaire${values.mois > 1 ? 's' : ''}`,
+      remboursementDetail: `(${monthly.toLocaleString('fr-FR')} FCFA / mois)`,
+      statut: 'En attente',
+      approuvePar: 'Théodore BESSALA',
+      approuveRole: 'Responsable des Ressources (RE)',
+      dateReponse: '-',
+    }
+    setAvanceDemandes((prev) => [newDemande, ...prev])
+    setShowAvanceForm(false)
+  }
+
   const congeAttente = countByStatut(congeDemandes, 'En attente')
   const congeApprouvee = countByStatut(congeDemandes, 'Approuvée')
   const congeRefusee = countByStatut(congeDemandes, 'Refusée')
@@ -229,7 +371,7 @@ function DemandesTab() {
           <div className="salarie-panel-title"><span className="salarie-panel-icon conge"><Calendar size={15} strokeWidth={2} /></span><h3>Demandes de congé</h3></div>
           <div className="salarie-panel-actions">
             <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Filtrer par mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
-            <button className="salarie-primary-btn"><Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé</button>
+            <button className="salarie-primary-btn" onClick={() => setShowCongeForm(true)}><Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
@@ -251,7 +393,7 @@ function DemandesTab() {
                   <td><strong>{demande.approuvePar}</strong><small>{demande.approuveRole}</small></td>
                   <td>{demande.dateReponse}</td>
                   <td className="salarie-actions">
-                    <button aria-label="Voir la demande"><Eye size={14} strokeWidth={2} /></button>
+                    <button aria-label="Voir la demande" onClick={() => setViewConge(demande)}><Eye size={14} strokeWidth={2} /></button>
                     {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger"><Trash2 size={14} strokeWidth={2} /></button>}
                   </td>
                 </tr>
@@ -270,7 +412,7 @@ function DemandesTab() {
           <div className="salarie-panel-title"><span className="salarie-panel-icon avance"><Wallet size={15} strokeWidth={2} /></span><h3>Demandes d’avance sur salaire</h3></div>
           <div className="salarie-panel-actions">
             <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Filtrer par mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
-            <button className="salarie-primary-btn"><Download size={14} strokeWidth={2.4} />Nouvelle demande d’avance</button>
+            <button className="salarie-primary-btn" onClick={() => setShowAvanceForm(true)}><Download size={14} strokeWidth={2.4} />Nouvelle demande d’avance</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
@@ -290,7 +432,7 @@ function DemandesTab() {
                   <td><strong>{demande.approuvePar}</strong><small>{demande.approuveRole}</small></td>
                   <td>{demande.dateReponse}</td>
                   <td className="salarie-actions">
-                    <button aria-label="Voir la demande"><Eye size={14} strokeWidth={2} /></button>
+                    <button aria-label="Voir la demande" onClick={() => setViewAvance(demande)}><Eye size={14} strokeWidth={2} /></button>
                     {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger"><Trash2 size={14} strokeWidth={2} /></button>}
                   </td>
                 </tr>
@@ -315,6 +457,48 @@ function DemandesTab() {
           </ul>
         </div>
       </div>
+
+      {viewConge && (
+        <Lightbox title={`Demande ${viewConge.id}`} onClose={() => setViewConge(null)}>
+          <div className="salarie-info-col">
+            <InfoRow label="Type de congé" value={viewConge.type} />
+            <InfoRow label="Date de demande" value={viewConge.dateDemande} />
+            <InfoRow label="Date de début" value={viewConge.dateDebut} />
+            <InfoRow label="Date de fin" value={viewConge.dateFin} />
+            <InfoRow label="Durée" value={`${viewConge.duree} jour${viewConge.duree > 1 ? 's' : ''}`} />
+            <InfoRow label="Motif" value={viewConge.motif} />
+            <InfoRow label="Statut" value={<StatutPill statut={viewConge.statut} />} />
+            <InfoRow label="Approuvé par" value={`${viewConge.approuvePar} (${viewConge.approuveRole})`} />
+            <InfoRow label="Date de réponse" value={viewConge.dateReponse} />
+          </div>
+        </Lightbox>
+      )}
+
+      {viewAvance && (
+        <Lightbox title={`Demande ${viewAvance.id}`} onClose={() => setViewAvance(null)}>
+          <div className="salarie-info-col">
+            <InfoRow label="Date de demande" value={viewAvance.dateDemande} />
+            <InfoRow label="Montant demandé" value={`${viewAvance.montant.toLocaleString('fr-FR')} FCFA`} />
+            <InfoRow label="Motif" value={viewAvance.motif} />
+            <InfoRow label="Remboursement proposé" value={`${viewAvance.remboursement} ${viewAvance.remboursementDetail}`} />
+            <InfoRow label="Statut" value={<StatutPill statut={viewAvance.statut} />} />
+            <InfoRow label="Approuvé par" value={`${viewAvance.approuvePar} (${viewAvance.approuveRole})`} />
+            <InfoRow label="Date de réponse" value={viewAvance.dateReponse} />
+          </div>
+        </Lightbox>
+      )}
+
+      {showCongeForm && (
+        <Lightbox title="Nouvelle demande de congé" onClose={() => setShowCongeForm(false)}>
+          <CongeForm onCancel={() => setShowCongeForm(false)} onCreate={handleCreateConge} />
+        </Lightbox>
+      )}
+
+      {showAvanceForm && (
+        <Lightbox title="Nouvelle demande d’avance" onClose={() => setShowAvanceForm(false)}>
+          <AvanceForm onCancel={() => setShowAvanceForm(false)} onCreate={handleCreateAvance} />
+        </Lightbox>
+      )}
     </div>
   )
 }
@@ -695,15 +879,17 @@ function DashboardTab() {
   return (
     <div className="salarie-dashboard">
       <div className="salarie-dash-greeting">
-        <span className="salarie-dash-wave"><Hand size={22} strokeWidth={2} /></span>
-        <p>
-          <strong>Bonjour Maxwell Ebongue,</strong><br />
-          Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
-          pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>542 000 FCFA</strong>,
-          dont <strong>58 000 FCFA</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
-        </p>
+        <span className="salarie-dash-wave"><Hand size={26} strokeWidth={2} /></span>
+        <div className="salarie-dash-greeting-text">
+          <h3>Bonjour Maxwell Ebongue,</h3>
+          <p>
+            Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
+            pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>542 000 FCFA</strong>,
+            dont <strong>58 000 FCFA</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
+          </p>
+        </div>
         <span className="salarie-dash-illustration" aria-hidden="true">
-          <Sparkles size={26} strokeWidth={1.6} />
+          <Sparkles size={34} strokeWidth={1.4} />
         </span>
       </div>
 

@@ -169,14 +169,32 @@
 
 @keyframes salarie-fade-in { from { opacity: 0; } }
 
+/* Formulaires (modales de création) */
+.salarie-form { display: flex; flex-direction: column; gap: 14px; }
+.salarie-form label { display: flex; flex-direction: column; gap: 6px; color: #3a3d63; font-size: 11px; font-weight: 700; }
+.salarie-form input,
+.salarie-form select,
+.salarie-form textarea { border: 1px solid #e0ddf2; border-radius: 7px; padding: 9px 11px; color: #1a1a2e; font: inherit; font-size: 11.5px; font-weight: 500; outline: none; }
+.salarie-form input:focus,
+.salarie-form select:focus,
+.salarie-form textarea:focus { border-color: #5b21b6; box-shadow: 0 0 0 3px rgba(91, 33, 182, .1); }
+.salarie-form textarea { resize: vertical; }
+.salarie-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.salarie-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.salarie-form-actions .salarie-ghost-btn { padding: 10px 16px; }
+.salarie-form-actions .salarie-primary-btn { padding: 0 16px; height: 36px; }
+
 /* Onglet Tableau de bord */
 .salarie-dashboard { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
 
-.salarie-dash-greeting { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 12px; background: #f0edff; }
-.salarie-dash-wave { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 50%; background: #fff; color: #f0a500; }
-.salarie-dash-greeting p { flex: 1; margin: 0; color: #3a3d63; font-size: 12px; line-height: 1.7; }
-.salarie-dash-greeting strong { color: #1a1a2e; }
-.salarie-dash-illustration { display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; border-radius: 16px; background: linear-gradient(135deg, #ede9fe, #dcfce7); color: #5b21b6; }
+.salarie-dash-greeting { display: flex; align-items: center; gap: 20px; min-height: 128px; padding: 24px 28px; border-radius: 14px; background: linear-gradient(135deg, #f3f0ff, #ece5ff); }
+.salarie-dash-wave { display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; border-radius: 50%; background: #fff; box-shadow: 0 4px 14px rgba(91, 33, 182, .12); color: #f0a500; }
+.salarie-dash-greeting-text { flex: 1; }
+.salarie-dash-greeting-text h3 { margin: 0 0 8px; color: #1a1a2e; font-size: 18px; }
+.salarie-dash-greeting-text p { margin: 0; color: #4b4f75; font-size: 12.5px; line-height: 1.8; }
+.salarie-dash-greeting-text strong { color: #1a1a2e; }
+.salarie-dash-illustration { display: grid; width: 180px; height: 100%; min-height: 96px; flex: 0 0 180px; place-items: center; border-radius: 16px; background: linear-gradient(135deg, #ede9fe, #dcfce7); color: #5b21b6; }
+.salarie-dash-illustration img { width: 100%; height: 100%; object-fit: contain; }
 
 .salarie-dash-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
 .salarie-dash-stats-bottom { grid-template-columns: repeat(4, 1fr); }
