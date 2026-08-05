@@ -29,6 +29,7 @@ import {
   ListChecks,
   Percent,
   Plus,
+  RotateCcw,
   ShieldAlert,
   Sparkles,
   Trash2,
@@ -131,6 +132,7 @@ export default function SalariePage() {
       </nav>
 
       {activeTab === 'dashboard' ? <DashboardTab />
+        : activeTab === 'activites' ? <ActivitesTab />
         : activeTab === 'remuneration' ? <RemunerationTab />
         : activeTab === 'demandes' ? <DemandesTab />
         : activeTab === 'profil' ? <ProfilTab />
@@ -1239,6 +1241,195 @@ function RemunerationTab() {
           </div>
         </div>
       </section>
+    </div>
+  )
+}
+
+interface TacheEnCours {
+  projet: string
+  badge: string
+  tache: string
+  dateDebut: string
+  dateEcheance: string
+  tempsPasse: string
+  ehs: number
+  statut: 'En cours' | 'En retard'
+}
+
+interface TacheHistorique {
+  projet: string
+  badge: string
+  tache: string
+  dateDebut: string
+  dateFin: string
+  tempsTotal: string
+  ehs: number
+  validePar: string
+  dateValidation: string
+}
+
+const tachesEnCours: TacheEnCours[] = [
+  { projet: 'CGA', badge: 'blue', tache: 'Élaboration du rapport financier mensuel', dateDebut: '02/05/2025', dateEcheance: '05/06/2025', tempsPasse: '18h 30m', ehs: 8.5, statut: 'En cours' },
+  { projet: 'PADESCE', badge: 'violet', tache: 'Suivi des formations - Cohorte B', dateDebut: '05/05/2025', dateEcheance: '10/06/2025', tempsPasse: '16h 20m', ehs: 6, statut: 'En cours' },
+  { projet: 'PERLE', badge: 'green', tache: 'Tests module Staffing', dateDebut: '07/05/2025', dateEcheance: '20/05/2025', tempsPasse: '14h 10m', ehs: 5, statut: 'En cours' },
+  { projet: 'TRANSFAGRI', badge: 'red', tache: 'Analyse des données bénéficiaires', dateDebut: '03/05/2025', dateEcheance: '18/05/2025', tempsPasse: '10h 05m', ehs: 4, statut: 'En retard' },
+  { projet: 'DIEGO', badge: 'indigo', tache: 'Collecte et traitement des données', dateDebut: '08/05/2025', dateEcheance: '22/05/2025', tempsPasse: '07h 30m', ehs: 3, statut: 'En cours' },
+  { projet: 'PILOTAGE INTERNE', badge: 'gray', tache: 'Réunions et Reporting', dateDebut: '09/05/2025', dateEcheance: '30/05/2025', tempsPasse: '05h 20m', ehs: 2.5, statut: 'En cours' },
+]
+
+const totalTempsPasse = '71h 55m'
+const totalEhsEnCours = tachesEnCours.reduce((sum, tache) => sum + tache.ehs, 0)
+
+const tachesHistorique: TacheHistorique[] = [
+  { projet: 'CGA', badge: 'blue', tache: 'Collecte des pièces comptables', dateDebut: '01/05/2025', dateFin: '15/05/2025', tempsTotal: '20h 15m', ehs: 8, validePar: 'Ajara LAMARE', dateValidation: '16/05/2025' },
+  { projet: 'PADESCE', badge: 'violet', tache: 'Suivi des formations - Cohorte A', dateDebut: '10/05/2025', dateFin: '25/05/2025', tempsTotal: '30h 00m', ehs: 12, validePar: 'Diego NGOUNOU', dateValidation: '26/05/2025' },
+  { projet: 'PERLE', badge: 'green', tache: 'Conception des spécifications', dateDebut: '05/05/2025', dateFin: '20/05/2025', tempsTotal: '25h 10m', ehs: 10, validePar: 'Théodore BESSALA', dateValidation: '21/05/2025' },
+  { projet: 'TRANSFAGRI', badge: 'red', tache: 'Rapport diagnostic préliminaire', dateDebut: '02/05/2025', dateFin: '12/05/2025', tempsTotal: '18h 45m', ehs: 7.5, validePar: 'Pamella GUEBEDIANG', dateValidation: '13/05/2025' },
+  { projet: 'DIEGO', badge: 'indigo', tache: 'Saisie et vérification des données', dateDebut: '03/05/2025', dateFin: '17/05/2025', tempsTotal: '22h 30m', ehs: 9, validePar: 'Ajara LAMARE', dateValidation: '18/05/2025' },
+]
+
+function ProjetBadge({ label, tone }: { label: string; tone: string }) {
+  return <span className={`salarie-project-badge ${tone}`}>{label}</span>
+}
+
+function TacheStatutPill({ statut }: { statut: 'En cours' | 'En retard' }) {
+  return <span className={`salarie-pill ${statut === 'En retard' ? 'refusee' : 'attente'}`}>{statut}</span>
+}
+
+function ActivitesTab() {
+  const [viewEnCours, setViewEnCours] = useState<TacheEnCours | null>(null)
+  const [viewHistorique, setViewHistorique] = useState<TacheHistorique | null>(null)
+
+  return (
+    <div className="salarie-activites">
+      <div className="salarie-heading">
+        <h2>Mes activités</h2>
+        <p>Consultez le détail de vos tâches en cours et l’historique de vos tâches effectuées.</p>
+      </div>
+
+      <div className="salarie-filters">
+        <label className="salarie-filter-field">
+          <span>Période</span>
+          <div className="salarie-filter-control"><Calendar size={13} strokeWidth={2} />01/05/2025 - 31/05/2025</div>
+        </label>
+        <label className="salarie-filter-field">
+          <span>Projet</span>
+          <div className="salarie-filter-control select">Tous les projets<ChevronDown size={13} strokeWidth={2} /></div>
+        </label>
+        <label className="salarie-filter-field">
+          <span>Statut</span>
+          <div className="salarie-filter-control select">Tous les statuts<ChevronDown size={13} strokeWidth={2} /></div>
+        </label>
+        <button className="salarie-ghost-btn salarie-filter-reset"><RotateCcw size={13} strokeWidth={2} />Réinitialiser</button>
+      </div>
+
+      <section className="salarie-panel">
+        <div className="salarie-panel-heading">
+          <div className="salarie-panel-title"><h3>Détail des tâches en cours</h3><span className="salarie-count-badge">{tachesEnCours.length} tâches</span></div>
+          <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
+        </div>
+        <div className="salarie-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Projet</th><th>Tâche</th><th>Date de début</th><th>Date d’échéance</th><th>Temps passé</th><th>EHS consommés</th><th>Statut</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {tachesEnCours.map((tache) => (
+                <tr key={tache.tache}>
+                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
+                  <td>{tache.tache}</td>
+                  <td>{tache.dateDebut}</td>
+                  <td>{tache.dateEcheance}</td>
+                  <td>{tache.tempsPasse}</td>
+                  <td>{frNumber(tache.ehs)}</td>
+                  <td><TacheStatutPill statut={tache.statut} /></td>
+                  <td className="salarie-actions"><button aria-label="Voir la tâche" onClick={() => setViewEnCours(tache)}><Eye size={14} strokeWidth={2} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="salarie-table-total">
+                <td colSpan={4}>Total</td>
+                <td>{totalTempsPasse}</td>
+                <td>{frNumber(totalEhsEnCours)}</td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section className="salarie-panel">
+        <div className="salarie-panel-heading">
+          <div className="salarie-panel-title"><h3>Historique des tâches effectuées</h3><span className="salarie-count-badge">12 tâches</span></div>
+          <div className="salarie-panel-actions">
+            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+            <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
+          </div>
+        </div>
+        <div className="salarie-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Projet</th><th>Tâche</th><th>Date de début</th><th>Date de fin</th><th>Temps total</th><th>EHS consommés</th><th>Livrable</th><th>Validé par</th><th>Date de validation</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {tachesHistorique.map((tache) => (
+                <tr key={tache.tache}>
+                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
+                  <td>{tache.tache}</td>
+                  <td>{tache.dateDebut}</td>
+                  <td>{tache.dateFin}</td>
+                  <td>{tache.tempsTotal}</td>
+                  <td>{frNumber(tache.ehs)}</td>
+                  <td><span className="salarie-livrable-icon"><FileText size={13} strokeWidth={2} /></span></td>
+                  <td>{tache.validePar}</td>
+                  <td>{tache.dateValidation}</td>
+                  <td className="salarie-actions"><button aria-label="Voir la tâche" onClick={() => setViewHistorique(tache)}><Eye size={14} strokeWidth={2} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="salarie-table-footer">
+          <span>Affichage de 1 à 5 sur 12 tâches</span>
+          <div className="salarie-pagination">
+            <button disabled><ChevronsLeft size={13} /></button>
+            <button disabled><ChevronLeft size={13} /></button>
+            <button className="active">1</button>
+            <button>2</button>
+            <button>3</button>
+            <button><ChevronRight size={13} /></button>
+            <button><ChevronsRight size={13} /></button>
+          </div>
+        </div>
+      </section>
+
+      {viewEnCours && (
+        <Lightbox title={viewEnCours.tache} onClose={() => setViewEnCours(null)}>
+          <div className="salarie-info-col">
+            <InfoRow label="Projet" value={<ProjetBadge label={viewEnCours.projet} tone={viewEnCours.badge} />} />
+            <InfoRow label="Date de début" value={viewEnCours.dateDebut} />
+            <InfoRow label="Date d’échéance" value={viewEnCours.dateEcheance} />
+            <InfoRow label="Temps passé" value={viewEnCours.tempsPasse} />
+            <InfoRow label="EHS consommés" value={frNumber(viewEnCours.ehs)} />
+            <InfoRow label="Statut" value={<TacheStatutPill statut={viewEnCours.statut} />} />
+          </div>
+        </Lightbox>
+      )}
+
+      {viewHistorique && (
+        <Lightbox title={viewHistorique.tache} onClose={() => setViewHistorique(null)}>
+          <div className="salarie-info-col">
+            <InfoRow label="Projet" value={<ProjetBadge label={viewHistorique.projet} tone={viewHistorique.badge} />} />
+            <InfoRow label="Date de début" value={viewHistorique.dateDebut} />
+            <InfoRow label="Date de fin" value={viewHistorique.dateFin} />
+            <InfoRow label="Temps total" value={viewHistorique.tempsTotal} />
+            <InfoRow label="EHS consommés" value={frNumber(viewHistorique.ehs)} />
+            <InfoRow label="Validé par" value={viewHistorique.validePar} />
+            <InfoRow label="Date de validation" value={viewHistorique.dateValidation} />
+          </div>
+        </Lightbox>
+      )}
     </div>
   )
 }
