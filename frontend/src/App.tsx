@@ -231,7 +231,7 @@ function App() {
       case 'staffing': return <StaffingPage />
       case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage icon={icons.tresorerie} />
-      case 'salarie': return <SalariePage icon={icons.salarie} />
+      case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage icon={icons.architecture} />
       case 'parametres': return <ParametresPage icon={icons.parametres} />
       case 'deconnexion': return <DeconnexionPage icon={icons.deconnexion} />
