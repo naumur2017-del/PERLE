@@ -1,7 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  ArrowRight,
   Banknote,
+  BarChart3,
+  Bell,
+  Briefcase,
   Calendar,
   Camera,
   CheckCircle2,
@@ -11,14 +15,19 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Circle,
+  Clock,
   Download,
   Eye,
   FileText,
+  Gift,
+  Hand,
   IdCard,
   Info,
   LayoutDashboard,
   ListChecks,
   Plus,
+  ShieldAlert,
+  Sparkles,
   Trash2,
   UploadCloud,
   User,
@@ -98,7 +107,8 @@ export default function SalariePage() {
         })}
       </nav>
 
-      {activeTab === 'demandes' ? <DemandesTab />
+      {activeTab === 'dashboard' ? <DashboardTab />
+        : activeTab === 'demandes' ? <DemandesTab />
         : activeTab === 'profil' ? <ProfilTab />
         : <ComingSoon label={activeLabel} icon={tabs.find((tab) => tab.id === activeTab)!.icon} />}
     </section>
@@ -523,6 +533,235 @@ function ProfilTab() {
         <ProfessionalInfoCard />
         <CvCard />
         <OtherInfoCard />
+      </div>
+    </div>
+  )
+}
+
+const frNumber = (value: number, decimals = 2) => value.toFixed(decimals).replace('.', ',')
+
+const monthlyEhs = [
+  { month: 'Déc. 2024', value: 52.3 },
+  { month: 'Janv. 2025', value: 61.2 },
+  { month: 'Fév. 2025', value: 72.8 },
+  { month: 'Mars 2025', value: 85.1 },
+  { month: 'Avr. 2025', value: 89.3 },
+  { month: 'Mai 2025', value: 67.5 },
+]
+
+const ehsByProject = [
+  { name: 'Projet CGA', value: 27, color: '#2a78d6' },
+  { name: 'Projet PADESCE', value: 18, color: '#eb6834' },
+  { name: 'Projet PERLE', value: 12.5, color: '#4a3aa7' },
+  { name: 'Projet TRANSFAGRI', value: 10, color: '#1baf7a' },
+]
+
+const dashboardStats = [
+  { icon: BarChart3, iconClass: 'ehs', label: 'EHS consommés ce mois', value: '67,50', unit: 'EHS', sub: 'Sur 89,30 EHS consommés en Avril', progress: 75.6 },
+  { icon: Clock, iconClass: 'temps', label: 'Temps total travaillé ce mois', value: '154h 20m', sub: 'Sur 168h ce mois', progress: 91.8 },
+  { icon: CheckCircle2, iconClass: 'taches', label: 'Tâches terminées ce mois', value: '18', sub: 'Sur 24 tâches', progress: 75.0 },
+  { icon: Briefcase, iconClass: 'projets', label: 'Projets actifs', value: '4', sub: 'Sur 7 projets ce mois' },
+  { icon: Wallet, iconClass: 'salaire', label: 'Salaire estimatif', value: '542 000', unit: 'FCFA', sub: 'Détails dans Rémunération', link: true },
+  { icon: Gift, iconClass: 'prime', label: 'Prime estimative', value: '58 000', unit: 'FCFA', sub: 'Détails dans Rémunération', link: true },
+]
+
+const bottomStats = [
+  { icon: Calendar, iconClass: 'conge', label: 'Solde de congés', value: '12', unit: 'jours', sub: 'Sur 25 jours/an', link: 'Voir le détail' },
+  { icon: FileText, iconClass: 'attente', label: 'Demandes en attente', value: '1', sub: null, link: 'Voir mes demandes' },
+  { icon: ShieldAlert, iconClass: 'sanction', label: 'Sanctions actives', value: '0', sub: null, link: 'Voir le détail' },
+  { icon: Wallet, iconClass: 'avance', label: 'Avances en cours', value: '150 000', unit: 'FCFA', sub: 'Reste à rembourser 120 000 FCFA', link: 'Voir le détail' },
+]
+
+const notifications = [
+  { icon: Calendar, iconClass: 'conge', text: <>Votre demande de congé du <strong>05/06/2025</strong> au <strong>07/06/2025</strong> est en attente.</>, time: 'Il y a 1 heure' },
+  { icon: CheckCircle2, iconClass: 'avance', text: <>Votre demande d’avance de <strong>150 000 FCFA</strong> a été acceptée.</>, time: 'Il y a 1 jour' },
+  { icon: FileText, iconClass: 'paie', text: <>Votre fiche de paie de <strong>Mai 2025</strong> est disponible.</>, time: 'Il y a 2 jours' },
+  { icon: ShieldAlert, iconClass: 'sanction', text: 'Une nouvelle sanction a été enregistrée.', time: 'Il y a 3 jours' },
+  { icon: Bell, iconClass: 'rappel', text: <><strong>Rappel :</strong> Réunion d’équipe prévue demain à 10h00.</>, time: 'Il y a 5 jours' },
+]
+
+function DashboardStatCard({ icon: Icon, iconClass, label, value, unit, sub, progress, link }: { icon: typeof BarChart3; iconClass: string; label: string; value: string; unit?: string; sub?: string | null; progress?: number; link?: boolean }) {
+  return (
+    <article className="salarie-dash-stat">
+      <span className={`salarie-dash-stat-icon ${iconClass}`}><Icon size={18} strokeWidth={2} /></span>
+      <div>
+        <span className="salarie-dash-stat-label">{label}</span>
+        <strong>{value}{unit && <small> {unit}</small>}</strong>
+        {sub && (link
+          ? <a className="salarie-dash-stat-link">{sub} <ArrowRight size={11} strokeWidth={2.4} /></a>
+          : <small className="salarie-dash-stat-sub">{sub}</small>)}
+        {typeof progress === 'number' && (
+          <div className="salarie-dash-progress">
+            <span className="salarie-dash-progress-track"><i style={{ width: `${progress}%` }} /></span>
+            <b>{frNumber(progress, 1)}%</b>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function LineChart() {
+  const width = 600
+  const height = 220
+  const left = 34
+  const right = 592
+  const top = 26
+  const bottom = 180
+  const ticks = [0, 20, 40, 60, 80, 100]
+  const step = (right - left) / (monthlyEhs.length - 1)
+  const valueToY = (value: number) => bottom - (value / 100) * (bottom - top)
+  const points = monthlyEhs.map((entry, index) => ({ ...entry, x: left + index * step, y: valueToY(entry.value) }))
+  const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${bottom} L ${points[0].x} ${bottom} Z`
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="salarie-linechart" role="img" aria-label="Évolution mensuelle des EHS consommés">
+      {ticks.map((tick) => {
+        const y = valueToY(tick)
+        return (
+          <g key={tick}>
+            <line x1={left} x2={right} y1={y} y2={y} className="salarie-chart-grid" />
+            <text x={left - 10} y={y + 3} className="salarie-chart-axis" textAnchor="end">{tick}</text>
+          </g>
+        )
+      })}
+      <path d={areaPath} className="salarie-chart-area" />
+      <path d={linePath} className="salarie-chart-line" />
+      {points.map((point, index) => {
+        const anchor = index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'
+        return (
+          <g key={point.month}>
+            <circle cx={point.x} cy={point.y} r={4} className="salarie-chart-dot" />
+            <text x={point.x} y={point.y - 12} className="salarie-chart-value" textAnchor={anchor}>{frNumber(point.value)}</text>
+            <text x={point.x} y={bottom + 20} className="salarie-chart-axis" textAnchor={anchor}>{point.month}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function DonutChart() {
+  const size = 200
+  const center = size / 2
+  const radius = 70
+  const strokeWidth = 30
+  const circumference = 2 * Math.PI * radius
+  const gap = 4
+  const total = ehsByProject.reduce((sum, entry) => sum + entry.value, 0)
+
+  const segments = ehsByProject.reduce<{ name: string; value: number; color: string; dash: number; offset: number; percent: number }[]>((acc, entry) => {
+    const offset = acc.length > 0 ? acc[acc.length - 1].offset + (acc[acc.length - 1].dash + gap) : 0
+    const raw = (entry.value / total) * circumference
+    acc.push({ ...entry, dash: Math.max(raw - gap, 0), offset, percent: (entry.value / total) * 100 })
+    return acc
+  }, [])
+
+  return (
+    <div className="salarie-donut-wrap">
+      <svg viewBox={`0 0 ${size} ${size}`} className="salarie-donut" role="img" aria-label="Répartition des EHS par projet">
+        <g transform={`rotate(-90 ${center} ${center})`}>
+          {segments.map((segment) => (
+            <circle
+              key={segment.name}
+              cx={center} cy={center} r={radius} fill="none"
+              stroke={segment.color} strokeWidth={strokeWidth}
+              strokeDasharray={`${segment.dash} ${circumference - segment.dash}`}
+              strokeDashoffset={-segment.offset}
+            />
+          ))}
+        </g>
+        <text x={center} y={center - 6} textAnchor="middle" className="salarie-donut-label">Total</text>
+        <text x={center} y={center + 16} textAnchor="middle" className="salarie-donut-total">{frNumber(total)}</text>
+        <text x={center} y={center + 32} textAnchor="middle" className="salarie-donut-label">EHS</text>
+      </svg>
+      <ul className="salarie-donut-legend">
+        {segments.map((segment) => (
+          <li key={segment.name}>
+            <span style={{ background: segment.color }} />
+            <div>
+              <strong>{segment.name}</strong>
+              <small>{frNumber(segment.value)} EHS ({frNumber(segment.percent, 1)}%)</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function DashboardTab() {
+  return (
+    <div className="salarie-dashboard">
+      <div className="salarie-dash-greeting">
+        <span className="salarie-dash-wave"><Hand size={22} strokeWidth={2} /></span>
+        <p>
+          <strong>Bonjour Maxwell Ebongue,</strong><br />
+          Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
+          pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>542 000 FCFA</strong>,
+          dont <strong>58 000 FCFA</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
+        </p>
+        <span className="salarie-dash-illustration" aria-hidden="true">
+          <Sparkles size={26} strokeWidth={1.6} />
+        </span>
+      </div>
+
+      <div className="salarie-dash-stats">
+        {dashboardStats.map((stat) => <DashboardStatCard key={stat.label} {...stat} />)}
+      </div>
+
+      <div className="salarie-dash-panels">
+        <section className="salarie-panel salarie-dash-chart-card">
+          <div className="salarie-dash-panel-heading">
+            <h3>Évolution mensuelle des EHS consommés</h3>
+            <label className="salarie-filter">6 derniers mois<ChevronDown size={13} strokeWidth={2} /></label>
+          </div>
+          <LineChart />
+        </section>
+
+        <section className="salarie-panel salarie-dash-donut-card">
+          <div className="salarie-dash-panel-heading">
+            <h3>Répartition des EHS par projet (Mai 2025)</h3>
+          </div>
+          <DonutChart />
+        </section>
+
+        <section className="salarie-panel salarie-dash-notifications">
+          <div className="salarie-dash-panel-heading">
+            <h3>Dernières notifications</h3>
+            <a>Voir tout</a>
+          </div>
+          <ul className="salarie-notif-list">
+            {notifications.map((notif, index) => {
+              const Icon = notif.icon
+              return (
+                <li key={index}>
+                  <span className={`salarie-notif-icon ${notif.iconClass}`}><Icon size={14} strokeWidth={2} /></span>
+                  <div>
+                    <p>{notif.text}</p>
+                    <small>{notif.time}</small>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <a className="salarie-dash-stat-link salarie-notif-footer">Voir toutes les notifications <ArrowRight size={12} strokeWidth={2.4} /></a>
+        </section>
+      </div>
+
+      <div className="salarie-dash-stats salarie-dash-stats-bottom">
+        {bottomStats.map((stat) => (
+          <article key={stat.label} className="salarie-dash-stat compact">
+            <span className={`salarie-dash-stat-icon ${stat.iconClass}`}><stat.icon size={18} strokeWidth={2} /></span>
+            <div>
+              <span className="salarie-dash-stat-label">{stat.label}</span>
+              <strong>{stat.value}{stat.unit && <small> {stat.unit}</small>}</strong>
+              {stat.sub && <small className="salarie-dash-stat-sub">{stat.sub}</small>}
+              {stat.link && <a className="salarie-dash-stat-link">{stat.link} <ArrowRight size={11} strokeWidth={2.4} /></a>}
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   )
