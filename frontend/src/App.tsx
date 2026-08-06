@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage'
 import PilotagePage from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
 import ControleExecutionPage from './pages/ControleExecutionPage'
+import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -30,7 +31,8 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
   'controle-execution': { path: '/pilotage/controle-execution', title: "Contrôle d'exécution et conformité", description: "Vérifiez l'exécution des projets et leur conformité aux référentiels." },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
-  staffing: { path: '/staffing', title: 'Staffing', description: 'Affectez les collaborateurs et suivez les allocations des équipes.' },
+  staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
+  'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
   gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Gérez les collaborateurs, les grades et les compétences.' },
   tresorerie: { path: '/tresorerie', title: 'Trésorerie', description: 'Suivez les paiements, transferts et flux financiers.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
@@ -147,7 +149,13 @@ function App() {
       ],
     },
     { id: 'creation', label: 'Création de projet', icon: icons.creation },
-    { id: 'staffing', label: 'Staffing', icon: icons.staffing },
+    {
+      id: 'staffing', label: 'Staffing', icon: icons.staffing,
+      children: [
+        { id: 'staffing', label: 'Nouveau staffing' },
+        { id: 'staffing-execute', label: 'Exécuté staffing' },
+      ],
+    },
     { id: 'gestion', label: 'Gestion des équipes', icon: icons.gestion },
     { id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
@@ -215,7 +223,8 @@ function App() {
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} />
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
-      case 'staffing': return <StaffingPage />
+      case 'staffing': return <StaffingPage navigateTo={navigateTo} />
+      case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} />
       case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage icon={icons.tresorerie} />
       case 'salarie': return <SalariePage />
