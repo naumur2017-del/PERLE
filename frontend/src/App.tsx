@@ -6,6 +6,7 @@ import SplashScreen from './components/SplashScreen'
 import HomePage from './pages/HomePage'
 import PilotagePage from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
+import ControleExecutionPage from './pages/ControleExecutionPage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -69,7 +70,17 @@ function App() {
   const [splashVisible, setSplashVisible] = useState(true)
   const [splashFading, setSplashFading] = useState(false)
   const [headerCollapse, setHeaderCollapse] = useState(0)
+  /* Repliée ou non, la barre latérale garde son état d’une visite à l’autre. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('perle-sidebar-collapsed') === '1')
   const mainContentRef = useRef<HTMLElement>(null)
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem('perle-sidebar-collapsed', next ? '1' : '0')
+      return next
+    })
+  }
 
   const handleMainScroll = (event: UIEvent<HTMLElement>) => {
     setHeaderCollapse(Math.min(event.currentTarget.scrollTop / 110, 1))
@@ -202,7 +213,7 @@ function App() {
     switch (activeNav) {
       case 'pilotage': return <PilotagePage />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} />
-      case 'controle-execution': return <ModulePage title={pageConfig['controle-execution'].title} description={pageConfig['controle-execution'].description} icon={icons.pilotage} />
+      case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage />
       case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
@@ -222,7 +233,7 @@ function App() {
       {splashVisible && <SplashScreen fadingOut={splashFading} />}
       <div className="app-container">
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
         <div className="sidebar-header">
           <div className="logo" onClick={() => navigateTo('accueil')}>
             <span className="logo-icon">
@@ -234,6 +245,18 @@ function App() {
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Déployer la barre latérale' : 'Réduire la barre latérale'}
+          title={sidebarCollapsed ? 'Déployer la barre latérale' : 'Réduire la barre latérale'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d={sidebarCollapsed ? 'm9 6 6 6-6 6' : 'm15 6-6 6 6 6'} />
+          </svg>
+        </button>
 
         <nav className="sidebar-nav">
           {navItems.map((item) => {
