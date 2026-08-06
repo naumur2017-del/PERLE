@@ -8,6 +8,7 @@ import PilotagePage from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
 import ControleExecutionPage from './pages/ControleExecutionPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
+import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -34,7 +35,11 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
   gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Gérez les collaborateurs, les grades et les compétences.' },
-  tresorerie: { path: '/tresorerie', title: 'Trésorerie', description: 'Suivez les paiements, transferts et flux financiers.' },
+  tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
+  'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
+  'tresorerie-comptes': { path: '/tresorerie/comptes-caisses', title: 'Comptes et caisses', description: 'Suivez les soldes et mouvements de vos comptes bancaires, mobile money et caisses.' },
+  'tresorerie-budgets': { path: '/tresorerie/budgets', title: 'Budgets', description: 'Suivez la consommation budgétaire par projet et par ligne de dépense.' },
+  'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture', description: 'Gérez les référentiels et les architectures de tâches.' },
   aide: { path: '/aide', title: 'Aide', description: "Consultez les ressources d'aide et contactez le support PERLE." },
@@ -157,7 +162,16 @@ function App() {
       ],
     },
     { id: 'gestion', label: 'Gestion des équipes', icon: icons.gestion },
-    { id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie },
+    {
+      id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie,
+      children: [
+        { id: 'tresorerie', label: 'Demandes de paiement' },
+        { id: 'tresorerie-paiements', label: 'Paiements exécutés' },
+        { id: 'tresorerie-comptes', label: 'Comptes et caisses' },
+        { id: 'tresorerie-budgets', label: 'Budgets' },
+        { id: 'tresorerie-rapports', label: 'Rapports financiers' },
+      ],
+    },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
     { id: 'architecture', label: 'Architecture', icon: icons.architecture },
     { id: 'aide', label: 'Aide', icon: icons.aide },
@@ -226,7 +240,11 @@ function App() {
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />
       case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} />
       case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
-      case 'tresorerie': return <TresoreriePage icon={icons.tresorerie} />
+      case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
+      case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} />
+      case 'tresorerie-comptes': return <ModulePage title={pageConfig['tresorerie-comptes'].title} description={pageConfig['tresorerie-comptes'].description} icon={icons.tresorerie} />
+      case 'tresorerie-budgets': return <ModulePage title={pageConfig['tresorerie-budgets'].title} description={pageConfig['tresorerie-budgets'].description} icon={icons.tresorerie} />
+      case 'tresorerie-rapports': return <ModulePage title={pageConfig['tresorerie-rapports'].title} description={pageConfig['tresorerie-rapports'].description} icon={icons.tresorerie} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage icon={icons.architecture} />
       case 'aide': return <ModulePage title={pageConfig.aide.title} description={pageConfig.aide.description} icon={icons.aide} />
