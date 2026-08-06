@@ -5,6 +5,7 @@ import AnimatedLogo from './components/AnimatedLogo'
 import SplashScreen from './components/SplashScreen'
 import HomePage from './pages/HomePage'
 import PilotagePage from './pages/PilotagePage'
+import ControleTachesPage from './pages/ControleTachesPage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -195,11 +196,12 @@ function App() {
   const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
   const pageTitle = currentPage.title
   const pageDescription = currentPage.description
+  const parentNavGroup = navItems.find((item) => item.children?.some((child) => child.id === activeNav))
 
   const renderPage = () => {
     switch (activeNav) {
       case 'pilotage': return <PilotagePage />
-      case 'controle-taches': return <ModulePage title={pageConfig['controle-taches'].title} description={pageConfig['controle-taches'].description} icon={icons.pilotage} />
+      case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} />
       case 'controle-execution': return <ModulePage title={pageConfig['controle-execution'].title} description={pageConfig['controle-execution'].description} icon={icons.pilotage} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage />
@@ -301,6 +303,10 @@ function App() {
           <section className="hero-section">
             <nav className="hero-breadcrumb" aria-label="Fil d’Ariane">
               <button onClick={() => navigateTo('accueil')}>Accueil</button>
+              {!isHomePage && parentNavGroup && parentNavGroup.id !== activeNav && <>
+                <span>›</span>
+                <button onClick={() => navigateTo(parentNavGroup.id)}>{parentNavGroup.label}</button>
+              </>}
               {!isHomePage && <>
                 <span>›</span>
                 <button onClick={() => navigateTo(activeNav)}>{pageTitle}</button>
