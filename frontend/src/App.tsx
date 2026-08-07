@@ -9,6 +9,10 @@ import ControleTachesPage from './pages/ControleTachesPage'
 import ControleExecutionPage from './pages/ControleExecutionPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
+import ComptesCaissesPage from './pages/ComptesCaissesPage'
+import RapportsFinanciersPage from './pages/RapportsFinanciersPage'
+import GuidePage from './pages/GuidePage'
+import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -34,16 +38,33 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
-  gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Gérez les collaborateurs, les grades et les compétences.' },
+  gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Suivre et gérer les collaborateurs, leurs grades et leurs affectations.' },
+  'gestion-equipes': { path: '/gestion-equipes/equipes', title: 'Équipes', description: 'Consultez et organisez les équipes de l’entreprise.' },
+  'gestion-grades': { path: '/gestion-equipes/grades', title: 'Grades et échelons', description: 'Gérez la grille des grades et échelons des collaborateurs.' },
+  'gestion-organigramme': { path: '/gestion-equipes/organigramme', title: 'Organigramme', description: 'Visualisez la hiérarchie et les rattachements de l’entreprise.' },
   tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
   'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-caisses', title: 'Comptes et caisses', description: 'Suivez les soldes et mouvements de vos comptes bancaires, mobile money et caisses.' },
   'tresorerie-budgets': { path: '/tresorerie/budgets', title: 'Budgets', description: 'Suivez la consommation budgétaire par projet et par ligne de dépense.' },
   'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
-  architecture: { path: '/architecture', title: 'Architecture', description: 'Gérez les référentiels et les architectures de tâches.' },
-  aide: { path: '/aide', title: 'Aide', description: "Consultez les ressources d'aide et contactez le support PERLE." },
-  guide: { path: '/guide-utilisation', title: "Guide d'utilisation", description: "Apprenez à utiliser PERLE grâce au guide d'utilisation complet." },
+  architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
+  aide: { path: '/aide', title: 'Help / Centre d’assistance', description: 'Nous sommes là pour vous aider à utiliser PERLE efficacement.' },
+  'aide-faq': { path: '/aide/faq', title: 'FAQ', description: 'Consultez les questions fréquemment posées et leurs réponses.' },
+  'aide-connaissances': { path: '/aide/base-de-connaissances', title: 'Base de connaissances', description: 'Parcourez tous les articles de la base de connaissances PERLE.' },
+  'aide-tutoriels': { path: '/aide/tutoriels-video', title: 'Tutoriels vidéo', description: 'Découvrez des vidéos courtes pour maîtriser chaque module.' },
+  'aide-contact': { path: '/aide/contacter-le-support', title: 'Contacter le support', description: 'Joignez notre équipe support par téléphone, WhatsApp ou email.' },
+  'aide-bug': { path: '/aide/signaler-un-bug', title: 'Signaler un bug', description: 'Signalez un problème rencontré dans PERLE.' },
+  'aide-amelioration': { path: '/aide/proposer-une-amelioration', title: 'Proposer une amélioration', description: 'Partagez vos idées pour améliorer PERLE.' },
+  'aide-tickets': { path: '/aide/mes-tickets', title: 'Mes tickets', description: 'Consultez l’historique de vos demandes d’assistance.' },
+  guide: { path: '/guide-utilisation', title: 'Guide d’utilisation', description: 'Apprenez à utiliser PERLE efficacement grâce à nos guides pas à pas.' },
+  'guide-pilotage': { path: '/guide-utilisation/pilotage-des-projets', title: 'Guide - Pilotage des projets', description: 'Apprenez à planifier, suivre et piloter vos projets.' },
+  'guide-staffing': { path: '/guide-utilisation/staffing', title: 'Guide - Staffing', description: 'Apprenez à affecter les ressources et gérer la charge.' },
+  'guide-gestion': { path: '/guide-utilisation/gestion-des-equipes', title: 'Guide - Gestion des équipes', description: 'Gérez les équipes, les rôles et les accès.' },
+  'guide-tresorerie': { path: '/guide-utilisation/tresorerie', title: 'Guide - Trésorerie', description: 'Suivez les encaissements, décaissements et budgets.' },
+  'guide-salarie': { path: '/guide-utilisation/salarie', title: 'Guide - Salarié', description: 'Consultez vos fiches de paie et informations personnelles.' },
+  'guide-architecture': { path: '/guide-utilisation/architecture', title: 'Guide - Architecture des tâches', description: 'Comprenez l’arborescence et l’organisation des tâches.' },
+  'guide-parametres': { path: '/guide-utilisation/parametres', title: 'Guide - Paramètres', description: 'Personnalisez PERLE selon les besoins de votre organisation.' },
   parametres: { path: '/parametres', title: 'Paramètres', description: 'Configurez les préférences et les paramètres de PERLE.' },
   deconnexion: { path: '/deconnexion', title: 'Déconnexion', description: 'Quittez votre session PERLE en toute sécurité.' },
 }
@@ -161,7 +182,15 @@ function App() {
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
     },
-    { id: 'gestion', label: 'Gestion des équipes', icon: icons.gestion },
+    {
+      id: 'gestion', label: 'Gestion des équipes', icon: icons.gestion,
+      children: [
+        { id: 'gestion', label: 'Employés' },
+        { id: 'gestion-equipes', label: 'Équipes' },
+        { id: 'gestion-grades', label: 'Grades et échelons' },
+        { id: 'gestion-organigramme', label: 'Organigramme' },
+      ],
+    },
     {
       id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie,
       children: [
@@ -173,9 +202,33 @@ function App() {
       ],
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
-    { id: 'architecture', label: 'Architecture', icon: icons.architecture },
-    { id: 'aide', label: 'Aide', icon: icons.aide },
-    { id: 'guide', label: "Guide d'utilisation", icon: icons.guide },
+    { id: 'architecture', label: 'Architecture des tâches', icon: icons.architecture },
+    {
+      id: 'aide', label: 'Help', icon: icons.aide,
+      children: [
+        { id: 'aide', label: 'Centre d’assistance' },
+        { id: 'aide-faq', label: 'FAQ' },
+        { id: 'aide-connaissances', label: 'Base de connaissances' },
+        { id: 'aide-tutoriels', label: 'Tutoriels vidéo' },
+        { id: 'aide-contact', label: 'Contacter le support' },
+        { id: 'aide-bug', label: 'Signaler un bug' },
+        { id: 'aide-amelioration', label: 'Proposer une amélioration' },
+        { id: 'aide-tickets', label: 'Mes tickets' },
+      ],
+    },
+    {
+      id: 'guide', label: 'Guide d’utilisation', icon: icons.guide,
+      children: [
+        { id: 'guide', label: 'Introduction' },
+        { id: 'guide-pilotage', label: 'Pilotage des projets' },
+        { id: 'guide-staffing', label: 'Staffing' },
+        { id: 'guide-gestion', label: 'Gestion des équipes' },
+        { id: 'guide-tresorerie', label: 'Trésorerie' },
+        { id: 'guide-salarie', label: 'Salarié' },
+        { id: 'guide-architecture', label: 'Architecture' },
+        { id: 'guide-parametres', label: 'Paramètres' },
+      ],
+    },
     { id: 'parametres', label: 'Paramètres', icon: icons.parametres },
     { id: 'deconnexion', label: 'Déconnexion', icon: icons.deconnexion },
   ]
@@ -239,16 +292,33 @@ function App() {
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />
       case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} />
-      case 'gestion': return <GestionEquipesPage icon={icons.gestion} />
+      case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
+      case 'gestion-equipes': return <ModulePage title={pageConfig['gestion-equipes'].title} description={pageConfig['gestion-equipes'].description} icon={icons.gestion} />
+      case 'gestion-grades': return <ModulePage title={pageConfig['gestion-grades'].title} description={pageConfig['gestion-grades'].description} icon={icons.gestion} />
+      case 'gestion-organigramme': return <ModulePage title={pageConfig['gestion-organigramme'].title} description={pageConfig['gestion-organigramme'].description} icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} />
-      case 'tresorerie-comptes': return <ModulePage title={pageConfig['tresorerie-comptes'].title} description={pageConfig['tresorerie-comptes'].description} icon={icons.tresorerie} />
+      case 'tresorerie-comptes': return <ComptesCaissesPage navigateTo={navigateTo} />
       case 'tresorerie-budgets': return <ModulePage title={pageConfig['tresorerie-budgets'].title} description={pageConfig['tresorerie-budgets'].description} icon={icons.tresorerie} />
-      case 'tresorerie-rapports': return <ModulePage title={pageConfig['tresorerie-rapports'].title} description={pageConfig['tresorerie-rapports'].description} icon={icons.tresorerie} />
+      case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
-      case 'architecture': return <ArchitecturePage icon={icons.architecture} />
-      case 'aide': return <ModulePage title={pageConfig.aide.title} description={pageConfig.aide.description} icon={icons.aide} />
-      case 'guide': return <ModulePage title={pageConfig.guide.title} description={pageConfig.guide.description} icon={icons.guide} />
+      case 'architecture': return <ArchitecturePage />
+      case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
+      case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
+      case 'aide-connaissances': return <ModulePage title={pageConfig['aide-connaissances'].title} description={pageConfig['aide-connaissances'].description} icon={icons.aide} />
+      case 'aide-tutoriels': return <ModulePage title={pageConfig['aide-tutoriels'].title} description={pageConfig['aide-tutoriels'].description} icon={icons.aide} />
+      case 'aide-contact': return <ModulePage title={pageConfig['aide-contact'].title} description={pageConfig['aide-contact'].description} icon={icons.aide} />
+      case 'aide-bug': return <ModulePage title={pageConfig['aide-bug'].title} description={pageConfig['aide-bug'].description} icon={icons.aide} />
+      case 'aide-amelioration': return <ModulePage title={pageConfig['aide-amelioration'].title} description={pageConfig['aide-amelioration'].description} icon={icons.aide} />
+      case 'aide-tickets': return <ModulePage title={pageConfig['aide-tickets'].title} description={pageConfig['aide-tickets'].description} icon={icons.aide} />
+      case 'guide': return <GuidePage navigateTo={navigateTo} />
+      case 'guide-pilotage': return <ModulePage title={pageConfig['guide-pilotage'].title} description={pageConfig['guide-pilotage'].description} icon={icons.guide} />
+      case 'guide-staffing': return <ModulePage title={pageConfig['guide-staffing'].title} description={pageConfig['guide-staffing'].description} icon={icons.guide} />
+      case 'guide-gestion': return <ModulePage title={pageConfig['guide-gestion'].title} description={pageConfig['guide-gestion'].description} icon={icons.guide} />
+      case 'guide-tresorerie': return <ModulePage title={pageConfig['guide-tresorerie'].title} description={pageConfig['guide-tresorerie'].description} icon={icons.guide} />
+      case 'guide-salarie': return <ModulePage title={pageConfig['guide-salarie'].title} description={pageConfig['guide-salarie'].description} icon={icons.guide} />
+      case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
+      case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
       case 'parametres': return <ParametresPage icon={icons.parametres} />
       case 'deconnexion': return <DeconnexionPage icon={icons.deconnexion} />
       default: return <HomePage modules={modules} navigateTo={navigateTo} />
@@ -365,7 +435,7 @@ function App() {
             {/* Hero Top with Controls */}
             <div className="hero-top-controls">
               <button className="team-button">
-                <span>Équipe de pilotage</span>
+                <span>Maxwell</span>
                 <span className="dropdown-icon">▼</span>
               </button>
               <div className="hero-actions">
