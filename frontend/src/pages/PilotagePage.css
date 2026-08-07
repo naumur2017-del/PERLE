@@ -92,8 +92,8 @@
 /* =============== KPI CARDS =============== */
 .pil-kpis {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
   padding: 22px 32px 0;
 }
 
@@ -132,16 +132,18 @@
 .pil-kpi-blue .pil-kpi-icon { background: #dbeafe; color: #3b82f6; }
 .pil-kpi-orange .pil-kpi-icon { background: #fef1d8; color: #f59e0b; }
 .pil-kpi-slate .pil-kpi-icon { background: #e7e4f4; color: #4c3a8f; }
+.pil-kpi-teal .pil-kpi-icon { background: #d1fae5; color: #0d9488; }
+.pil-kpi-indigo .pil-kpi-icon { background: #e0e7ff; color: #4338ca; }
 
 .pil-kpi strong {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   color: #14123a;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .pil-kpi small {
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: #7a7a94;
 }
 
@@ -156,155 +158,6 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-}
-
-/* =============== CHARTS =============== */
-.pil-charts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 18px 32px 0;
-}
-
-.pil-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px;
-  border: 1px solid #eae7f6;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
-  min-width: 0;
-}
-
-.pil-panel-head h3 {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: #4a4a63;
-  text-transform: uppercase;
-}
-
-.pil-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 10.5px;
-  color: #6c6c85;
-}
-
-.pil-legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pil-legend i {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-}
-
-.pil-legend-line {
-  width: 12px !important;
-  height: 2px !important;
-  border-radius: 1px !important;
-  background: #16a34a;
-}
-
-.pil-chart-svg {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.pil-grid { stroke: #eeecf7; stroke-width: 1; }
-
-.pil-axis {
-  font-size: 8px;
-  fill: #8f8fa6;
-  font-weight: 600;
-}
-
-.pil-point-label {
-  font-size: 8px;
-  fill: #2b2b4a;
-  font-weight: 700;
-}
-
-.pil-donut-layout {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.pil-donut-svg {
-  width: 140px;
-  height: 140px;
-  flex-shrink: 0;
-}
-
-.pil-donut-value {
-  font-size: 13px;
-  font-weight: 700;
-  fill: #14123a;
-}
-
-.pil-donut-unit {
-  font-size: 9px;
-  font-weight: 700;
-  fill: #35335c;
-}
-
-.pil-donut-sub {
-  font-size: 8.5px;
-  fill: #8f8fa6;
-}
-
-.pil-donut-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  flex: 1;
-  min-width: 0;
-}
-
-.pil-donut-legend li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 10.5px;
-  color: #4a4a63;
-}
-
-.pil-donut-legend i {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-.pil-donut-legend span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pil-donut-legend b {
-  font-weight: 700;
-  color: #14123a;
 }
 
 /* =============== FILTERS =============== */
@@ -411,7 +264,7 @@
 
 .pil-table {
   width: 100%;
-  min-width: 1560px;
+  min-width: 1780px;
   border-collapse: collapse;
   font-size: 11px;
 }
@@ -457,6 +310,57 @@
   min-width: 170px;
 }
 
+.pil-th-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pil-chef-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pil-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.pil-mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pil-mini-bar-track {
+  width: 52px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f0eef8;
+  overflow: hidden;
+}
+
+.pil-mini-bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.pil-mini-bar b {
+  font-size: 10px;
+  font-weight: 700;
+  color: #14123a;
+  white-space: nowrap;
+}
+
 .pil-pill {
   display: inline-block;
   padding: 4px 9px;
@@ -468,12 +372,6 @@
 .pil-pill-cours { background: #dbeafe; color: #1d4ed8; }
 .pil-pill-termine { background: #dcfce7; color: #15803d; }
 .pil-pill-retard { background: #fee2e2; color: #b91c1c; }
-
-.pil-ring-text {
-  font-size: 9px;
-  font-weight: 700;
-  fill: #14123a;
-}
 
 .pil-status-global {
   display: inline-flex;
@@ -594,88 +492,23 @@
   color: #a8a8bd;
 }
 
-/* =============== SYNC BAR =============== */
-.pil-sync-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 14px 32px 28px;
-  padding: 10px 16px;
-  border: 1px solid #eae7f6;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #6c6c85;
-  font-size: 11px;
-}
-
-.pil-sync-bar > span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pil-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  background: none;
-  color: #6c6c85;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pil-toggle i {
-  position: relative;
-  display: block;
-  width: 30px;
-  height: 16px;
-  border-radius: 999px;
-  background: #d8d5ec;
-  transition: background 0.2s ease;
-}
-
-.pil-toggle i::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: white;
-  transition: transform 0.2s ease;
-}
-
-.pil-toggle.is-on i { background: #16a34a; }
-.pil-toggle.is-on i::after { transform: translateX(14px); }
-
 /* =============== RESPONSIVE =============== */
-@media (max-width: 1200px) {
-  .pil-kpis { grid-template-columns: repeat(3, 1fr); }
-  .pil-charts { grid-template-columns: 1fr 1fr; }
+@media (max-width: 1300px) {
+  .pil-kpis { grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 900px) {
-  .pil-topbar,
-  .pil-header,
+  .pil-toolbar,
   .pil-kpis,
-  .pil-charts,
   .pil-filters,
-  .pil-table-panel,
-  .pil-sync-bar {
+  .pil-table-panel {
     margin-left: 0;
     margin-right: 0;
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  .pil-kpis { grid-template-columns: 1fr 1fr; padding-left: 16px; padding-right: 16px; }
-  .pil-charts { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
-  .pil-header { flex-direction: column; }
+  .pil-kpis { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
