@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 
+const BUDGET_EXECUTION = 38400000
+const COUTS_LIGNES_INITIAL = 29100000
+
 const initialTasks = [
   ['PRJ.001', 'Étude de faisabilité', 'E', '15,00', '0', '15,00', 'Ajara Lamare', 'Herman Tsaffock', '06/05/2025', '15/05/2025'],
   ['PRJ.002', 'Conception détaillée', 'E', '31,00', '0', '31,00', 'Ajara Lamare', 'Belomo Edwige', '16/05/2025', '15/06/2025'],
@@ -10,21 +13,26 @@ const initialTasks = [
   ['PRJ.007', 'Mise en production', 'E', '15,00', '1 000 000', '6,67', 'Ajara Lamare', 'Belomo Edwige', '01/12/2025', '15/12/2025'],
 ]
 
+const fmtFcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`
+const fmtPercent = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+
 export default function ProjectCreation({ onCancel }: { onCancel: () => void }) {
   const [step, setStep] = useState(1)
   const [projectName, setProjectName] = useState('Projet d’étude et de mise en œuvre du système ERP')
   const [clientName, setClientName] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
-  const [unexpectedAmount, setUnexpectedAmount] = useState('0')
   const [projectTasks, setProjectTasks] = useState(initialTasks)
+  const [imprevuAmount, setImprevuAmount] = useState(0)
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false)
 
-  const goToChargesStep = () => {
-    if (Number(unexpectedAmount) < 0) {
-      window.alert('La valeur du champ Imprévu ne peut pas être négative.')
-      return
-    }
-    setStep(2)
-  }
+  const imprevuActive = imprevuAmount > 0
+  const coutsLignesBudgetaires = COUTS_LIGNES_INITIAL + imprevuAmount
+  const reste = BUDGET_EXECUTION - coutsLignesBudgetaires
+  const coutsPercent = (coutsLignesBudgetaires / BUDGET_EXECUTION) * 100
+  const restePercent = (reste / BUDGET_EXECUTION) * 100
+  const equivalentEhs = BUDGET_EXECUTION / 150
+
+  const goToChargesStep = () => setStep(2)
 
   const saveTaskToProject = () => {
     setProjectTasks((currentTasks) => [
@@ -34,7 +42,25 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     setStep(1)
   }
 
-  const saveProject = () => window.alert('Le projet a été enregistré.')
+  const addImprevuLine = () => {
+    if (reste <= 0) return
+    const montant = reste
+    setProjectTasks((currentTasks) => [
+      ...currentTasks,
+      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Imprévu', 'D', '0', montant.toLocaleString('fr-FR'), '-', 'Équipe Pilotage', '-', '-', '-'],
+    ])
+    setImprevuAmount(montant)
+  }
+
+  const removeImprevuLine = () => {
+    setProjectTasks((currentTasks) => currentTasks.filter((task) => task[1] !== 'Imprévu'))
+    setImprevuAmount(0)
+  }
+
+  const saveProject = (mode: 'brouillon' | 'definitif') => {
+    setSaveMenuOpen(false)
+    window.alert(mode === 'brouillon' ? 'Le projet a été enregistré dans le brouillon.' : 'Le projet a été enregistré définitivement.')
+  }
 
   useEffect(() => {
     if (step !== 2) return
@@ -64,6 +90,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             <label className="field"><span>Marge (%) <em>*</em></span><div className="input-suffix"><input value="40" readOnly /><i>%</i></div></label>
             <label className="field"><span>Charges transversales (%) <em>*</em></span><div className="input-suffix"><input value="12" readOnly /><i>%</i></div><small>Entre 10% et 15%</small></label>
             <label className="field"><span>TVA (%)</span><div className="input-suffix"><input value="0" readOnly /><i>%</i></div><small>Saisir le taux de TVA si le montant est en TTC</small></label>
+            <label className="field"><span>IR (%)</span><div className="input-suffix"><input value="0" readOnly /><i>%</i></div><small>Saisir le taux d’IR à soustraire si applicable</small></label>
           </div>
 
           <div className="auto-summary">
@@ -77,8 +104,31 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             <label className="field"><span>Date de fin du projet <em>*</em></span><input type="date" defaultValue="2025-12-31" /></label>
           </div>
           <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>245 jours.</strong></div>
-          <label className="field unexpected-field"><span>Imprévu (FCFA)</span><input type="number" min="0" value={unexpectedAmount} onChange={(event) => setUnexpectedAmount(event.target.value)} onInvalid={(event) => event.currentTarget.setCustomValidity('Veuillez saisir une valeur positive ou égale à zéro.')} onInput={(event) => event.currentTarget.setCustomValidity('')} /></label>
-          <div className="form-actions project-form-actions"><button className="secondary-action" onClick={onCancel}>Annuler</button><button className="primary-action" onClick={goToChargesStep}>Configurer les Tâches</button><button className="save-project" onClick={saveProject}>Enregistrer le projet</button></div>
+          <div className="field unexpected-field">
+            <span>Imprévu</span>
+            {imprevuActive ? (
+              <button type="button" className="imprevu-button is-active" onClick={removeImprevuLine}>
+                ✕ Désélectionner l’Imprévu ({fmtFcfa(imprevuAmount)})
+              </button>
+            ) : (
+              <button type="button" className="imprevu-button" onClick={addImprevuLine} disabled={reste <= 0}>
+                {reste > 0 ? `＋ Affecter le reste en Imprévu (${fmtFcfa(reste)})` : '✓ Budget entièrement affecté'}
+              </button>
+            )}
+          </div>
+          <div className="form-actions project-form-actions">
+            <button className="secondary-action" onClick={onCancel}>Annuler</button>
+            <button className="primary-action" onClick={goToChargesStep}>Définir les lignes budgétaires</button>
+            <div className="save-project-wrap">
+              <button type="button" className="save-project" onClick={() => setSaveMenuOpen((open) => !open)}>Enregistrer le projet ▾</button>
+              {saveMenuOpen && (
+                <ul className="save-project-menu" onMouseLeave={() => setSaveMenuOpen(false)}>
+                  <li><button type="button" onClick={() => saveProject('brouillon')}>Enregistrer dans le brouillon</button></li>
+                  <li><button type="button" onClick={() => saveProject('definitif')}>Enregistrer définitivement le projet</button></li>
+                </ul>
+              )}
+            </div>
+          </div>
         </aside>
 
         <div className="creation-overview">
@@ -89,20 +139,21 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             <article className="financial-card orange"><span>Charges transversales (12%)</span><strong>9 600 000 FCFA</strong><small>12,00%</small></article>
             <article className="financial-card blue"><span>Budget d’exécution</span><strong>38 400 000 FCFA</strong><small>48,00%</small></article>
             <article className="financial-card cyan"><span>TVA (0%)</span><strong>0 FCFA</strong><small>0,00%</small></article>
+            <article className="financial-card cyan"><span>IR (0%)</span><strong>0 FCFA</strong><small>0,00%</small></article>
           </div>
 
           <div className="budget-strip">
-            <div><span>Reste disponible (après coûts des tâches)</span><strong>9 300 000 FCFA</strong><small>24,22% du budget d’exécution</small></div>
-            <div className="budget-progress"><i /></div>
-            <div><span>Coûts des tâches (HT)</span><strong className="danger">29 100 000 FCFA</strong><small>75,78% du budget d’exécution</small></div>
-            <div><span>Total utilisé (HT)</span><strong className="danger">29 100 000 FCFA</strong><small>75,78% du budget d’exécution</small></div>
+            <div><span>Reste disponible (après coûts des lignes budgétaires)</span><strong>{fmtFcfa(reste)}</strong><small>{fmtPercent(restePercent)} du budget d’exécution</small></div>
+            <div className="budget-progress"><i style={{ width: `${coutsPercent}%` }} /></div>
+            <div><span>Coûts des lignes budgétaires (HT)</span><strong className="danger">{fmtFcfa(coutsLignesBudgetaires)}</strong><small>{fmtPercent(coutsPercent)} du budget d’exécution</small></div>
+            <div><span>Équivalent EHS</span><strong>{equivalentEhs.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{fmtFcfa(BUDGET_EXECUTION)} ÷ 150</small></div>
           </div>
 
-          <div className="task-toolbar"><div><button>◉ &nbsp; Masquer / Afficher colonnes</button><button>▽ &nbsp; Filtres</button><button>↶ &nbsp; Réinitialiser</button></div><label>Type de tâche<select><option>Tous</option></select></label><button className="excel-button">▣ &nbsp; Export Excel</button></div>
+          <div className="task-toolbar"><div><button>◉ &nbsp; Masquer / Afficher colonnes</button><button>▽ &nbsp; Filtres</button><button>↶ &nbsp; Réinitialiser</button></div><label>Type de ligne budgétaire<select><option>Tous</option></select></label><button className="excel-button">▣ &nbsp; Export Excel</button></div>
 
-          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la tâche</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={4} /></tr></tfoot></table></div>
+          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la ligne budgétaire</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={4} /></tr></tfoot></table></div>
 
-          <div className="task-totals"><article><span>Nombre de tâches</span><strong>{projectTasks.length}</strong></article><article className="green"><span>Tâches de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Tâches de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article></div>
+          <div className="task-totals"><article><span>Nombre de lignes budgétaires</span><strong>{projectTasks.length}</strong></article><article className="green"><span>Lignes budgétaires de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Lignes budgétaires de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article></div>
         </div>
       </div>
     </section>
@@ -135,20 +186,20 @@ function ProjectChargesStep({ onSaveTasks }: { onSaveTasks: () => void }) {
       <div className="creation-step active"><b>2</b><span><strong>Charges et planification</strong><small>Sélection des charges</small></span></div>
     </div>
 
-    <div className="charges-heading"><h2>Étape 2 : Tâches liées au projet</h2><p>ⓘ &nbsp; Les tâches sont alimentées par le module <strong>Architecture des tâches.</strong></p></div>
+    <div className="charges-heading"><h2>Étape 2 : Lignes budgétaires liées au projet</h2><p>ⓘ &nbsp; Les lignes budgétaires sont alimentées par le module <strong>Architecture des tâches.</strong></p></div>
 
     <div className="charge-groups">{groups.map((group) => {
       const isOpen = openGroups.includes(group.id)
       return <article className={`charge-group ${isOpen ? 'open' : ''}`} key={group.id}>
         <button className="charge-group-title" onClick={() => toggleGroup(group.id)}><span>{group.icon} &nbsp; {group.title}</span><b>{isOpen ? '⌃' : '⌄'}</b></button>
         {isOpen && group.task && <div className="charge-group-content">
-          <div className="charge-table-wrap"><table><thead><tr><th>Code de la tâche</th><th>Nom de la tâche</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la tâche ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
-          <button className="add-charge" onClick={() => window.alert(`Ajouter une tâche dans ${group.title}`)}>＋ &nbsp; Ajouter une tâche/charge</button>
+          <div className="charge-table-wrap"><table><thead><tr><th>Code de la ligne budgétaire</th><th>Nom de la ligne budgétaire</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la ligne budgétaire ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
+          <button className="add-charge" onClick={() => window.alert(`Ajouter une ligne budgétaire dans ${group.title}`)}>＋ &nbsp; Ajouter une ligne budgétaire/charge</button>
         </div>}
       </article>
     })}</div>
 
     <div className="charge-legend">ⓘ &nbsp; <b>E</b> = consomme les EHS &nbsp;&nbsp; | &nbsp;&nbsp; <b>D</b> = consomme directement de la monnaie</div>
-    <div className="charges-actions single-action"><button className="save-project" onClick={onSaveTasks}>Enregistrer les Tâches</button></div>
+    <div className="charges-actions single-action"><button className="save-project" onClick={onSaveTasks}>Enregistrer les lignes budgétaires</button></div>
   </section>
 }

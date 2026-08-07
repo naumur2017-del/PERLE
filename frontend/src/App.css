@@ -1436,7 +1436,41 @@ body {
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 44px; }
 .unexpected-field { margin-top: 16px; }
 .unexpected-field input:invalid { border-color: #ef4444; background: #fff8f8; }
+.imprevu-button { width: 100%; height: 40px; margin-top: 6px; border: 1px dashed #6d28d9; border-radius: 6px; background: #f5f2ff; color: #4c1d95; font-size: 10px; font-weight: 700; cursor: pointer; }
+.imprevu-button:hover:not(:disabled) { background: #ece4ff; }
+.imprevu-button:disabled { opacity: .55; cursor: not-allowed; border-style: solid; border-color: #d9dceb; background: #f7f7fb; color: #6b7290; }
+.imprevu-button.is-active { border-style: solid; border-color: #6d28d9; background: #6d28d9; color: #fff; }
+.imprevu-button.is-active:hover { background: #5b21b6; }
 .secondary-action { padding: 10px 22px; border: 1px solid #d9dceb; border-radius: 6px; background: white; color: #252a68; font-weight: 600; }
+
+.save-project-wrap { position: relative; width: 100%; }
+.save-project-wrap .save-project { width: 100%; height: 42px; }
+.save-project-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 6px;
+  border: 1px solid #e3e5f5;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 12px 28px rgba(30, 20, 80, 0.14);
+  list-style: none;
+}
+.save-project-menu button {
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #252a68;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.save-project-menu button:hover { background: #f4f1ff; color: #6d28d9; }
 
 .creation-overview {
   padding: 16px;
@@ -1444,7 +1478,7 @@ body {
 }
 
 .overview-heading h3 { margin-bottom: 6px; font-size: 14px; }
-.financial-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 16px; }
+.financial-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 16px; }
 .financial-card { min-width: 0; padding: 14px 11px; border: 1px solid #dfe2f2; border-radius: 6px; background: #fbfcff; }
 .financial-card span,.financial-card small { display: block; font-size: 9px; }
 .financial-card strong { display: block; margin: 10px 0; font-size: 13px; white-space: nowrap; }
@@ -1461,7 +1495,7 @@ body {
 .budget-strip strong { color: #14903a; font-size: 14px; }
 .budget-strip .danger { color: #ef2727; }
 .budget-progress { height: 7px; border-radius: 10px; background: #e4e5ef; overflow: hidden; }
-.budget-progress i { display: block; width: 24.22%; height: 100%; background: #16a34a; border-radius: inherit; }
+.budget-progress i { display: block; height: 100%; background: #16a34a; border-radius: inherit; }
 
 .task-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin: 14px 0 10px; }
 .task-toolbar > div { display: flex; gap: 7px; }

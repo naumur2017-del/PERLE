@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
-  Boxes, Briefcase, Calendar, ChevronDown, ChevronLeft, ChevronRight, Clock, Download,
-  Gauge, Hourglass, Info, MoreVertical, RotateCcw, Search, SlidersHorizontal, TrendingUp, Users,
+  Boxes, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
+  ClipboardList, Clock, Download, Gauge, Hourglass, Info, MoreVertical,
+  RotateCcw, Search, SlidersHorizontal, TrendingUp, Users,
 } from 'lucide-react'
 import './PilotagePage.css'
 
@@ -181,7 +182,7 @@ const KPIS = [
   { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: '62%', sub: "Taux global d'avancement", bar: 62, barColor: '#4338ca' },
 ]
 
-export default function PilotagePage() {
+export default function PilotagePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [search, setSearch] = useState('')
   const [chef, setChef] = useState('Tous')
   const [client, setClient] = useState('Tous')
@@ -215,6 +216,12 @@ export default function PilotagePage() {
 
   return (
     <section className="pil-page">
+      <nav className="pil-subtabs">
+        <button className="active" onClick={() => navigateTo('pilotage')}><ClipboardList size={14} />Pilotage des projets et gestion budgétaire</button>
+        <button onClick={() => navigateTo('controle-taches')}><CheckCircle2 size={14} />Contrôle des tâches</button>
+        <button onClick={() => navigateTo('controle-execution')}><Gauge size={14} />Performance & Staffing</button>
+      </nav>
+
       <div className="pil-toolbar">
         <button type="button" className="pil-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
         <button type="button" className="pil-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>

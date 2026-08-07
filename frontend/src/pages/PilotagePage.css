@@ -11,6 +11,38 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
+/* =============== SUB-TABS =============== */
+.pil-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 20px 32px 0;
+}
+
+.pil-subtabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid #ddd8f2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #35335c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pil-subtabs button:hover { background: #f7f5ff; }
+
+.pil-subtabs button.active {
+  border-color: #6b46c1;
+  background: #6b46c1;
+  color: #ffffff;
+}
+
 /* =============== PAGE TOOLBAR =============== */
 .pil-toolbar {
   display: flex;
@@ -18,7 +50,7 @@
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 20px 32px 0;
+  padding: 16px 32px 0;
 }
 
 .pil-daterange,

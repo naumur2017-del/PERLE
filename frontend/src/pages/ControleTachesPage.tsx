@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList,
-  FileCheck2, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
-  TrendingUp, UserX,
+  Gauge, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
 } from 'lucide-react'
 import './ControleTachesPage.css'
 
@@ -11,33 +10,30 @@ interface Tache {
   projet: string
   nom: string
   division: string
+  ligneBudgetaire: string
   type: 'E' | 'D'
   attribuePar: string
   attribueA: string
-  matricule: string
   dateDebut: string
   dateFin: string
   echeance: string
-  ehsPrevu: number
-  ehsConsomme: number
-  ehsRestant: number
   dureePrevue: number
   dureeConsommee: number
   dureeRestante: number
   progTemporelle: number
   progEhs: number
   progMonetaire: number
-  statut: 'Non démarrée' | 'En cours' | 'Terminée' | 'Bloquée' | 'En retard'
+  statut: 'Non démarrée' | 'En cours' | 'Terminée' | 'En pause' | 'En retard'
   priorite: 'Haute' | 'Moyenne' | 'Basse'
 }
 
 const TACHES: Tache[] = [
-  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', type: 'E', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', matricule: 'IT001V1', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', ehsPrevu: 80, ehsConsomme: 56, ehsRestant: 24, dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, progEhs: 70, progMonetaire: 65, statut: 'En cours', priorite: 'Haute' },
-  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', matricule: 'IT003V2', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', ehsPrevu: 60, ehsConsomme: 20, ehsRestant: 40, dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, progEhs: 33, progMonetaire: 25, statut: 'Bloquée', priorite: 'Moyenne' },
-  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', matricule: 'IT001V1', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', ehsPrevu: 40, ehsConsomme: 40, ehsRestant: 0, dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, progEhs: 100, progMonetaire: 98, statut: 'Terminée', priorite: 'Haute' },
-  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', type: 'E', attribuePar: 'Ajara Lamare', attribueA: 'Herman Patrice', matricule: 'IT007V1', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', ehsPrevu: 50, ehsConsomme: 35, ehsRestant: 15, dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, progEhs: 70, progMonetaire: 65, statut: 'En retard', priorite: 'Haute' },
-  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', matricule: 'IT007V1', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', ehsPrevu: 40, ehsConsomme: 20, ehsRestant: 20, dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, progEhs: 50, progMonetaire: 40, statut: 'En cours', priorite: 'Moyenne' },
-  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', matricule: 'IT010V1', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', ehsPrevu: 30, ehsConsomme: 4, ehsRestant: 26, dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, progEhs: 40, progMonetaire: 40, statut: 'En cours', priorite: 'Basse' },
+  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', type: 'E', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, progEhs: 70, progMonetaire: 65, statut: 'En cours', priorite: 'Haute' },
+  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, progEhs: 33, progMonetaire: 25, statut: 'En pause', priorite: 'Moyenne' },
+  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, progEhs: 100, progMonetaire: 98, statut: 'Terminée', priorite: 'Haute' },
+  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', type: 'E', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, progEhs: 70, progMonetaire: 65, statut: 'En retard', priorite: 'Haute' },
+  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, progEhs: 50, progMonetaire: 40, statut: 'En cours', priorite: 'Moyenne' },
+  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, progEhs: 40, progMonetaire: 40, statut: 'En cours', priorite: 'Basse' },
 ]
 
 const KPIS = [
@@ -45,7 +41,7 @@ const KPIS = [
   { icon: PauseCircle, tone: 'gray', label: 'Non démarrées', value: '156', sub: '12,5%' },
   { icon: PlayCircle, tone: 'blue', label: 'En cours', value: '642', sub: '51,4%' },
   { icon: CheckCircle2, tone: 'green', label: 'Terminées', value: '382', sub: '30,6%' },
-  { icon: Lock, tone: 'orange', label: 'Bloquées', value: '32', sub: '2,6%' },
+  { icon: Lock, tone: 'orange', label: 'En pause', value: '32', sub: '2,6%' },
   { icon: AlertTriangle, tone: 'red', label: 'En retard', value: '36', sub: '2,9%' },
   { icon: CalendarClock, tone: 'purple', label: 'Échéances cette semaine', value: '78', sub: 'Tâches concernées' },
 ]
@@ -54,14 +50,12 @@ const REPARTITION = [
   { label: 'Non démarrées (12,5%)', value: 156, color: '#9ca3af' },
   { label: 'En cours (51,4%)', value: 642, color: '#3b82f6' },
   { label: 'Terminées (30,6%)', value: 382, color: '#16a34a' },
-  { label: 'Bloquées (2,6%)', value: 32, color: '#f59e0b' },
+  { label: 'En pause (2,6%)', value: 32, color: '#f59e0b' },
 ]
 
 const ALERTES = [
-  { icon: Lock, tone: 'red', label: 'Tâches bloquées', value: 32 },
+  { icon: Lock, tone: 'red', label: 'Tâches en pause', value: 32 },
   { icon: CalendarClock, tone: 'orange', label: 'Échéances proches (7 jours)', value: 78 },
-  { icon: TrendingUp, tone: 'purple', label: 'Dépassement EHS', value: 24 },
-  { icon: UserX, tone: 'slate', label: 'Collaborateurs inactifs', value: 11 },
   { icon: AlertTriangle, tone: 'red', label: 'Tâches en retard', value: 36 },
 ]
 
@@ -79,37 +73,24 @@ const TACHES_PROCHES = [
   { code: 'T-2025-020', projet: 'TRESORERIE', nom: 'Rapprochement bancaire mensuel', echeance: '21/05/2025', delai: '4 jours' },
 ]
 
-const COLLABORATEURS_ACTIFS = [
-  { nom: 'Maxwell Ebongue', matricule: 'IT001V1', taches: 8, ehs: 120 },
-  { nom: 'Diego Ngounou', matricule: 'IT003V2', taches: 7, ehs: 95 },
-  { nom: 'Mala Patrice', matricule: 'IT007V1', taches: 6, ehs: 80 },
-  { nom: 'Julienne Ekouma', matricule: 'IT010V1', taches: 6, ehs: 75 },
-]
+const COLLABORATEURS_ACTIFS = Object.entries(
+  TACHES.filter((tache) => tache.statut === 'En cours').reduce<Record<string, number>>((acc, tache) => {
+    acc[tache.attribueA] = (acc[tache.attribueA] || 0) + 1
+    return acc
+  }, {})
+)
+  .map(([nom, taches]) => ({ nom, taches }))
+  .sort((a, b) => b.taches - a.taches)
 
 const statutClass = (statut: Tache['statut']) => {
   if (statut === 'En cours') return 'cours'
   if (statut === 'Terminée') return 'termine'
-  if (statut === 'Bloquée') return 'bloque'
+  if (statut === 'En pause') return 'bloque'
   if (statut === 'En retard') return 'retard'
   return 'attente'
 }
 
 const prioriteClass = (priorite: Tache['priorite']) => priorite === 'Haute' ? 'haute' : priorite === 'Moyenne' ? 'moyenne' : 'basse'
-
-function TauxGauge({ value }: { value: number }) {
-  const r = 48
-  const c = 2 * Math.PI * r
-  return (
-    <svg width="118" height="118" viewBox="0 0 118 118" className="ct-gauge">
-      <circle cx="59" cy="59" r={r} fill="none" stroke="#efeafb" strokeWidth="10" />
-      <circle
-        cx="59" cy="59" r={r} fill="none" stroke="#6b46c1" strokeWidth="10" strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={c - (value / 100) * c} transform="rotate(-90 59 59)"
-      />
-      <text x="59" y="65" textAnchor="middle" className="ct-gauge-text">{value}%</text>
-    </svg>
-  )
-}
 
 function RepartitionDonut() {
   const total = REPARTITION.reduce((sum, item) => sum + item.value, 0)
@@ -154,35 +135,25 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
       <nav className="ct-subtabs">
         <button onClick={() => navigateTo('pilotage')}><ClipboardList size={14} />Pilotage des projets et gestion budgétaire</button>
         <button className="active" onClick={() => navigateTo('controle-taches')}><CheckCircle2 size={14} />Contrôle des tâches</button>
-        <button onClick={() => navigateTo('controle-execution')}><FileCheck2 size={14} />Contrôle d’exécution et conformité</button>
+        <button onClick={() => navigateTo('controle-execution')}><Gauge size={14} />Performance & Staffing</button>
       </nav>
 
-      <div className="ct-top">
-        <div className="ct-kpis">
-          {KPIS.map((kpi) => (
-            <article key={kpi.label} className={`ct-kpi ct-kpi-${kpi.tone}`}>
-              <span className="ct-kpi-icon"><kpi.icon size={17} /></span>
-              <div>
-                <strong>{kpi.value}</strong>
-                <span>{kpi.label}</span>
-                <small>{kpi.sub}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-        <div className="ct-gauge-card">
-          <TauxGauge value={68} />
-          <strong>Taux global d’avancement</strong>
-          <small>EHS consommés / EHS prévus</small>
-        </div>
+      <div className="ct-kpis">
+        {KPIS.map((kpi) => (
+          <article key={kpi.label} className={`ct-kpi ct-kpi-${kpi.tone}`}>
+            <span className="ct-kpi-icon"><kpi.icon size={17} /></span>
+            <div>
+              <strong>{kpi.value}</strong>
+              <span>{kpi.label}</span>
+              <small>{kpi.sub}</small>
+            </div>
+          </article>
+        ))}
       </div>
 
       <div className="ct-filters">
         <label>Projet<select defaultValue="Tous"><option>Tous les projets</option></select></label>
-        <label>Manager<select defaultValue="Tous"><option>Tous les managers</option></select></label>
-        <label>Chef de projet<select defaultValue="Tous"><option>Tous les chefs</option></select></label>
-        <label>Division<select defaultValue="Toutes"><option>Toutes les divisions</option></select></label>
-        <label>Collaborateur<select defaultValue="Tous"><option>Tous les collaborateurs</option></select></label>
+        <label>Équipe<select defaultValue="Toutes"><option>Toutes les équipes</option></select></label>
         <label>Statut<select defaultValue="Tous"><option>Tous les statuts</option></select></label>
         <label>Priorité<select defaultValue="Toutes"><option>Toutes les priorités</option></select></label>
         <label>Type<select defaultValue="Tous"><option>Tous (E / D)</option></select></label>
@@ -202,16 +173,15 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                 <tr>
                   <th rowSpan={2}>Code tâche</th>
                   <th rowSpan={2}>Projet</th>
+                  <th rowSpan={2}>Ligne budgétaire</th>
                   <th rowSpan={2}>Nom de la tâche</th>
-                  <th rowSpan={2}>Division</th>
+                  <th rowSpan={2}>Équipe</th>
                   <th rowSpan={2}>Type</th>
                   <th rowSpan={2}>Attribué par</th>
                   <th rowSpan={2}>Attribué à</th>
-                  <th rowSpan={2}>Matricule</th>
                   <th rowSpan={2}>Date début</th>
                   <th rowSpan={2}>Date fin</th>
                   <th rowSpan={2}>Échéance</th>
-                  <th colSpan={3}>EHS</th>
                   <th colSpan={3}>Durée (jours)</th>
                   <th colSpan={3}>Progression</th>
                   <th rowSpan={2}>Statut</th>
@@ -219,7 +189,6 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                   <th rowSpan={2}></th>
                 </tr>
                 <tr>
-                  <th>Prévu</th><th>Consommés</th><th>Restants</th>
                   <th>Prévue</th><th>Consommée</th><th>Restante</th>
                   <th>Temporelle</th><th>EHS</th><th>Monétaire</th>
                 </tr>
@@ -229,18 +198,15 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                   <tr key={tache.code}>
                     <td className="ct-code">{tache.code}</td>
                     <td>{tache.projet}</td>
+                    <td>{tache.ligneBudgetaire}</td>
                     <td className="ct-name">{tache.nom}</td>
                     <td>{tache.division}</td>
                     <td><span className={`ct-type ${tache.type === 'D' ? 'money' : ''}`}>{tache.type}</span></td>
                     <td>{tache.attribuePar}</td>
                     <td>{tache.attribueA}</td>
-                    <td>{tache.matricule}</td>
                     <td>{tache.dateDebut}</td>
                     <td>{tache.dateFin}</td>
                     <td>{tache.echeance}</td>
-                    <td>{tache.ehsPrevu}</td>
-                    <td>{tache.ehsConsomme}</td>
-                    <td>{tache.ehsRestant}</td>
                     <td>{tache.dureePrevue}</td>
                     <td>{tache.dureeConsommee}</td>
                     <td>{tache.dureeRestante}</td>
@@ -293,7 +259,7 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
 
       <div className="ct-bottom">
         <div className="ct-mini-panel">
-          <div className="ct-mini-head"><h3>Les 10 tâches les plus en retard</h3><button type="button">Voir tout</button></div>
+          <div className="ct-mini-head"><h3>Les tâches les plus en retard</h3><button type="button">Voir tout</button></div>
           <table className="ct-mini-table">
             <thead><tr><th>#</th><th>Code tâche</th><th>Projet</th><th>Tâche</th><th>Retard</th><th>Échéance</th></tr></thead>
             <tbody>
@@ -313,7 +279,7 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
         </div>
 
         <div className="ct-mini-panel">
-          <div className="ct-mini-head"><h3>Les 10 tâches proches de l’échéance</h3><button type="button">Voir tout</button></div>
+          <div className="ct-mini-head"><h3>Les tâches proches de l’échéance</h3><button type="button">Voir tout</button></div>
           <table className="ct-mini-table">
             <thead><tr><th>#</th><th>Code tâche</th><th>Projet</th><th>Tâche</th><th>Échéance</th><th></th></tr></thead>
             <tbody>
@@ -335,15 +301,13 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
         <div className="ct-mini-panel">
           <div className="ct-mini-head"><h3>Collaborateurs ayant le plus de tâches en cours</h3><button type="button">Voir tout</button></div>
           <table className="ct-mini-table">
-            <thead><tr><th>#</th><th>Collaborateur</th><th>Matricule</th><th>Tâches en cours</th><th>EHS consommés</th></tr></thead>
+            <thead><tr><th>#</th><th>Collaborateur</th><th>Tâches en cours</th></tr></thead>
             <tbody>
               {COLLABORATEURS_ACTIFS.map((row, index) => (
-                <tr key={row.matricule}>
+                <tr key={row.nom}>
                   <td>{index + 1}</td>
                   <td className="ct-name">{row.nom}</td>
-                  <td>{row.matricule}</td>
                   <td>{row.taches}</td>
-                  <td>{row.ehs}</td>
                 </tr>
               ))}
             </tbody>

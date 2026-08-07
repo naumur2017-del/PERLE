@@ -44,14 +44,7 @@
   color: #ffffff;
 }
 
-/* =============== TOP: KPIS + GAUGE =============== */
-.ct-top {
-  display: grid;
-  grid-template-columns: 1fr 190px;
-  gap: 14px;
-  align-items: stretch;
-}
-
+/* =============== TOP: KPIS =============== */
 .ct-kpis {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -88,25 +81,6 @@
 .ct-kpi strong { font-size: 19px; font-weight: 700; color: #14123a; line-height: 1.2; }
 .ct-kpi span { font-size: 10px; font-weight: 700; color: #4a4a63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ct-kpi small { font-size: 9.5px; color: #8f8fa6; }
-
-.ct-gauge-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid #eae7f6;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
-  text-align: center;
-}
-
-.ct-gauge-card strong { font-size: 11.5px; color: #14123a; }
-.ct-gauge-card small { font-size: 9px; color: #8f8fa6; }
-
-.ct-gauge-text { font-size: 18px; font-weight: 700; fill: #14123a; }
 
 /* =============== FILTERS =============== */
 .ct-filters {
@@ -267,7 +241,6 @@
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1300px) {
   .ct-kpis { grid-template-columns: repeat(4, 1fr); }
-  .ct-top { grid-template-columns: 1fr; }
   .ct-main { grid-template-columns: 1fr; }
   .ct-bottom { grid-template-columns: 1fr; }
 }

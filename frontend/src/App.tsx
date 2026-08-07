@@ -34,7 +34,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   accueil: { path: '/', title: 'Accueil', description: 'Bienvenue dans PERLE, votre système de pilotage intégré.' },
   pilotage: { path: '/pilotage', title: 'Pilotage des projets et gestion budgétaire', description: 'Vue globale des projets : budget, coûts, EHS, durées et avancement.' },
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
-  'controle-execution': { path: '/pilotage/controle-execution', title: "Contrôle d'exécution et conformité", description: "Vérifiez l'exécution des projets et leur conformité aux référentiels." },
+  'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Vue synthétique de la performance des tâches et de l’utilisation des ressources.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
@@ -171,7 +171,7 @@ function App() {
       children: [
         { id: 'pilotage', label: 'Pilotage des projets et gestion budgétaire' },
         { id: 'controle-taches', label: 'Contrôle des tâches' },
-        { id: 'controle-execution', label: "Contrôle d'exécution et conformité" },
+        { id: 'controle-execution', label: 'Performance & Staffing' },
       ],
     },
     { id: 'creation', label: 'Création de projet', icon: icons.creation },
@@ -286,7 +286,7 @@ function App() {
 
   const renderPage = () => {
     switch (activeNav) {
-      case 'pilotage': return <PilotagePage />
+      case 'pilotage': return <PilotagePage navigateTo={navigateTo} />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} />
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
