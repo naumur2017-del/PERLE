@@ -149,6 +149,7 @@
 .es-pill-termine { background: #dcfce7; color: #15803d; }
 .es-pill-cours { background: #dbeafe; color: #1d4ed8; }
 .es-pill-retard { background: #fee2e2; color: #b91c1c; }
+.es-pill-attente { background: #eef0f3; color: #4b5563; }
 
 .es-progress { display: flex; align-items: center; gap: 6px; }
 .es-progress-track { display: block; width: 46px; height: 6px; border-radius: 999px; background: #ece9f9; overflow: hidden; }
@@ -160,6 +161,48 @@
 
 .es-row-action { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 6px; background: none; color: #8f8fa6; cursor: pointer; }
 .es-row-action:hover { background: #f0eef8; color: #6b46c1; }
+
+.es-validate-actions { display: flex; align-items: center; gap: 6px; }
+
+.es-btn-check,
+.es-btn-reject {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #ddd8f2;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.es-btn-check { color: #16a34a; }
+.es-btn-check:hover { background: #dcfce7; border-color: #86efac; }
+.es-btn-check.is-active { background: #16a34a; border-color: #16a34a; color: #ffffff; }
+
+.es-btn-reject { color: #dc2626; }
+.es-btn-reject:hover { background: #fee2e2; border-color: #fca5a5; }
+.es-btn-reject.is-active { background: #dc2626; border-color: #dc2626; color: #ffffff; }
+
+.es-btn-start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: #6b46c1;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.es-btn-start:hover { background: #5b3aa8; }
+
+.es-no-action { color: #c3c2d6; font-size: 13px; }
 
 .es-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 11.5px; color: #6c6c85; }
 .es-table-foot-right { display: flex; align-items: center; gap: 16px; }

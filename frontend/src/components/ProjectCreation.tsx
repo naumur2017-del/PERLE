@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 
 const BUDGET_EXECUTION = 38400000
 const COUTS_LIGNES_INITIAL = 29100000
@@ -22,11 +23,11 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   const [clientName, setClientName] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
   const [projectTasks, setProjectTasks] = useState(initialTasks)
-  const [imprevuAmount, setImprevuAmount] = useState(0)
+  const [reserveAmount, setReserveAmount] = useState(0)
   const [saveMenuOpen, setSaveMenuOpen] = useState(false)
 
-  const imprevuActive = imprevuAmount > 0
-  const coutsLignesBudgetaires = COUTS_LIGNES_INITIAL + imprevuAmount
+  const reserveActive = reserveAmount > 0
+  const coutsLignesBudgetaires = COUTS_LIGNES_INITIAL + reserveAmount
   const reste = BUDGET_EXECUTION - coutsLignesBudgetaires
   const coutsPercent = (coutsLignesBudgetaires / BUDGET_EXECUTION) * 100
   const restePercent = (reste / BUDGET_EXECUTION) * 100
@@ -42,19 +43,19 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     setStep(1)
   }
 
-  const addImprevuLine = () => {
+  const addReserveLine = () => {
     if (reste <= 0) return
     const montant = reste
     setProjectTasks((currentTasks) => [
       ...currentTasks,
-      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Imprévu', 'D', '0', montant.toLocaleString('fr-FR'), '-', 'Équipe Pilotage', '-', '-', '-'],
+      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Réserve', 'D', '0', montant.toLocaleString('fr-FR'), '-', 'Équipe Pilotage', '-', '-', '-'],
     ])
-    setImprevuAmount(montant)
+    setReserveAmount(montant)
   }
 
-  const removeImprevuLine = () => {
-    setProjectTasks((currentTasks) => currentTasks.filter((task) => task[1] !== 'Imprévu'))
-    setImprevuAmount(0)
+  const removeReserveLine = () => {
+    setProjectTasks((currentTasks) => currentTasks.filter((task) => task[1] !== 'Réserve'))
+    setReserveAmount(0)
   }
 
   const saveProject = (mode: 'brouillon' | 'definitif') => {
@@ -105,14 +106,14 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
           </div>
           <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>245 jours.</strong></div>
           <div className="field unexpected-field">
-            <span>Imprévu</span>
-            {imprevuActive ? (
-              <button type="button" className="imprevu-button is-active" onClick={removeImprevuLine}>
-                ✕ Désélectionner l’Imprévu ({fmtFcfa(imprevuAmount)})
+            <span>Réserve</span>
+            {reserveActive ? (
+              <button type="button" className="reserve-button is-active" onClick={removeReserveLine}>
+                ✕ Désélectionner la Réserve ({fmtFcfa(reserveAmount)})
               </button>
             ) : (
-              <button type="button" className="imprevu-button" onClick={addImprevuLine} disabled={reste <= 0}>
-                {reste > 0 ? `＋ Affecter le reste en Imprévu (${fmtFcfa(reste)})` : '✓ Budget entièrement affecté'}
+              <button type="button" className="reserve-button" onClick={addReserveLine} disabled={reste <= 0}>
+                {reste > 0 ? `＋ Affecter le reste en Réserve (${fmtFcfa(reste)})` : '✓ Budget entièrement affecté'}
               </button>
             )}
           </div>
@@ -151,7 +152,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
           <div className="task-toolbar"><div><button>◉ &nbsp; Masquer / Afficher colonnes</button><button>▽ &nbsp; Filtres</button><button>↶ &nbsp; Réinitialiser</button></div><label>Type de ligne budgétaire<select><option>Tous</option></select></label><button className="excel-button">▣ &nbsp; Export Excel</button></div>
 
-          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la ligne budgétaire</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={4} /></tr></tfoot></table></div>
+          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la ligne budgétaire</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th><th>Wrike</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td><td><a className="wrike-link" href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(task[0])}`} target="_blank" rel="noopener noreferrer" title="Ouvrir dans Wrike"><ExternalLink size={13} /></a></td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={5} /></tr></tfoot></table></div>
 
           <div className="task-totals"><article><span>Nombre de lignes budgétaires</span><strong>{projectTasks.length}</strong></article><article className="green"><span>Lignes budgétaires de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Lignes budgétaires de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article></div>
         </div>
@@ -193,7 +194,7 @@ function ProjectChargesStep({ onSaveTasks }: { onSaveTasks: () => void }) {
       return <article className={`charge-group ${isOpen ? 'open' : ''}`} key={group.id}>
         <button className="charge-group-title" onClick={() => toggleGroup(group.id)}><span>{group.icon} &nbsp; {group.title}</span><b>{isOpen ? '⌃' : '⌄'}</b></button>
         {isOpen && group.task && <div className="charge-group-content">
-          <div className="charge-table-wrap"><table><thead><tr><th>Code de la ligne budgétaire</th><th>Nom de la ligne budgétaire</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la ligne budgétaire ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
+          <div className="charge-table-wrap"><table><thead><tr><th>Code de la ligne budgétaire</th><th>Nom de la ligne budgétaire</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>Wrike</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><a className="wrike-link" href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(group.task[0])}`} target="_blank" rel="noopener noreferrer" title="Ouvrir dans Wrike"><ExternalLink size={13} /></a></td><td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la ligne budgétaire ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
           <button className="add-charge" onClick={() => window.alert(`Ajouter une ligne budgétaire dans ${group.title}`)}>＋ &nbsp; Ajouter une ligne budgétaire/charge</button>
         </div>}
       </article>

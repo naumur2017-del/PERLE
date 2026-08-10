@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Calendar, CalendarClock, ChevronLeft, ChevronRight, Folder, Hourglass, ListChecks,
+  Calendar, CalendarClock, ChevronLeft, ChevronRight, ExternalLink, Folder, Hourglass, ListChecks,
   MoreVertical, PlayCircle, RotateCcw, Search, TrendingDown, TrendingUp, User, UserCheck,
 } from 'lucide-react'
 import './StaffingPage.css'
@@ -158,7 +158,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                 <th>Code</th><th>Nom de la tâche</th><th>Type</th><th>Priorité</th><th>Division</th>
                 <th>Profil / Emploi recherché</th><th>Attribué à (Employé)</th>
                 <th>EHS alloués</th><th>EHS consommés</th><th>EHS restants</th>
-                <th>Progression temporelle</th><th>Progression EHS</th><th>Progression monétaire</th><th></th>
+                <th>Progression temporelle</th><th>Progression EHS</th><th>Progression monétaire</th><th>Wrike</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -181,6 +181,17 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                   <td><ProgressBar value={tache.progTemporelle} tone="blue" /></td>
                   <td><ProgressBar value={tache.progEhs} tone="green" /></td>
                   <td><ProgressBar value={tache.progMonetaire} tone="orange" /></td>
+                  <td>
+                    <a
+                      className="ns-wrike-link"
+                      href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(tache.code)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ouvrir dans Wrike"
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                  </td>
                   <td><button type="button" className="ns-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
                 </tr>
               ))}

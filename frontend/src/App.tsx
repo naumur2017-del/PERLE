@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
+import { ChevronDown, ChevronUp, Pause, Play, Square, Timer } from 'lucide-react'
 import './App.css'
 import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
@@ -88,6 +89,20 @@ function AppIcon({ children }: { children: ReactNode }) {
   )
 }
 
+interface TaskTimer {
+  code: string
+  nom: string
+  seconds: number
+  running: boolean
+}
+
+const fmtTimer = (totalSeconds: number) => {
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 function App() {
   const getPageFromPath = () => {
     return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
@@ -100,7 +115,31 @@ function App() {
   const [headerCollapse, setHeaderCollapse] = useState(0)
   /* Repliée ou non, la barre latérale garde son état d’une visite à l’autre. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('perle-sidebar-collapsed') === '1')
+  const [taskTimers, setTaskTimers] = useState<TaskTimer[]>([])
+  const [taskTimersCollapsed, setTaskTimersCollapsed] = useState(false)
   const mainContentRef = useRef<HTMLElement>(null)
+
+  const startTaskTimer = (code: string, nom: string) => {
+    setTaskTimers((current) => current.some((timer) => timer.code === code)
+      ? current
+      : [...current, { code, nom, seconds: 0, running: true }])
+  }
+
+  const toggleTaskTimer = (code: string) => {
+    setTaskTimers((current) => current.map((timer) => timer.code === code ? { ...timer, running: !timer.running } : timer))
+  }
+
+  const stopTaskTimer = (code: string) => {
+    setTaskTimers((current) => current.filter((timer) => timer.code !== code))
+  }
+
+  useEffect(() => {
+    if (taskTimers.length === 0) return
+    const intervalId = window.setInterval(() => {
+      setTaskTimers((current) => current.map((timer) => timer.running ? { ...timer, seconds: timer.seconds + 1 } : timer))
+    }, 1000)
+    return () => window.clearInterval(intervalId)
+  }, [taskTimers.length])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -291,7 +330,7 @@ function App() {
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />
-      case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} />
+      case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} onStartTimer={startTaskTimer} activeTimerCodes={taskTimers.map((timer) => timer.code)} />
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
       case 'gestion-equipes': return <ModulePage title={pageConfig['gestion-equipes'].title} description={pageConfig['gestion-equipes'].description} icon={icons.gestion} />
       case 'gestion-grades': return <ModulePage title={pageConfig['gestion-grades'].title} description={pageConfig['gestion-grades'].description} icon={icons.gestion} />
@@ -469,6 +508,56 @@ function App() {
         </footer>
       </main>
       </div>
+
+      {taskTimers.length > 0 && (
+        taskTimersCollapsed ? (
+          <button
+            type="button"
+            className="task-timer-collapsed"
+            onClick={() => setTaskTimersCollapsed(false)}
+            title="Afficher les minuteurs en cours"
+            aria-label="Afficher les minuteurs en cours"
+          >
+            <Timer size={18} />
+            {taskTimers.length > 1 && <span className="task-timer-collapsed-badge">{taskTimers.length}</span>}
+            <ChevronUp size={14} />
+          </button>
+        ) : (
+          <div className="task-timer-stack">
+            <button
+              type="button"
+              className="task-timer-stack-collapse"
+              onClick={() => setTaskTimersCollapsed(true)}
+              title="Réduire"
+              aria-label="Réduire les minuteurs"
+            >
+              <ChevronDown size={14} />
+            </button>
+            {taskTimers.map((timer) => (
+              <div key={timer.code} className={`task-timer-widget ${timer.running ? '' : 'is-paused'}`}>
+                <span className="task-timer-widget-icon"><Timer size={16} /></span>
+                <div className="task-timer-widget-info">
+                  <strong>{timer.nom}</strong>
+                  <span>{timer.code}</span>
+                </div>
+                <div className="task-timer-widget-time">{fmtTimer(timer.seconds)}</div>
+                <button
+                  type="button"
+                  className="task-timer-widget-pause"
+                  title={timer.running ? 'Mettre en pause' : 'Reprendre'}
+                  aria-label={timer.running ? 'Mettre en pause' : 'Reprendre'}
+                  onClick={() => toggleTaskTimer(timer.code)}
+                >
+                  {timer.running ? <Pause size={13} /> : <Play size={13} />}
+                </button>
+                <button type="button" className="task-timer-widget-stop" onClick={() => stopTaskTimer(timer.code)}>
+                  <Square size={12} />Terminer
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      )}
     </>
   )
 }

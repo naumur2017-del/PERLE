@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import {
-  AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Folder,
-  ListChecks, MoreVertical, PlayCircle, RefreshCw, RotateCcw, Search, TrendingDown, TrendingUp,
-  User, UserCheck, Users,
+  AlertCircle, Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Folder,
+  ListChecks, MoreVertical, Play, PlayCircle, RefreshCw, RotateCcw, Search,
+  TrendingDown, TrendingUp, User, UserCheck, Users, X,
 } from 'lucide-react'
 import './ExecuteStaffingPage.css'
 
@@ -13,7 +13,7 @@ interface TacheExecutee {
   profil: string
   dateAssignation: string
   dateEcheance: string
-  statut: 'Terminée' | 'En cours' | 'En retard'
+  statut: 'Terminée' | 'En cours' | 'En retard' | 'En attente'
   progTemporelle: number
   progEhs: number
   progMonetaire: number
@@ -32,6 +32,9 @@ const TACHES: TacheExecutee[] = [
   { code: 'FO1-T01', nom: 'Reporting mensuel', attribueA: 'Assabe Zainabou', profil: 'Chargé Reporting', dateAssignation: '07/05/2025', dateEcheance: '12/06/2025', statut: 'En cours', progTemporelle: 70, progEhs: 70, progMonetaire: 60, ehsPrevu: null, ehsConsomme: null, ehsRestant: null, derniereMaj: '20/05/2025 16:05' },
   { code: 'OP1-T01', nom: 'Suivi des opérations', attribueA: 'Mbarga Thibaut', profil: 'Opérateur ERP', dateAssignation: '08/05/2025', dateEcheance: '15/06/2025', statut: 'En cours', progTemporelle: 25, progEhs: 15, progMonetaire: 20, ehsPrevu: 22, ehsConsomme: 3.3, ehsRestant: 18.7, derniereMaj: '20/05/2025 15:40' },
   { code: 'PI1-T01', nom: 'Planification stratégique', attribueA: 'Théodore Bessala', profil: 'Chef de projet', dateAssignation: '08/05/2025', dateEcheance: '20/06/2025', statut: 'En cours', progTemporelle: 40, progEhs: 30, progMonetaire: 30, ehsPrevu: 16, ehsConsomme: 4.8, ehsRestant: 11.2, derniereMaj: '20/05/2025 16:20' },
+  { code: 'FO1-T02', nom: 'Consolidation des comptes trimestriels', attribueA: 'Assabe Zainabou', profil: 'Chargé Reporting', dateAssignation: '21/05/2025', dateEcheance: '30/06/2025', statut: 'En attente', progTemporelle: 0, progEhs: 0, progMonetaire: 0, ehsPrevu: 20, ehsConsomme: 0, ehsRestant: 20, derniereMaj: '—' },
+  { code: 'OP1-T02', nom: 'Mise à jour des procédures internes', attribueA: 'Mbarga Thibaut', profil: 'Opérateur ERP', dateAssignation: '21/05/2025', dateEcheance: '05/07/2025', statut: 'En attente', progTemporelle: 0, progEhs: 0, progMonetaire: 0, ehsPrevu: 14, ehsConsomme: 0, ehsRestant: 14, derniereMaj: '—' },
+  { code: 'IT1-T03', nom: 'Paramétrage des accès utilisateurs', attribueA: 'Brayan Ebongue', profil: 'Développeur Senior', dateAssignation: '21/05/2025', dateEcheance: '10/07/2025', statut: 'En attente', progTemporelle: 0, progEhs: 0, progMonetaire: 0, ehsPrevu: 12, ehsConsomme: 0, ehsRestant: 12, derniereMaj: '—' },
 ]
 
 const KPIS = [
@@ -63,7 +66,8 @@ const CONSOMMATION_PAR_STATUT = [
 ]
 
 const fmtEhs = (value: number | null) => value === null ? '-' : value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const statutClass = (statut: TacheExecutee['statut']) => statut === 'Terminée' ? 'termine' : statut === 'En retard' ? 'retard' : 'cours'
+const statutClass = (statut: TacheExecutee['statut']) =>
+  statut === 'Terminée' ? 'termine' : statut === 'En retard' ? 'retard' : statut === 'En attente' ? 'attente' : 'cours'
 
 function ProgressBar({ value, tone }: { value: number; tone: string }) {
   return (
@@ -113,9 +117,27 @@ function ConsommationDonut() {
   )
 }
 
-export default function ExecuteStaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+type Validation = 'valide' | 'refuse'
+
+interface ExecuteStaffingPageProps {
+  navigateTo: (page: string) => void
+  onStartTimer: (code: string, nom: string) => void
+  activeTimerCodes: string[]
+}
+
+export default function ExecuteStaffingPage({ navigateTo, onStartTimer, activeTimerCodes }: ExecuteStaffingPageProps) {
   const [search, setSearch] = useState('')
   const [autoSync, setAutoSync] = useState(true)
+  const [validations, setValidations] = useState<Partial<Record<string, Validation>>>({})
+
+  const setValidation = (code: string, value: Validation) => {
+    setValidations((current) => ({ ...current, [code]: current[code] === value ? undefined : value }))
+  }
+
+  const validateTask = (tache: TacheExecutee) => {
+    setValidation(tache.code, 'valide')
+    onStartTimer(tache.code, tache.nom)
+  }
 
   return (
     <section className="es-page">
@@ -177,7 +199,8 @@ export default function ExecuteStaffingPage({ navigateTo }: { navigateTo: (page:
                 <th>Code</th><th>Nom de la tâche</th><th>Attribué à (Employé)</th><th>Profil / Emploi</th>
                 <th>Date d’assignation</th><th>Date d’échéance</th><th>Statut</th>
                 <th>Progression temporelle</th><th>Progression EHS</th><th>Progression monétaire</th>
-                <th>EHS prévus</th><th>EHS consommés</th><th>EHS restants</th><th>Dernière mise à jour</th><th></th>
+                <th>EHS prévus</th><th>EHS consommés</th><th>EHS restants</th><th>Dernière mise à jour</th>
+                <th>Validation du staffing</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -199,6 +222,34 @@ export default function ExecuteStaffingPage({ navigateTo }: { navigateTo: (page:
                   <td>{fmtEhs(tache.ehsConsomme)}</td>
                   <td>{fmtEhs(tache.ehsRestant)}</td>
                   <td className="es-maj">{tache.derniereMaj}</td>
+                  <td>
+                    {activeTimerCodes.includes(tache.code) ? (
+                      <div className="es-validate-actions">
+                        <button
+                          type="button"
+                          className={`es-btn-check ${validations[tache.code] === 'valide' ? 'is-active' : ''}`}
+                          title="Valider le staffing"
+                          onClick={() => validateTask(tache)}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`es-btn-reject ${validations[tache.code] === 'refuse' ? 'is-active' : ''}`}
+                          title="Refuser le staffing"
+                          onClick={() => setValidation(tache.code, 'refuse')}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : tache.statut === 'En attente' ? (
+                      <button type="button" className="es-btn-start" onClick={() => validateTask(tache)}>
+                        <Play size={13} />Démarrer
+                      </button>
+                    ) : (
+                      <span className="es-no-action">—</span>
+                    )}
+                  </td>
                   <td><button type="button" className="es-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
                 </tr>
               ))}

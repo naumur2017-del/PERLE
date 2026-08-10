@@ -1436,11 +1436,11 @@ body {
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 44px; }
 .unexpected-field { margin-top: 16px; }
 .unexpected-field input:invalid { border-color: #ef4444; background: #fff8f8; }
-.imprevu-button { width: 100%; height: 40px; margin-top: 6px; border: 1px dashed #6d28d9; border-radius: 6px; background: #f5f2ff; color: #4c1d95; font-size: 10px; font-weight: 700; cursor: pointer; }
-.imprevu-button:hover:not(:disabled) { background: #ece4ff; }
-.imprevu-button:disabled { opacity: .55; cursor: not-allowed; border-style: solid; border-color: #d9dceb; background: #f7f7fb; color: #6b7290; }
-.imprevu-button.is-active { border-style: solid; border-color: #6d28d9; background: #6d28d9; color: #fff; }
-.imprevu-button.is-active:hover { background: #5b21b6; }
+.reserve-button { width: 100%; height: 40px; margin-top: 6px; border: 1px dashed #6d28d9; border-radius: 6px; background: #f5f2ff; color: #4c1d95; font-size: 10px; font-weight: 700; cursor: pointer; }
+.reserve-button:hover:not(:disabled) { background: #ece4ff; }
+.reserve-button:disabled { opacity: .55; cursor: not-allowed; border-style: solid; border-color: #d9dceb; background: #f7f7fb; color: #6b7290; }
+.reserve-button.is-active { border-style: solid; border-color: #6d28d9; background: #6d28d9; color: #fff; }
+.reserve-button.is-active:hover { background: #5b21b6; }
 .secondary-action { padding: 10px 22px; border: 1px solid #d9dceb; border-radius: 6px; background: white; color: #252a68; font-weight: 600; }
 
 .save-project-wrap { position: relative; width: 100%; }
@@ -1734,6 +1734,20 @@ body {
   color: #dc2626;
 }
 
+.wrike-link {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 4px;
+  background: #d1fae5;
+  color: #0d9488;
+}
+
+.wrike-link:hover {
+  background: #a7f3d0;
+}
+
 /* =============== FOOTER =============== */
 .app-footer {
   background: white;
@@ -1747,6 +1761,167 @@ body {
   width: 100%;
   position: static;
   box-shadow: 0 -4px 12px rgba(33, 23, 91, 0.07);
+}
+
+/* =============== FLOATING TASK TIMERS =============== */
+.task-timer-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.task-timer-stack-collapse {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: #14123a;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(20, 14, 60, 0.3);
+}
+
+.task-timer-stack-collapse:hover { background: #1e1a52; }
+
+.task-timer-collapsed {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: #14123a;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 14px 34px rgba(20, 14, 60, 0.35);
+  animation: task-timer-in 200ms ease-out;
+}
+
+.task-timer-collapsed:hover { background: #1e1a52; }
+
+.task-timer-collapsed-badge {
+  display: grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #a78bfa;
+  color: #14123a;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.task-timer-widget {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #14123a;
+  color: #ffffff;
+  box-shadow: 0 14px 34px rgba(20, 14, 60, 0.35);
+  animation: task-timer-in 200ms ease-out;
+}
+
+@keyframes task-timer-in {
+  from { opacity: 0; transform: translateY(14px); }
+}
+
+.task-timer-widget.is-paused { background: #35315e; }
+
+.task-timer-widget-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #a78bfa;
+}
+
+.task-timer-widget-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  max-width: 150px;
+}
+
+.task-timer-widget-info strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-timer-widget-info span {
+  font-size: 10px;
+  color: #b8b3d9;
+}
+
+.task-timer-widget-time {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  padding-left: 2px;
+}
+
+.task-timer-widget-pause {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.task-timer-widget-pause:hover { background: rgba(255, 255, 255, 0.22); }
+
+.task-timer-widget-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #14123a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.task-timer-widget-stop:hover { background: #e9e6f7; }
+
+@media (max-width: 560px) {
+  .task-timer-stack { left: 16px; right: 16px; bottom: 16px; }
+  .task-timer-widget-info { max-width: none; flex: 1; }
+  .task-timer-collapsed { right: 16px; bottom: 16px; }
 }
 
 /* =============== RESPONSIVE =============== */
