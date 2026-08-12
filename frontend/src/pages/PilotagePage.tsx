@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import {
   Boxes, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Clock, Download, Gauge, Hourglass, Info, MoreVertical,
+  ClipboardList, Clock, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
   RotateCcw, Search, SlidersHorizontal, TrendingUp, Users,
 } from 'lucide-react'
 import './PilotagePage.css'
@@ -163,6 +163,59 @@ function getPageList(current: number, total: number): (number | '...')[] {
   return [1, '...', current - 1, current, current + 1, '...', total]
 }
 
+interface BudgetLine {
+  name: string
+  ehsPrevu: number
+  ehsConsomme: number
+  ehsRestant: number
+  budgetPrevu: number
+  budgetConsomme: number
+  budgetRestant: number
+  progTemporelle: number
+  progEhs: number
+  progOperationnelle: number
+}
+
+const BUDGET_LINE_NAMES = ['Ressources humaines', 'Déplacements terrain', 'Acquisition matériel', 'Sous-traitance', 'Autres charges']
+const BUDGET_LINE_WEIGHTS = [0.40, 0.15, 0.12, 0.20, 0.13]
+
+function buildBudgetLines(project: Project): BudgetLine[] {
+  const rnd = mulberry32(hashName(project.code))
+  const tauxEhsBase = project.ehsPrevu ? project.ehsConsomme / project.ehsPrevu : 0
+  const tauxBudgetBase = project.budgetPrevu ? project.budgetConsomme / project.budgetPrevu : 0
+  let ehsAccum = 0
+  let budgetAccum = 0
+
+  return BUDGET_LINE_NAMES.map((name, index) => {
+    const isLast = index === BUDGET_LINE_NAMES.length - 1
+    const weight = BUDGET_LINE_WEIGHTS[index]
+
+    const ehsPrevu = isLast
+      ? Math.round((project.ehsPrevu - ehsAccum) * 100) / 100
+      : Math.round(project.ehsPrevu * weight * 100) / 100
+    ehsAccum += ehsPrevu
+
+    const budgetPrevu = isLast
+      ? Math.max(0, Math.round((project.budgetPrevu - budgetAccum) / 10000) * 10000)
+      : Math.round((project.budgetPrevu * weight) / 10000) * 10000
+    budgetAccum += budgetPrevu
+
+    const tauxEhs = Math.min(1, Math.max(0, tauxEhsBase + (rnd() - 0.5) * 0.2))
+    const ehsConsomme = Math.round(ehsPrevu * tauxEhs * 100) / 100
+    const ehsRestant = Math.round((ehsPrevu - ehsConsomme) * 100) / 100
+
+    const tauxBudget = Math.min(1, Math.max(0, tauxBudgetBase + (rnd() - 0.5) * 0.2))
+    const budgetConsomme = Math.round((budgetPrevu * tauxBudget) / 1000) * 1000
+    const budgetRestant = Math.max(0, budgetPrevu - budgetConsomme)
+
+    const progTemporelle = Math.min(100, Math.max(0, Math.round(project.progTemporelle + (rnd() - 0.5) * 20)))
+    const progEhs = ehsPrevu ? Math.round((ehsConsomme / ehsPrevu) * 100) : 0
+    const progOperationnelle = Math.min(100, Math.max(0, Math.round(project.progOperationnelle + (rnd() - 0.5) * 20)))
+
+    return { name, ehsPrevu, ehsConsomme, ehsRestant, budgetPrevu, budgetConsomme, budgetRestant, progTemporelle, progEhs, progOperationnelle }
+  })
+}
+
 function ProgressBar({ value, color }: { value: number; color: string }) {
   return (
     <div className="pil-mini-bar">
@@ -192,6 +245,16 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
   const [exportOpen, setExportOpen] = useState(false)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
+  const toggleExpand = (code: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
+  }
 
   const filtered = useMemo(() => ALL_PROJECTS.filter((p) => {
     if (chef !== 'Tous' && p.chef !== chef) return false
@@ -297,6 +360,7 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
           <table className="pil-table">
             <thead>
               <tr>
+                <th rowSpan={2}></th>
                 <th rowSpan={2}>Code projet</th>
                 <th rowSpan={2}><span className="pil-th-info">Nom du projet<Info size={11} /></span></th>
                 <th rowSpan={2}>Client</th>
@@ -319,38 +383,100 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
               </tr>
             </thead>
             <tbody>
-              {paginated.map((p) => (
-                <tr key={p.code}>
-                  <td className="pil-code">{p.code}</td>
-                  <td className="pil-name">{p.name}</td>
-                  <td>{p.client}</td>
-                  <td>
-                    <div className="pil-chef-cell">
-                      <span className="pil-avatar" style={{ background: avatarColor(p.chef) }}>{initials(p.chef)}</span>
-                      {p.chef}
-                    </div>
-                  </td>
-                  <td>{p.debut}</td>
-                  <td>{p.fin}</td>
-                  <td><span className={`pil-pill pil-pill-${statutClass(p.statut)}`}>{p.statut}</span></td>
-                  <td>{fmtEhs(p.ehsPrevu)}</td>
-                  <td>{fmtEhs(p.ehsConsomme)}</td>
-                  <td>{fmtEhs(p.ehsRestant)}</td>
-                  <td>{fmtInt(p.budgetPrevu)}</td>
-                  <td>{fmtInt(p.budgetConsomme)}</td>
-                  <td>{fmtInt(p.budgetRestant)}</td>
-                  <td>{fmtEhs(p.ehsPrevu)}</td>
-                  <td>{fmtEhs(p.ehsConsomme)}</td>
-                  <td>{fmtEhs(p.ehsRestant)}</td>
-                  <td><ProgressBar value={p.progTemporelle} color="#3b82f6" /></td>
-                  <td><ProgressBar value={p.progEhs} color="#16a34a" /></td>
-                  <td><ProgressBar value={p.progOperationnelle} color="#6b46c1" /></td>
-                  <td><span className={`pil-status-global pil-status-${statutGlobalClass(p.statutGlobal)}`}><i />{p.statutGlobal}</span></td>
-                  <td><button type="button" className="pil-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
-                </tr>
-              ))}
+              {paginated.map((p) => {
+                const isExpanded = expandedRows.has(p.code)
+                return (
+                  <Fragment key={p.code}>
+                    <tr className={isExpanded ? 'pil-row-expanded' : undefined}>
+                      <td className="pil-expand-toggle">
+                        <button
+                          type="button"
+                          className="pil-chevron-btn"
+                          onClick={() => toggleExpand(p.code)}
+                          aria-label={isExpanded ? 'Réduire le projet' : 'Développer le projet'}
+                          aria-expanded={isExpanded}
+                        >
+                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                      </td>
+                      <td className="pil-code">{p.code}</td>
+                      <td className="pil-name">{p.name}</td>
+                      <td>{p.client}</td>
+                      <td>
+                        <div className="pil-chef-cell">
+                          <span className="pil-avatar" style={{ background: avatarColor(p.chef) }}>{initials(p.chef)}</span>
+                          {p.chef}
+                        </div>
+                      </td>
+                      <td>{p.debut}</td>
+                      <td>{p.fin}</td>
+                      <td><span className={`pil-pill pil-pill-${statutClass(p.statut)}`}>{p.statut}</span></td>
+                      <td>{fmtEhs(p.ehsPrevu)}</td>
+                      <td>{fmtEhs(p.ehsConsomme)}</td>
+                      <td>{fmtEhs(p.ehsRestant)}</td>
+                      <td>{fmtInt(p.budgetPrevu)}</td>
+                      <td>{fmtInt(p.budgetConsomme)}</td>
+                      <td>{fmtInt(p.budgetRestant)}</td>
+                      <td>{fmtEhs(p.ehsPrevu)}</td>
+                      <td>{fmtEhs(p.ehsConsomme)}</td>
+                      <td>{fmtEhs(p.ehsRestant)}</td>
+                      <td><ProgressBar value={p.progTemporelle} color="#3b82f6" /></td>
+                      <td><ProgressBar value={p.progEhs} color="#16a34a" /></td>
+                      <td><ProgressBar value={p.progOperationnelle} color="#6b46c1" /></td>
+                      <td><span className={`pil-status-global pil-status-${statutGlobalClass(p.statutGlobal)}`}><i />{p.statutGlobal}</span></td>
+                      <td><button type="button" className="pil-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="pil-expand-row">
+                        <td colSpan={22} className="pil-expand-cell">
+                          <div className="pil-budget-lines">
+                            <table className="pil-subtable">
+                              <thead>
+                                <tr>
+                                  <th rowSpan={2}>Lignes budgétaires</th>
+                                  <th colSpan={3}>Total EHS</th>
+                                  <th colSpan={3}>Total Monétaire (FCFA)</th>
+                                  <th colSpan={3}>Équivalent EHS</th>
+                                  <th colSpan={3}>Progression</th>
+                                  <th rowSpan={2}>Actions</th>
+                                </tr>
+                                <tr>
+                                  <th>Prévu</th><th>Consommé</th><th>Restant</th>
+                                  <th>Prévu</th><th>Consommé</th><th>Restant</th>
+                                  <th>Prévu</th><th>Consommé</th><th>Restant</th>
+                                  <th>Temporelle</th><th>Équivalent EHS</th><th>Opérationnelle</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {buildBudgetLines(p).map((line) => (
+                                  <tr key={line.name}>
+                                    <td className="pil-line-name"><GripVertical size={12} className="pil-drag-handle" />{line.name}</td>
+                                    <td>{fmtEhs(line.ehsPrevu)}</td>
+                                    <td>{fmtEhs(line.ehsConsomme)}</td>
+                                    <td>{fmtEhs(line.ehsRestant)}</td>
+                                    <td>{fmtInt(line.budgetPrevu)}</td>
+                                    <td>{fmtInt(line.budgetConsomme)}</td>
+                                    <td>{fmtInt(line.budgetRestant)}</td>
+                                    <td>{fmtEhs(line.ehsPrevu)}</td>
+                                    <td>{fmtEhs(line.ehsConsomme)}</td>
+                                    <td>{fmtEhs(line.ehsRestant)}</td>
+                                    <td><ProgressBar value={line.progTemporelle} color="#3b82f6" /></td>
+                                    <td><ProgressBar value={line.progEhs} color="#16a34a" /></td>
+                                    <td><ProgressBar value={line.progOperationnelle} color="#6b46c1" /></td>
+                                    <td><button type="button" className="pil-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
               {paginated.length === 0 && (
-                <tr><td colSpan={21} className="pil-empty">Aucun projet ne correspond à ces filtres.</td></tr>
+                <tr><td colSpan={22} className="pil-empty">Aucun projet ne correspond à ces filtres.</td></tr>
               )}
             </tbody>
           </table>

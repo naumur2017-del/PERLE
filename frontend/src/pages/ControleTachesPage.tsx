@@ -21,19 +21,17 @@ interface Tache {
   dureeConsommee: number
   dureeRestante: number
   progTemporelle: number
-  progEhs: number
-  progMonetaire: number
   statut: 'Non démarrée' | 'En cours' | 'Terminée' | 'En pause' | 'En retard'
-  priorite: 'Haute' | 'Moyenne' | 'Basse'
+  priorite: 'Élevée' | 'Moyenne' | 'Faible'
 }
 
 const TACHES: Tache[] = [
-  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', type: 'E', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, progEhs: 70, progMonetaire: 65, statut: 'En cours', priorite: 'Haute' },
-  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, progEhs: 33, progMonetaire: 25, statut: 'En pause', priorite: 'Moyenne' },
-  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, progEhs: 100, progMonetaire: 98, statut: 'Terminée', priorite: 'Haute' },
-  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', type: 'E', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, progEhs: 70, progMonetaire: 65, statut: 'En retard', priorite: 'Haute' },
-  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, progEhs: 50, progMonetaire: 40, statut: 'En cours', priorite: 'Moyenne' },
-  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, progEhs: 40, progMonetaire: 40, statut: 'En cours', priorite: 'Basse' },
+  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', type: 'E', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, statut: 'En cours', priorite: 'Élevée' },
+  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, statut: 'En pause', priorite: 'Moyenne' },
+  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, statut: 'Terminée', priorite: 'Élevée' },
+  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', type: 'E', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, statut: 'En retard', priorite: 'Élevée' },
+  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, statut: 'En cours', priorite: 'Moyenne' },
+  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, statut: 'En cours', priorite: 'Faible' },
 ]
 
 const KPIS = [
@@ -90,7 +88,7 @@ const statutClass = (statut: Tache['statut']) => {
   return 'attente'
 }
 
-const prioriteClass = (priorite: Tache['priorite']) => priorite === 'Haute' ? 'haute' : priorite === 'Moyenne' ? 'moyenne' : 'basse'
+const prioriteClass = (priorite: Tache['priorite']) => priorite === 'Élevée' ? 'elevee' : priorite === 'Moyenne' ? 'moyenne' : 'faible'
 
 function RepartitionDonut() {
   const total = REPARTITION.reduce((sum, item) => sum + item.value, 0)
@@ -183,14 +181,13 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                   <th rowSpan={2}>Date fin</th>
                   <th rowSpan={2}>Échéance</th>
                   <th colSpan={3}>Durée (jours)</th>
-                  <th colSpan={3}>Progression</th>
+                  <th rowSpan={2}>Progression</th>
                   <th rowSpan={2}>Statut</th>
                   <th rowSpan={2}>Priorité</th>
                   <th rowSpan={2}></th>
                 </tr>
                 <tr>
                   <th>Prévue</th><th>Consommée</th><th>Restante</th>
-                  <th>Temporelle</th><th>EHS</th><th>Monétaire</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,8 +208,6 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                     <td>{tache.dureeConsommee}</td>
                     <td>{tache.dureeRestante}</td>
                     <td>{tache.progTemporelle}%</td>
-                    <td>{tache.progEhs}%</td>
-                    <td>{tache.progMonetaire}%</td>
                     <td><span className={`ct-pill ct-pill-${statutClass(tache.statut)}`}>{tache.statut}</span></td>
                     <td><span className={`ct-priorite ct-priorite-${prioriteClass(tache.priorite)}`}>{tache.priorite}</span></td>
                     <td><button type="button" className="ct-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>

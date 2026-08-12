@@ -179,9 +179,9 @@
 .ct-pill-retard { background: #fee2e2; color: #b91c1c; }
 
 .ct-priorite { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
-.ct-priorite-haute { background: #fee2e2; color: #b91c1c; }
+.ct-priorite-elevee { background: #fee2e2; color: #b91c1c; }
 .ct-priorite-moyenne { background: #eee9ff; color: #5835da; }
-.ct-priorite-basse { background: #dcfce7; color: #15803d; }
+.ct-priorite-faible { background: #dcfce7; color: #15803d; }
 
 .ct-row-action { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 6px; background: none; color: #8f8fa6; cursor: pointer; }
 .ct-row-action:hover { background: #f0eef8; color: #6b46c1; }

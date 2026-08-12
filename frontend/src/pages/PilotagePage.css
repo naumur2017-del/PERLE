@@ -432,6 +432,91 @@
 .pil-status-retard { background: #fee2e2; color: #b91c1c; }
 .pil-status-retard i { background: #dc2626; }
 
+.pil-expand-toggle {
+  width: 30px;
+  text-align: center;
+}
+
+.pil-chevron-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #8f8fa6;
+  cursor: pointer;
+}
+
+.pil-chevron-btn:hover { background: #f0eef8; color: #6b46c1; }
+
+.pil-row-expanded { background: #faf9ff; }
+
+.pil-expand-row td.pil-expand-cell {
+  padding: 0;
+  background: #faf9ff;
+  border-bottom: 1px solid #eae7f6;
+  white-space: normal;
+}
+
+.pil-budget-lines {
+  padding: 14px 18px 18px 46px;
+  overflow-x: auto;
+}
+
+.pil-subtable {
+  width: 100%;
+  min-width: 1560px;
+  border-collapse: collapse;
+  font-size: 11px;
+  background: #ffffff;
+  border: 1px solid #eae7f6;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pil-subtable th,
+.pil-subtable td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #f0eef8;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pil-subtable thead th {
+  background: #f4f2fb;
+  color: #6c6c85;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.pil-subtable thead tr:first-child th[rowspan] {
+  text-align: left;
+}
+
+.pil-subtable tbody tr:last-child td { border-bottom: none; }
+.pil-subtable tbody tr:hover { background: #faf9ff; }
+
+.pil-line-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #14123a;
+  font-weight: 700;
+  white-space: normal;
+  min-width: 170px;
+}
+
+.pil-drag-handle {
+  color: #c7c3e0;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
 .pil-row-action {
   display: grid;
   place-items: center;
