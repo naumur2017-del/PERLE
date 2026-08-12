@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList,
   Gauge, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
@@ -127,6 +127,31 @@ function RepartitionDonut() {
 
 export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [search, setSearch] = useState('')
+  const [filterProjet, setFilterProjet] = useState('Tous')
+  const [filterLigne, setFilterLigne] = useState('Toutes')
+  const [filterEquipe, setFilterEquipe] = useState('Toutes')
+  const [filterStatut, setFilterStatut] = useState('Tous')
+  const [filterPriorite, setFilterPriorite] = useState('Toutes')
+  const [filterType, setFilterType] = useState('Tous')
+
+  const projets = useMemo(() => Array.from(new Set(TACHES.map((t) => t.projet))), [])
+  const lignesBudgetaires = useMemo(() => Array.from(new Set(TACHES.map((t) => t.ligneBudgetaire))), [])
+  const equipes = useMemo(() => Array.from(new Set(TACHES.map((t) => t.division))), [])
+
+  const resetFiltres = () => {
+    setSearch(''); setFilterProjet('Tous'); setFilterLigne('Toutes'); setFilterEquipe('Toutes')
+    setFilterStatut('Tous'); setFilterPriorite('Toutes'); setFilterType('Tous')
+  }
+
+  const tachesFiltrees = TACHES.filter((tache) => (
+    (filterProjet === 'Tous' || tache.projet === filterProjet)
+    && (filterLigne === 'Toutes' || tache.ligneBudgetaire === filterLigne)
+    && (filterEquipe === 'Toutes' || tache.division === filterEquipe)
+    && (filterStatut === 'Tous' || tache.statut === filterStatut)
+    && (filterPriorite === 'Toutes' || tache.priorite === filterPriorite)
+    && (filterType === 'Tous' || tache.type === filterType)
+    && (search.trim() === '' || `${tache.code} ${tache.nom} ${tache.attribueA} ${tache.attribuePar}`.toLowerCase().includes(search.trim().toLowerCase()))
+  ))
 
   return (
     <section className="ct-page">
@@ -150,21 +175,52 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
       </div>
 
       <div className="ct-filters">
-        <label>Projet<select defaultValue="Tous"><option>Tous les projets</option></select></label>
-        <label>Équipe<select defaultValue="Toutes"><option>Toutes les équipes</option></select></label>
-        <label>Statut<select defaultValue="Tous"><option>Tous les statuts</option></select></label>
-        <label>Priorité<select defaultValue="Toutes"><option>Toutes les priorités</option></select></label>
-        <label>Type<select defaultValue="Tous"><option>Tous (E / D)</option></select></label>
+        <label>Projet
+          <select value={filterProjet} onChange={(event) => setFilterProjet(event.target.value)}>
+            <option value="Tous">Tous les projets</option>
+            {projets.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        <label>Ligne budgétaire
+          <select value={filterLigne} onChange={(event) => setFilterLigne(event.target.value)}>
+            <option value="Toutes">Toutes les lignes</option>
+            {lignesBudgetaires.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </label>
+        <label>Équipe
+          <select value={filterEquipe} onChange={(event) => setFilterEquipe(event.target.value)}>
+            <option value="Toutes">Toutes les équipes</option>
+            {equipes.map((e) => <option key={e} value={e}>{e}</option>)}
+          </select>
+        </label>
+        <label>Statut
+          <select value={filterStatut} onChange={(event) => setFilterStatut(event.target.value)}>
+            <option value="Tous">Tous les statuts</option>
+            <option>Non démarrée</option><option>En cours</option><option>Terminée</option><option>En pause</option><option>En retard</option>
+          </select>
+        </label>
+        <label>Priorité
+          <select value={filterPriorite} onChange={(event) => setFilterPriorite(event.target.value)}>
+            <option value="Toutes">Toutes les priorités</option>
+            <option>Élevée</option><option>Moyenne</option><option>Faible</option>
+          </select>
+        </label>
+        <label>Type
+          <select value={filterType} onChange={(event) => setFilterType(event.target.value)}>
+            <option value="Tous">Tous (E / D)</option>
+            <option value="E">E</option><option value="D">D</option>
+          </select>
+        </label>
         <label className="ct-search">
           <Search size={14} />
           <input placeholder="Rechercher une tâche (code, nom, collaborateur...)" value={search} onChange={(event) => setSearch(event.target.value)} />
         </label>
-        <button type="button" className="ct-reset" onClick={() => setSearch('')}><RotateCcw size={14} />Réinitialiser</button>
+        <button type="button" className="ct-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
       <div className="ct-main">
         <div className="ct-table-panel">
-          <div className="ct-table-head"><h3>Liste des tâches ({TACHES.length.toLocaleString('fr-FR')} sur 1 248)</h3></div>
+          <div className="ct-table-head"><h3>Liste des tâches ({tachesFiltrees.length.toLocaleString('fr-FR')} sur 1 248)</h3></div>
           <div className="ct-table-wrap">
             <table className="ct-table">
               <thead>
@@ -191,7 +247,10 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
                 </tr>
               </thead>
               <tbody>
-                {TACHES.map((tache) => (
+                {tachesFiltrees.length === 0 && (
+                  <tr><td colSpan={17} className="ct-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                )}
+                {tachesFiltrees.map((tache) => (
                   <tr key={tache.code}>
                     <td className="ct-code">{tache.code}</td>
                     <td>{tache.projet}</td>
@@ -217,7 +276,7 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
             </table>
           </div>
           <div className="ct-table-foot">
-            <span>Affichage de 1 à {TACHES.length} sur 1 248 tâches</span>
+            <span>Affichage de 1 à {tachesFiltrees.length} sur 1 248 tâches</span>
             <nav className="ct-pagination" aria-label="Pagination">
               <button type="button" disabled><ChevronLeft size={14} /></button>
               <button type="button" className="is-active">1</button>

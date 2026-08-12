@@ -1,107 +1,230 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  Calendar, CalendarClock, ChevronLeft, ChevronRight, ExternalLink, Folder, Hourglass, ListChecks,
-  MoreVertical, PlayCircle, RotateCcw, Search, TrendingDown, TrendingUp, User, UserCheck,
+  Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, Inbox,
+  Info, Lock, PlayCircle, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Unlock, Users, Wallet, X,
 } from 'lucide-react'
 import './StaffingPage.css'
 
-interface TacheStaffing {
-  code: string
-  nom: string
-  type: 'E' | 'D'
+type Statut = 'a-configurer' | 'prete' | 'staffee'
+
+interface TacheWrike {
+  id: string
+  projet: string
+  tache: string
+  equipe: string
   priorite: 'Haute' | 'Moyenne' | 'Basse'
-  division: string
-  profil: string
-  employe: string
-  employeProfil: string
-  ehsAlloues: number | null
-  ehsConsommes: number | null
-  ehsRestants: number | null
-  progTemporelle: number | null
-  progEhs: number | null
-  progMonetaire: number | null
+  creeLe: string
+  echeance: string
+  ligneBudgetaire: string | null
+  ehsPrevu: number | null
+  statut: Statut
+  collaborateur: string | null
+  collaborateurProfil: string | null
+  staffeLe: string | null
 }
 
-const TACHES: TacheStaffing[] = [
-  { code: 'BO1-T01', nom: 'Saisie des écritures comptables', type: 'E', priorite: 'Haute', division: 'BO', profil: 'Comptable Senior', employe: 'Ibrahim Mbouombouo', employeProfil: 'Comptable Senior', ehsAlloues: 15, ehsConsommes: 6, ehsRestants: 9, progTemporelle: 65, progEhs: 40, progMonetaire: 65 },
-  { code: 'BO1-T02', nom: 'Rapprochement bancaire', type: 'E', priorite: 'Haute', division: 'BO', profil: 'Analyste Financier', employe: 'Belomo Edwige', employeProfil: 'Analyste Financier', ehsAlloues: 20, ehsConsommes: 4, ehsRestants: 16, progTemporelle: 20, progEhs: 25, progMonetaire: 25 },
-  { code: 'BO1-T03', nom: 'Établissement des déclarations fiscales', type: 'E', priorite: 'Haute', division: 'BO', profil: 'Analyste Financier', employe: 'Essogo Erine', employeProfil: 'Analyste Financier', ehsAlloues: 30, ehsConsommes: 0, ehsRestants: 30, progTemporelle: 10, progEhs: 0, progMonetaire: 5 },
-  { code: 'MO1-T01', nom: 'Analyse financière', type: 'E', priorite: 'Moyenne', division: 'MO', profil: 'Contrôleur de gestion', employe: 'Pamella Guebediang', employeProfil: 'Contrôleur de gestion', ehsAlloues: 25, ehsConsommes: 12, ehsRestants: 13, progTemporelle: 50, progEhs: 48, progMonetaire: 40 },
-  { code: 'MO1-T02', nom: 'Préparation du budget', type: 'E', priorite: 'Moyenne', division: 'MO', profil: 'Analyste Financier', employe: 'Herman Tsaffock', employeProfil: 'Analyste Financier', ehsAlloues: 18, ehsConsommes: 5, ehsRestants: 13, progTemporelle: 30, progEhs: 38, progMonetaire: 33 },
-  { code: 'FO1-T01', nom: 'Reporting mensuel', type: 'D', priorite: 'Basse', division: 'FO', profil: 'Chargé Reporting', employe: 'Assabe Zainabou', employeProfil: 'Chargé Reporting', ehsAlloues: null, ehsConsommes: null, ehsRestants: null, progTemporelle: 70, progEhs: 60, progMonetaire: 60 },
-  { code: 'OP1-T01', nom: 'Suivi des opérations', type: 'E', priorite: 'Moyenne', division: 'OP', profil: 'Opérateur ERP', employe: 'Mbarga Thibaut', employeProfil: 'Opérateur ERP', ehsAlloues: 22, ehsConsommes: 3, ehsRestants: 19, progTemporelle: 25, progEhs: 14, progMonetaire: 20 },
-  { code: 'PI1-T01', nom: 'Planification stratégique', type: 'E', priorite: 'Moyenne', division: 'PI', profil: 'Chef de projet', employe: 'Théodore Bessala', employeProfil: 'Chef de projet', ehsAlloues: 16, ehsConsommes: 6, ehsRestants: 10, progTemporelle: 30, progEhs: 38, progMonetaire: 33 },
-  { code: 'IT1-T01', nom: 'Développement module ERP', type: 'E', priorite: 'Haute', division: 'IT', profil: 'Développeur Senior', employe: 'Brayan Ebongue', employeProfil: 'Développeur Senior', ehsAlloues: 24, ehsConsommes: 8, ehsRestants: 16, progTemporelle: 45, progEhs: 33, progMonetaire: 40 },
-  { code: 'IT1-T02', nom: 'Tests et recette', type: 'D', priorite: 'Basse', division: 'IT', profil: 'Testeur QA', employe: 'Erine Essogo', employeProfil: 'Testeur QA', ehsAlloues: null, ehsConsommes: null, ehsRestants: null, progTemporelle: null, progEhs: null, progMonetaire: null },
+const LIGNES_BUDGET_INITIAL = [
+  { nom: 'Déplacement terrain', disponible: 42.0 },
+  { nom: 'Consultation externe', disponible: 27.5 },
+  { nom: 'Formation équipe', disponible: 18.0 },
+  { nom: 'Achat matériel', disponible: 20.0 },
+  { nom: 'Support technique', disponible: 25.0 },
 ]
 
-const KPIS = [
-  { icon: ListChecks, tone: 'blue', label: 'Tâches disponibles', value: '44', sub: 'Non assignées' },
-  { icon: UserCheck, tone: 'green', label: 'Tâches attribuées', value: '16', sub: 'Déjà assignées' },
-  { icon: Hourglass, tone: 'orange', label: 'EHS disponibles (projet)', value: '174,00 EHS', sub: 'Sur 256,00 EHS au total' },
-  { icon: CalendarClock, tone: 'purple', label: 'Délai du projet', value: '45 jours restants', sub: 'Sur 245 jours au total' },
-  { icon: TrendingUp, tone: 'indigo', label: 'Avancement global du projet', value: '32%', sub: 'Progression moyenne', progress: 32 },
+const COLLABORATEURS = [
+  { nom: 'Ibrahim Mbouombouo', profil: 'Comptable Senior', equipe: 'BO1 - Back Office 1' },
+  { nom: 'Belomo Edwige', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
+  { nom: 'Essogo Erine', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
+  { nom: 'Pamella Guebediang', profil: 'Contrôleur de gestion', equipe: 'MO1 - Middle Office 1' },
+  { nom: 'Herman Tsaffock', profil: 'Analyste Financier', equipe: 'MO1 - Middle Office 1' },
+  { nom: 'Mbarga Thibaut', profil: 'Opérateur ERP', equipe: 'OP1 - Opérations 1' },
+  { nom: 'Théodore Bessala', profil: 'Chef de projet', equipe: 'PI1 - Pilotage 1' },
+  { nom: 'Brayan Ebongue', profil: 'Développeur Senior', equipe: 'IT1 - Développement 1' },
 ]
 
-const STEPS = [
-  { label: 'Sélection des tâches', sub: 'Choisissez les tâches à staffer' },
-  { label: 'Affectation des ressources', sub: 'Assignez les ressources disponibles' },
-  { label: 'Validation du staffing', sub: 'Vérifiez et validez les affectations' },
+const TACHES_INITIAL: TacheWrike[] = [
+  { id: 'WRK-1456', projet: 'ERP Academy', tache: 'Analyse des besoins utilisateurs', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '15/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1457', projet: 'ERP Academy', tache: 'Mission de collecte des données', equipe: 'MO1 - Middle Office 1', priorite: 'Haute', creeLe: '07/05/2025', echeance: '20/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1458', projet: 'ERP Academy', tache: 'Rédaction rapport préliminaire', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '25/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1459', projet: 'ERP Academy', tache: 'Atelier de restitution intermédiaire', equipe: 'MO1 - Middle Office 1', priorite: 'Basse', creeLe: '07/05/2025', echeance: '30/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1460', projet: 'ERP Academy', tache: 'Validation rapport final', equipe: 'MO1 - Middle Office 1', priorite: 'Haute', creeLe: '07/05/2025', echeance: '05/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1461', projet: 'ERP Academy', tache: 'Archivage des documents', equipe: 'MO1 - Middle Office 1', priorite: 'Basse', creeLe: '07/05/2025', echeance: '07/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+
+  { id: 'WRK-1442', projet: 'ERP Academy', tache: 'Cartographie des processus', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '02/05/2025', echeance: '18/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 12, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1443', projet: 'Mission Audit Interne', tache: 'Revue des contrôles internes', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '03/05/2025', echeance: '22/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1444', projet: 'Digitalisation RH', tache: 'Paramétrage du SIRH', equipe: 'IT1 - Développement 1', priorite: 'Basse', creeLe: '04/05/2025', echeance: '28/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 8, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1445', projet: 'Étude de faisabilité usine', tache: 'Analyse des coûts', equipe: 'PI1 - Pilotage 1', priorite: 'Moyenne', creeLe: '05/05/2025', echeance: '02/06/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 15, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1446', projet: 'ERP Academy', tache: "Tests d'intégration module RH", equipe: 'IT1 - Développement 1', priorite: 'Haute', creeLe: '06/05/2025', echeance: '10/06/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 10, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+
+  { id: 'WRK-1401', projet: 'ERP Academy', tache: 'Saisie des écritures comptables', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 15, statut: 'staffee', collaborateur: 'Ibrahim Mbouombouo', collaborateurProfil: 'Comptable Senior', staffeLe: '30/04/2025' },
+  { id: 'WRK-1402', projet: 'ERP Academy', tache: 'Rapprochement bancaire', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'staffee', collaborateur: 'Belomo Edwige', collaborateurProfil: 'Analyste Financier', staffeLe: '30/04/2025' },
+  { id: 'WRK-1403', projet: 'Mission Audit Interne', tache: 'Établissement des déclarations fiscales', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '29/04/2025', echeance: '13/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 30, statut: 'staffee', collaborateur: 'Essogo Erine', collaborateurProfil: 'Analyste Financier', staffeLe: '01/05/2025' },
+  { id: 'WRK-1404', projet: 'ERP Academy', tache: 'Analyse financière', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '29/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 25, statut: 'staffee', collaborateur: 'Pamella Guebediang', collaborateurProfil: 'Contrôleur de gestion', staffeLe: '02/05/2025' },
+  { id: 'WRK-1405', projet: 'Digitalisation RH', tache: 'Préparation du budget', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 18, statut: 'staffee', collaborateur: 'Herman Tsaffock', collaborateurProfil: 'Analyste Financier', staffeLe: '02/05/2025' },
+  { id: 'WRK-1406', projet: 'Étude de faisabilité usine', tache: 'Suivi des opérations', equipe: 'OP1 - Opérations 1', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '15/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 22, statut: 'staffee', collaborateur: 'Mbarga Thibaut', collaborateurProfil: 'Opérateur ERP', staffeLe: '03/05/2025' },
+  { id: 'WRK-1407', projet: 'ERP Academy', tache: 'Planification stratégique', equipe: 'PI1 - Pilotage 1', priorite: 'Moyenne', creeLe: '01/05/2025', echeance: '15/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 16, statut: 'staffee', collaborateur: 'Théodore Bessala', collaborateurProfil: 'Chef de projet', staffeLe: '03/05/2025' },
 ]
 
-const TOP_STAFFES = [
-  { nom: 'Ibrahim Mbouombouo', profil: 'Comptable Senior', taches: 5, ehs: 85, percent: 33.20 },
-  { nom: 'Herman Tsaffock', profil: 'Analyste Financier', taches: 4, ehs: 68, percent: 26.56 },
-  { nom: 'Belomo Edwige', profil: 'Analyste Financier', taches: 3, ehs: 50, percent: 19.53 },
-]
+const STATUT_LABEL: Record<Statut, string> = { 'a-configurer': 'À configurer', prete: 'Prêt à staffer', staffee: 'Déjà staffée' }
+const STATUT_CLASS: Record<Statut, string> = { 'a-configurer': 'orange', prete: 'blue', staffee: 'green' }
+const PRIORITE_CLASS: Record<TacheWrike['priorite'], string> = { Haute: 'haute', Moyenne: 'moyenne', Basse: 'basse' }
 
-const TOTAL_TACHES_DISPONIBLES = 44
-
-const LEAST_STAFFES = [
-  { nom: 'Erine Essogo', profil: 'Testeur QA', taches: 1, ehs: 0, percent: 0 },
-  { nom: 'Assabe Zainabou', profil: 'Chargé Reporting', taches: 1, ehs: 0, percent: 0 },
-  { nom: 'Théodore Bessala', profil: 'Chef de projet', taches: 1, ehs: 16, percent: 6.25 },
+const TABS: { key: Statut; label: string }[] = [
+  { key: 'a-configurer', label: 'Tâches à configurer' },
+  { key: 'prete', label: 'Prêtes à staffer' },
+  { key: 'staffee', label: 'Déjà staffées' },
 ]
 
 const fmtEhs = (value: number | null) => value === null ? '-' : value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtPercent = (value: number | null) => value === null ? '-' : `${value}%`
-const prioriteClass = (priorite: TacheStaffing['priorite']) => priorite === 'Haute' ? 'haute' : priorite === 'Moyenne' ? 'moyenne' : 'basse'
 
-function ProgressBar({ value, tone }: { value: number | null; tone: string }) {
-  if (value === null) return <span className="ns-progress-empty">-</span>
+function initiales(nom: string) {
+  return nom.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function CollaborateurSelect({ equipe, value, onChange, disabled, autoFocus }: {
+  equipe: string
+  value: string
+  onChange: (nom: string) => void
+  disabled?: boolean
+  autoFocus?: boolean
+}) {
+  const [showAll, setShowAll] = useState(false)
+  const membresEquipe = COLLABORATEURS.filter((c) => c.equipe === equipe)
+  const membresHorsEquipe = COLLABORATEURS.filter((c) => c.equipe !== equipe)
+
   return (
-    <div className="ns-progress">
-      <span className="ns-progress-track"><i className={tone} style={{ width: `${value}%` }} /></span>
-      <b>{value}%</b>
+    <div className="ns-collab-select">
+      <select autoFocus={autoFocus} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Sélectionner un collaborateur</option>
+        <optgroup label="Membres de l'équipe">
+          {membresEquipe.map((c) => <option key={c.nom} value={c.nom}>{c.nom} — {c.profil}</option>)}
+        </optgroup>
+        {showAll && (
+          <optgroup label="Hors équipe">
+            {membresHorsEquipe.map((c) => <option key={c.nom} value={c.nom}>{c.nom} — {c.profil}</option>)}
+          </optgroup>
+        )}
+      </select>
+      {!disabled && (
+        <button
+          type="button"
+          className={`ns-collab-plus ${showAll ? 'active' : ''}`}
+          title="Afficher les collaborateurs hors équipe"
+          onClick={() => setShowAll((s) => !s)}
+        >
+          <Plus size={14} />
+        </button>
+      )}
     </div>
   )
 }
 
 export default function StaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [taches, setTaches] = useState<TacheWrike[]>(TACHES_INITIAL)
+  const [lignesBudget, setLignesBudget] = useState(LIGNES_BUDGET_INITIAL)
+  const [activeTab, setActiveTab] = useState<Statut>('a-configurer')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [staffingUnlocked, setStaffingUnlocked] = useState(false)
+
+  const [filterProjet, setFilterProjet] = useState('Tous')
+  const [filterEquipe, setFilterEquipe] = useState('Toutes')
+  const [filterLigne, setFilterLigne] = useState('Toutes')
+  const [filterStatut, setFilterStatut] = useState('Tous')
+  const [filterPriorite, setFilterPriorite] = useState('Toutes')
   const [search, setSearch] = useState('')
+
+  const [formLigne, setFormLigne] = useState('')
+  const [formEhs, setFormEhs] = useState('')
+  const [formCollaborateur, setFormCollaborateur] = useState('')
+
+  const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
+  const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
+
+  const selected = taches.find((t) => t.id === selectedId) ?? null
+
+  const handleSelect = (tache: TacheWrike) => {
+    setSelectedId(tache.id)
+    setFormLigne(tache.ligneBudgetaire ?? '')
+    setFormEhs(tache.ehsPrevu !== null ? String(tache.ehsPrevu) : '')
+    setStaffingUnlocked(false)
+    setFormCollaborateur('')
+  }
+
+  const closePanel = () => {
+    setSelectedId(null)
+    setStaffingUnlocked(false)
+    setFormCollaborateur('')
+  }
+
+  const filtered = taches.filter((t) => (
+    t.statut === activeTab
+    && (filterProjet === 'Tous' || t.projet === filterProjet)
+    && (filterEquipe === 'Toutes' || t.equipe === filterEquipe)
+    && (filterLigne === 'Toutes' || t.ligneBudgetaire === filterLigne)
+    && (filterStatut === 'Tous' || STATUT_LABEL[t.statut] === filterStatut)
+    && (filterPriorite === 'Toutes' || t.priorite === filterPriorite)
+    && (search.trim() === '' || `${t.id} ${t.tache} ${t.projet} ${t.collaborateur ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+  ))
+
+  const resetFiltres = () => {
+    setFilterProjet('Tous'); setFilterEquipe('Toutes'); setFilterLigne('Toutes')
+    setFilterStatut('Tous'); setFilterPriorite('Toutes'); setSearch('')
+  }
+
+  const ehsNecessaireNum = parseFloat(formEhs.replace(',', '.'))
+  const ligneChoisieDisponible = lignesBudget.find((l) => l.nom === formLigne)?.disponible ?? 0
+  const budgetValide = formLigne !== '' && !Number.isNaN(ehsNecessaireNum) && ehsNecessaireNum > 0 && ehsNecessaireNum <= ligneChoisieDisponible
+
+  const consommerLigne = (nom: string, montant: number) => {
+    setLignesBudget((lignes) => lignes.map((l) => l.nom === nom ? { ...l, disponible: Math.round((l.disponible - montant) * 100) / 100 } : l))
+  }
+
+  const todayStr = () => new Date().toLocaleDateString('fr-FR')
+
+  const handleEnregistrerSansStaffing = () => {
+    if (!selected || selected.statut !== 'a-configurer' || !budgetValide) return
+    consommerLigne(formLigne, ehsNecessaireNum)
+    setTaches((list) => list.map((t) => t.id === selected.id ? { ...t, ligneBudgetaire: formLigne, ehsPrevu: ehsNecessaireNum, statut: 'prete' } : t))
+    closePanel()
+  }
+
+  const handleAssignerCollaborateur = () => {
+    if (!selected || formCollaborateur === '') return
+    const profil = COLLABORATEURS.find((c) => c.nom === formCollaborateur)?.profil ?? ''
+    setTaches((list) => list.map((t) => t.id === selected.id
+      ? { ...t, statut: 'staffee', collaborateur: formCollaborateur, collaborateurProfil: profil, staffeLe: todayStr() }
+      : t))
+    setStaffingUnlocked(false)
+    setFormCollaborateur('')
+  }
+
+  const countConfig = taches.filter((t) => t.statut === 'a-configurer').length
+  const countPrete = taches.filter((t) => t.statut === 'prete').length
+  const countStaffee = taches.filter((t) => t.statut === 'staffee').length
+  const ehsRestantTotal = lignesBudget.reduce((sum, l) => sum + l.disponible, 0)
+
+  const KPIS = [
+    { icon: Inbox, tone: 'blue', label: 'Tâches reçues de Wrike', value: String(taches.length), sub: 'Total des tâches' },
+    { icon: Settings2, tone: 'orange', label: 'À configurer', value: String(countConfig), sub: 'Ligne budgétaire et EHS à définir' },
+    { icon: Users, tone: 'purple', label: 'Prêtes à staffer', value: String(countPrete), sub: 'EHS définis' },
+    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Tâches affectées' },
+    { icon: Wallet, tone: 'indigo', label: 'EHS restant disponibles', value: `${fmtEhs(ehsRestantTotal)}`, sub: 'Sur les lignes sélectionnées' },
+    { icon: Users, tone: 'blue', label: 'Collaborateurs disponibles', value: String(COLLABORATEURS.length), sub: 'Dans votre équipe' },
+  ]
 
   return (
     <section className="ns-page">
-      <nav className="ns-subtabs">
-        <button className="active" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
-        <button onClick={() => navigateTo('staffing-execute')}><PlayCircle size={14} />Exécuté staffing</button>
-      </nav>
+      <div className="ns-title-row">
+        <div>
+          <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>
+          <p>Les tâches créées dans Wrike sont automatiquement importées et affichées ici pour votre équipe.</p>
+        </div>
+        <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}><PlayCircle size={14} />Voir l'exécuté staffing</button>
+      </div>
 
-      <div className="ns-info-bar">
-        <div className="ns-info-item">
-          <span className="ns-info-icon"><Folder size={16} /></span>
-          <div><small>Projet</small><strong>PRJ.001 - ERP Academy</strong><span>Développement du nouvel ERP</span></div>
-        </div>
-        <div className="ns-info-sep" />
-        <div className="ns-info-item">
-          <span className="ns-info-icon"><Calendar size={16} /></span>
-          <div><small>Période du projet</small><strong>01/05/2025 → 31/12/2025</strong><span>Durée totale : 245 jours</span></div>
-        </div>
-        <div className="ns-info-sep" />
-        <div className="ns-info-item">
-          <span className="ns-info-icon"><User size={16} /></span>
-          <div><small>Manager du projet</small><strong>Ajara Lamare</strong><span>Manager PI</span></div>
-        </div>
+      <div className="ns-toolbar">
+        <button type="button" className="ns-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
+        <button type="button" className="ns-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>
       </div>
 
       <div className="ns-kpis">
@@ -112,132 +235,250 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
               <span className="ns-kpi-label">{kpi.label}</span>
               <strong>{kpi.value}</strong>
               <small>{kpi.sub}</small>
-              {typeof kpi.progress === 'number' && <span className="ns-kpi-track"><i style={{ width: `${kpi.progress}%` }} /></span>}
             </div>
           </article>
         ))}
       </div>
 
-      <div className="ns-steps">
-        {STEPS.map((step, index) => (
-          <div key={step.label} className="ns-step-wrap">
-            <div className={`ns-step ${index === 0 ? 'active' : ''}`}>
-              <span className="ns-step-num">{index + 1}</span>
-              <div><strong>{step.label}</strong><small>{step.sub}</small></div>
+      <div className="ns-layout">
+        <div className="ns-main">
+          <nav className="ns-tabs">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                className={activeTab === tab.key ? 'active' : ''}
+                onClick={() => { setActiveTab(tab.key); closePanel() }}
+              >
+                {tab.label} <span className="ns-tab-count">{taches.filter((t) => t.statut === tab.key).length}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="ns-filters">
+            <label>Projet
+              <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
+                <option>Tous</option>
+                {projets.map((p) => <option key={p}>{p}</option>)}
+              </select>
+            </label>
+            <label>Équipe
+              <select value={filterEquipe} onChange={(e) => setFilterEquipe(e.target.value)}>
+                <option>Toutes</option>
+                {equipes.map((e) => <option key={e}>{e}</option>)}
+              </select>
+            </label>
+            <label>Ligne budgétaire
+              <select value={filterLigne} onChange={(e) => setFilterLigne(e.target.value)}>
+                <option>Toutes</option>
+                {lignesBudget.map((l) => <option key={l.nom}>{l.nom}</option>)}
+              </select>
+            </label>
+            <label>Statut staffing
+              <select value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
+                <option>Tous</option>
+                {Object.values(STATUT_LABEL).map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </label>
+            <label>Priorité
+              <select value={filterPriorite} onChange={(e) => setFilterPriorite(e.target.value)}>
+                <option>Toutes</option>
+                <option>Haute</option><option>Moyenne</option><option>Basse</option>
+              </select>
+            </label>
+            <label className="ns-search">
+              <Search size={14} />
+              <input placeholder="Rechercher une tâche, un projet..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </label>
+            <button type="button" className="ns-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
+          </div>
+
+          <div className="ns-info-banner">
+            <Info size={14} />
+            {activeTab === 'a-configurer' && <span>Les tâches sont importées depuis Wrike. Rattachez-les à une ligne budgétaire, définissez les EHS nécessaires puis staffez un collaborateur.</span>}
+            {activeTab === 'prete' && <span>Ces tâches ont déjà leur ligne budgétaire et leurs EHS définis. Il ne reste plus qu'à leur attribuer un collaborateur.</span>}
+            {activeTab === 'staffee' && <span>Ces tâches sont déjà staffées et assignées à un collaborateur.</span>}
+          </div>
+
+          <section className="ns-table-panel">
+            <div className="ns-table-head">
+              <h3>Liste des tâches importées de Wrike <span className="ns-count-badge">{filtered.length}</span></h3>
+              <div className="ns-table-head-actions">
+                <label>Afficher<select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
+                <span>1-{filtered.length} sur {filtered.length}</span>
+                <button type="button" disabled><ChevronLeft size={14} /></button>
+                <button type="button" disabled><ChevronRight size={14} /></button>
+              </div>
             </div>
-            {index < STEPS.length - 1 && <ChevronRight size={16} className="ns-step-arrow" />}
-          </div>
-        ))}
-      </div>
-
-      <div className="ns-filters">
-        <label>Division<select defaultValue="Toutes"><option>Toutes</option></select></label>
-        <label>Type de tâche<select defaultValue="Tous"><option>Tous</option></select></label>
-        <label>Statut<select defaultValue="Tous"><option>Tous les statuts</option></select></label>
-        <label className="ns-search">
-          <Search size={14} />
-          <input placeholder="Rechercher une tâche, un projet ou un employé..." value={search} onChange={(event) => setSearch(event.target.value)} />
-        </label>
-        <button type="button" className="ns-reset" onClick={() => setSearch('')}><RotateCcw size={14} />Réinitialiser</button>
-      </div>
-
-      <section className="ns-table-panel">
-        <div className="ns-table-head">
-          <h3>Mes tâches à staffer <span className="ns-count-badge">{TOTAL_TACHES_DISPONIBLES}</span></h3>
-          <div className="ns-table-head-actions">
-            <label>Afficher<select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
-            <span>1-{TACHES.length} sur {TOTAL_TACHES_DISPONIBLES}</span>
-            <button type="button" disabled><ChevronLeft size={14} /></button>
-            <button type="button"><ChevronRight size={14} /></button>
-          </div>
-        </div>
-        <div className="ns-table-wrap">
-          <table className="ns-table">
-            <thead>
-              <tr>
-                <th>Code</th><th>Nom de la tâche</th><th>Type</th><th>Priorité</th><th>Division</th>
-                <th>Profil / Emploi recherché</th><th>Attribué à (Employé)</th>
-                <th>EHS alloués</th><th>EHS consommés</th><th>EHS restants</th>
-                <th>Progression temporelle</th><th>Progression EHS</th><th>Progression monétaire</th><th>Wrike</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {TACHES.map((tache) => (
-                <tr key={tache.code}>
-                  <td className="ns-code">{tache.code}</td>
-                  <td className="ns-name">{tache.nom}</td>
-                  <td><span className={`ns-type ${tache.type === 'D' ? 'money' : ''}`}>{tache.type}</span></td>
-                  <td><span className={`ns-priorite ns-priorite-${prioriteClass(tache.priorite)}`}>{tache.priorite}</span></td>
-                  <td>{tache.division}</td>
-                  <td>{tache.profil}</td>
-                  <td>
-                    <span className="ns-employee"><span className="ns-employee-dot">{tache.employe.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span>
-                      <span><strong>{tache.employe}</strong><small>{tache.employeProfil}</small></span>
-                    </span>
-                  </td>
-                  <td>{fmtEhs(tache.ehsAlloues)}</td>
-                  <td>{fmtEhs(tache.ehsConsommes)}</td>
-                  <td>{fmtEhs(tache.ehsRestants)}</td>
-                  <td><ProgressBar value={tache.progTemporelle} tone="blue" /></td>
-                  <td><ProgressBar value={tache.progEhs} tone="green" /></td>
-                  <td><ProgressBar value={tache.progMonetaire} tone="orange" /></td>
-                  <td>
-                    <a
-                      className="ns-wrike-link"
-                      href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(tache.code)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Ouvrir dans Wrike"
-                    >
-                      <ExternalLink size={13} />
-                    </a>
-                  </td>
-                  <td><button type="button" className="ns-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="ns-bottom">
-        <div className="ns-mini-panel good">
-          <h3><TrendingUp size={15} />Les 3 employés les plus staffés</h3>
-          <table className="ns-mini-table">
-            <thead><tr><th>Employé</th><th>Tâches assignées</th><th>EHS alloués</th><th>% du total EHS</th></tr></thead>
-            <tbody>
-              {TOP_STAFFES.map((row) => (
-                <tr key={row.nom}>
-                  <td className="ns-name"><strong>{row.nom}</strong><small>{row.profil}</small></td>
-                  <td>{row.taches}</td>
-                  <td>{fmtEhs(row.ehs)}</td>
-                  <td>
-                    <div className="ns-mini-bar"><span className="ns-mini-track"><i className="good" style={{ width: `${row.percent}%` }} /></span><b>{fmtPercent(row.percent)}</b></div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <div className="ns-table-wrap">
+              <table className="ns-table">
+                <thead>
+                  <tr>
+                    <th>Wrike</th><th>Projet</th><th>Tâche</th><th>Équipe</th><th>Ligne budgétaire</th>
+                    <th>{activeTab === 'staffee' ? 'EHS alloués' : 'EHS prévus tâche'}</th>
+                    {activeTab === 'staffee' && <th>Attribué à</th>}
+                    <th>Échéance</th><th>Statut staffing</th><th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={9} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                  )}
+                  {filtered.map((tache) => (
+                    <tr key={tache.id} className={selectedId === tache.id ? 'ns-row-selected' : ''} onClick={() => handleSelect(tache)}>
+                      <td className="ns-code">{tache.id}</td>
+                      <td>{tache.projet}</td>
+                      <td className="ns-name">{tache.tache}</td>
+                      <td>{tache.equipe}</td>
+                      <td>{tache.ligneBudgetaire ?? <span className="ns-pill-warn">À définir</span>}</td>
+                      <td>{tache.ehsPrevu !== null ? `${fmtEhs(tache.ehsPrevu)} EHS` : <span className="ns-pill-warn">À définir</span>}</td>
+                      {activeTab === 'staffee' && (
+                        <td>
+                          <span className="ns-employee"><span className="ns-employee-dot">{initiales(tache.collaborateur ?? '?')}</span>
+                            <span><strong>{tache.collaborateur}</strong><small>{tache.collaborateurProfil}</small></span>
+                          </span>
+                        </td>
+                      )}
+                      <td>{tache.echeance}</td>
+                      <td><span className={`ns-statut ns-statut-${STATUT_CLASS[tache.statut]}`}>{STATUT_LABEL[tache.statut]}</span></td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <button type="button" className="ns-action-btn" onClick={() => handleSelect(tache)}>
+                          {tache.statut === 'a-configurer' && 'Configurer'}
+                          {tache.statut === 'prete' && 'Staffer'}
+                          {tache.statut === 'staffee' && <><Eye size={13} />Voir</>}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
 
-        <div className="ns-mini-panel bad">
-          <h3><TrendingDown size={15} />Les 3 employés les moins staffés</h3>
-          <table className="ns-mini-table">
-            <thead><tr><th>Employé</th><th>Tâches assignées</th><th>EHS alloués</th><th>% du total EHS</th></tr></thead>
-            <tbody>
-              {LEAST_STAFFES.map((row) => (
-                <tr key={row.nom}>
-                  <td className="ns-name"><strong>{row.nom}</strong><small>{row.profil}</small></td>
-                  <td>{row.taches}</td>
-                  <td>{fmtEhs(row.ehs)}</td>
-                  <td>
-                    <div className="ns-mini-bar"><span className="ns-mini-track"><i className="bad" style={{ width: `${Math.max(row.percent, 3)}%` }} /></span><b>{fmtPercent(row.percent)}</b></div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <aside className="ns-detail">
+          <h3>Détail de la tâche sélectionnée</h3>
+          {!selected && (
+            <div className="ns-detail-empty">
+              <Inbox size={26} />
+              <p>Sélectionnez une tâche dans la liste pour voir son détail et la configurer.</p>
+            </div>
+          )}
+
+          {selected && (
+            <>
+              <div className="ns-detail-head">
+                <span className={`ns-detail-check ns-statut-${STATUT_CLASS[selected.statut]}`}><CheckCircle2 size={14} /></span>
+                <strong>{selected.id}</strong>
+                <span className="ns-detail-badge">Reçue de Wrike</span>
+              </div>
+
+              <dl className="ns-detail-info">
+                <div><dt>Projet</dt><dd>{selected.projet}</dd></div>
+                <div><dt>Tâche</dt><dd>{selected.tache}</dd></div>
+                <div><dt>Équipe</dt><dd>{selected.equipe}</dd></div>
+                <div><dt>Créée le</dt><dd>{selected.creeLe}</dd></div>
+                <div><dt>Échéance</dt><dd className="ns-echeance">{selected.echeance}</dd></div>
+                <div><dt>Priorité</dt><dd><span className={`ns-priorite ns-priorite-${PRIORITE_CLASS[selected.priorite]}`}>{selected.priorite}</span></dd></div>
+              </dl>
+
+              <div className="ns-detail-section">
+                <h4>1. Rattachement budgétaire</h4>
+                <label className="ns-detail-field">
+                  Ligne budgétaire *
+                  <select
+                    value={formLigne}
+                    disabled={selected.statut !== 'a-configurer'}
+                    onChange={(e) => setFormLigne(e.target.value)}
+                  >
+                    <option value="">Sélectionner une ligne</option>
+                    {lignesBudget.map((l) => <option key={l.nom} value={l.nom}>{l.nom}</option>)}
+                  </select>
+                </label>
+                {formLigne !== '' && (
+                  <div className="ns-ehs-box">
+                    <span>EHS restant disponibles <Info size={12} /></span>
+                    <strong>{fmtEhs(ligneChoisieDisponible)} EHS</strong>
+                    <small>Disponibles sur cette ligne budgétaire</small>
+                  </div>
+                )}
+              </div>
+
+              <div className="ns-detail-section">
+                <h4>2. EHS à affecter à cette tâche</h4>
+                <label className="ns-detail-field">
+                  EHS nécessaires pour réaliser cette tâche *
+                  <div className="ns-ehs-input">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.5"
+                      value={formEhs}
+                      disabled={selected.statut !== 'a-configurer'}
+                      onChange={(e) => setFormEhs(e.target.value)}
+                    />
+                    <span>EHS</span>
+                  </div>
+                </label>
+                {selected.statut === 'a-configurer' && formLigne !== '' && formEhs !== '' && !budgetValide && (
+                  <small className="ns-field-error">EHS invalides ou supérieurs au disponible de la ligne.</small>
+                )}
+              </div>
+
+              <div className="ns-detail-section">
+                <h4>
+                  3. Staffing
+                  {selected.statut === 'prete' && !selected.collaborateur && (
+                    staffingUnlocked ? <Unlock size={12} className="ns-lock-icon unlocked" /> : <Lock size={12} className="ns-lock-icon" />
+                  )}
+                </h4>
+
+                {selected.statut === 'prete' && !selected.collaborateur && staffingUnlocked ? (
+                  <>
+                    <label className="ns-detail-field">
+                      Attribuer à *
+                      <CollaborateurSelect equipe={selected.equipe} value={formCollaborateur} onChange={setFormCollaborateur} autoFocus />
+                    </label>
+                    <div className="ns-detail-actions">
+                      <button type="button" className="ns-btn-primary" disabled={formCollaborateur === ''} onClick={handleAssignerCollaborateur}>Enregistrer</button>
+                      <button type="button" className="ns-btn-secondary" onClick={() => { setStaffingUnlocked(false); setFormCollaborateur('') }}><X size={13} />Annuler</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="ns-staff-readonly">
+                    {selected.collaborateur ? (
+                      <span className="ns-employee">
+                        <span className="ns-employee-dot">{initiales(selected.collaborateur)}</span>
+                        <span><strong>{selected.collaborateur}</strong><small>{selected.collaborateurProfil}</small></span>
+                      </span>
+                    ) : (
+                      <p className="ns-staff-empty">
+                        {selected.statut === 'a-configurer'
+                          ? "Configurez d'abord la ligne budgétaire et les EHS. L'attribution d'un collaborateur se fait ensuite depuis l'onglet « Prêtes à staffer »."
+                          : 'Aucun collaborateur attribué pour le moment.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {selected.statut === 'prete' && !selected.collaborateur && !staffingUnlocked && (
+                  <button type="button" className="ns-btn-secondary" onClick={() => setStaffingUnlocked(true)}><Unlock size={13} />Attribuer un collaborateur</button>
+                )}
+
+                {selected.statut === 'staffee' && selected.staffeLe && (
+                  <div className="ns-staffe-info">
+                    <Clock3 size={13} />Staffée le {selected.staffeLe}
+                  </div>
+                )}
+              </div>
+
+              {selected.statut === 'a-configurer' && (
+                <div className="ns-detail-actions">
+                  <button type="button" className="ns-btn-primary" disabled={!budgetValide} onClick={handleEnregistrerSansStaffing}>Enregistrer la configuration</button>
+                </div>
+              )}
+            </>
+          )}
+        </aside>
       </div>
     </section>
   )

@@ -330,7 +330,15 @@ function App() {
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />
-      case 'staffing-execute': return <ExecuteStaffingPage navigateTo={navigateTo} onStartTimer={startTaskTimer} activeTimerCodes={taskTimers.map((timer) => timer.code)} />
+      case 'staffing-execute': return (
+        <ExecuteStaffingPage
+          navigateTo={navigateTo}
+          onStartTimer={startTaskTimer}
+          onToggleTimer={toggleTaskTimer}
+          onStopTimer={stopTaskTimer}
+          timers={taskTimers.map(({ code, running }) => ({ code, running }))}
+        />
+      )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
       case 'gestion-equipes': return <ModulePage title={pageConfig['gestion-equipes'].title} description={pageConfig['gestion-equipes'].description} icon={icons.gestion} />
       case 'gestion-grades': return <ModulePage title={pageConfig['gestion-grades'].title} description={pageConfig['gestion-grades'].description} icon={icons.gestion} />

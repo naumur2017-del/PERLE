@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import {
-  BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, Clock,
-  Filter, Hourglass, MoreVertical, Paperclip, Plus, Receipt, RotateCcw, Search, Target, Wallet,
+  BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, ClipboardCheck,
+  Clock, Filter, Hourglass, ImagePlus, Info, Landmark, MoreVertical, Paperclip, Plus, Receipt,
+  RotateCcw, ScrollText, Search, ShieldCheck, Target, Upload, UserCog, Wallet,
 } from 'lucide-react'
 import './TresoreriePage.css'
 
@@ -9,6 +10,12 @@ interface Validation {
   statut: string
   date?: string
   par?: string
+}
+
+interface Execution {
+  tresorier: string
+  preuve?: string
+  confirmee: boolean
 }
 
 interface DemandePaiement {
@@ -26,17 +33,18 @@ interface DemandePaiement {
   validationDirection: Validation
   validationRessources: Validation
   statutPaiement: string
+  execution?: Execution
 }
 
 const DEMANDES: DemandePaiement[] = [
   { reference: 'PAY-2025-0184', projet: 'PADESCE', codeActivite: 'PAD-AC-126', libelle: 'Achat matériel informatique', compteDebiteur: 'BGFI Bank (Compte 009)', compteCrediteur: 'SMI SARL', montant: 2450000, justificatifs: 3, initiePar: 'Pamella G.', date: '30/05/2025', validationDirection: { statut: 'Validé', date: '30/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'En attente' }, statutPaiement: 'En attente Ressources' },
   { reference: 'PAY-2025-0183', projet: 'PANSFI', codeActivite: 'PAN-FO-052', libelle: 'Formation des formateurs', compteDebiteur: 'Caisse Principale (CP)', compteCrediteur: 'Ibrahim Patrice', compteCrediteurSub: 'Matricule : NAU-0057', montant: 350000, justificatifs: 2, initiePar: 'Herman T.', date: '29/05/2025', validationDirection: { statut: 'Validé', date: '28/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'En attente' }, statutPaiement: 'En attente Ressources' },
-  { reference: 'PAY-2025-0182', projet: 'MIDER', codeActivite: 'MID-TR-010', libelle: 'Frais de déplacement mission terrain', compteDebiteur: 'Compte Mobile Money (OM - 6798...)', compteCrediteur: 'Maïa Patrice', compteCrediteurSub: 'Matricule : NAU-0101', montant: 120000, justificatifs: 2, initiePar: 'Maïa P.', date: '28/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer' },
+  { reference: 'PAY-2025-0182', projet: 'MIDER', codeActivite: 'MID-TR-010', libelle: 'Frais de déplacement mission terrain', compteDebiteur: 'Compte Mobile Money (OM - 6798...)', compteCrediteur: 'Maïa Patrice', compteCrediteurSub: 'Matricule : NAU-0101', montant: 120000, justificatifs: 2, initiePar: 'Maïa P.', date: '28/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer', execution: { tresorier: 'Théodore B.', confirmee: false } },
   { reference: 'PAY-2025-0181', projet: 'PILOTAGE', codeActivite: 'PIL-AD-021', libelle: 'Consulting externe', compteDebiteur: 'BGFI Bank (Compte 002)', compteCrediteur: 'Consult Plus SA', montant: 1800000, justificatifs: 4, initiePar: 'Ajara L.', date: '27/05/2025', validationDirection: { statut: 'Refusé', date: '27/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: '-' }, statutPaiement: 'Refusé' },
-  { reference: 'PAY-2025-0180', projet: 'CARAVEL', codeActivite: 'CAR-MK-003', libelle: 'Achat fournitures marketing', compteDebiteur: 'Caisse Secondaire (CS)', compteCrediteur: 'Office Plus SA', montant: 275000, justificatifs: 1, initiePar: 'Maxwell E.', date: '26/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer' },
+  { reference: 'PAY-2025-0180', projet: 'CARAVEL', codeActivite: 'CAR-MK-003', libelle: 'Achat fournitures marketing', compteDebiteur: 'Caisse Secondaire (CS)', compteCrediteur: 'Office Plus SA', montant: 275000, justificatifs: 1, initiePar: 'Maxwell E.', date: '26/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer', execution: { tresorier: 'Théodore B.', confirmee: false } },
   { reference: 'PAY-2025-0179', projet: 'BAC OFFICE', codeActivite: 'BAC-JU-007', libelle: 'Impression et reliure documents', compteDebiteur: 'Compte Bancaire UBA (Compte 003)', compteCrediteur: 'Imprimerie Moderne', montant: 95000, justificatifs: 1, initiePar: 'Julienne E.', date: '25/05/2025', validationDirection: { statut: 'Correction demandée', date: '25/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: '-' }, statutPaiement: 'Correction demandée' },
-  { reference: 'PAY-2025-0178', projet: 'TRESORERIE', codeActivite: 'TRE-BA-015', libelle: 'Remboursement avance salariale', compteDebiteur: 'Caisse Principale (CP)', compteCrediteur: 'Pamella Guebediang', compteCrediteurSub: 'Matricule : NAU-0084', montant: 200000, justificatifs: 1, initiePar: 'Théodore B.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '25/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '25/05/2025' }, statutPaiement: 'Payé' },
-  { reference: 'PAY-2025-0177', projet: 'PANSFI', codeActivite: 'PAN-AC-011', libelle: 'Achat carburant véhicule', compteDebiteur: 'Compte Mobile Money (OM - 6912...)', compteCrediteur: 'Station Total Bastos', montant: 65000, justificatifs: 1, initiePar: 'Herman T.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '24/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '24/05/2025' }, statutPaiement: 'Payé' },
+  { reference: 'PAY-2025-0178', projet: 'TRESORERIE', codeActivite: 'TRE-BA-015', libelle: 'Remboursement avance salariale', compteDebiteur: 'Caisse Principale (CP)', compteCrediteur: 'Pamella Guebediang', compteCrediteurSub: 'Matricule : NAU-0084', montant: 200000, justificatifs: 1, initiePar: 'Théodore B.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '25/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '25/05/2025' }, statutPaiement: 'Payé', execution: { tresorier: 'Théodore B.', preuve: 'preuve_paiement_0178.jpg', confirmee: true } },
+  { reference: 'PAY-2025-0177', projet: 'PANSFI', codeActivite: 'PAN-AC-011', libelle: 'Achat carburant véhicule', compteDebiteur: 'Compte Mobile Money (OM - 6912...)', compteCrediteur: 'Station Total Bastos', montant: 65000, justificatifs: 1, initiePar: 'Herman T.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '24/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '24/05/2025' }, statutPaiement: 'Payé', execution: { tresorier: 'Théodore B.', preuve: 'preuve_paiement_0177.jpg', confirmee: true } },
 ]
 
 const TOTAL_DEMANDES = 184
@@ -68,14 +76,70 @@ const RESUME_FINANCIER = [
 ]
 
 const CIRCUIT = [
-  { label: 'Création de la demande', sub: 'Initiateur', tone: 'purple' },
+  { label: 'Création de la demande', sub: 'Demande — Manager', tone: 'purple' },
   { label: 'Validation de la Direction', sub: 'Autorisation de la dépense', tone: 'orange' },
   { label: 'Validation Ressources', sub: 'Contrôle et conformité', tone: 'blue' },
-  { label: 'Exécution du paiement', sub: 'Réalisation du paiement', tone: 'green' },
-  { label: 'Paiement confirmé', sub: 'Archivage', tone: 'slate' },
+  { label: 'Exécution du paiement', sub: 'Exécution — Trésorier (preuve obligatoire)', tone: 'green' },
+  { label: 'Paiement confirmé', sub: 'Confirmation — Manager', tone: 'slate' },
+]
+
+const PROCESSUS_INFO = [
+  { icon: UserCog, titre: 'Demande vs exécution', texte: 'La demande de paiement est créée par le manager ; son exécution effective est réalisée par le trésorier.' },
+  { icon: ImagePlus, titre: 'Justificatif obligatoire', texte: 'Le trésorier doit charger une preuve de paiement (capture ou photo) avant que le manager puisse confirmer l’exécution.' },
+  { icon: ScrollText, titre: 'Journal des paiements', texte: 'Tous les mouvements sont consignés par date, compte bancaire et projet, avec calcul automatique des soldes.' },
 ]
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
+
+interface Mouvement {
+  date: string
+  compte: string
+  projet: string
+  reference: string
+  libelle: string
+  debit: number
+}
+
+const COMPTES_SOLDES_INITIAUX: Record<string, number> = {
+  'BGFI Bank (Compte 009)': 18500000,
+  'BGFI Bank (Compte 002)': 9200000,
+  'Caisse Principale (CP)': 3200000,
+  'Caisse Secondaire (CS)': 1450000,
+  'Compte Bancaire UBA (Compte 003)': 6100000,
+  'Compte Mobile Money (OM - 6798...)': 850000,
+  'Compte Mobile Money (OM - 6912...)': 620000,
+}
+
+const MOUVEMENTS: Mouvement[] = [
+  { date: '10/05/2025', compte: 'Caisse Principale (CP)', projet: 'TRESORERIE', reference: 'PAY-2025-0165', libelle: 'Achat consommables bureau', debit: 85000 },
+  { date: '14/05/2025', compte: 'BGFI Bank (Compte 009)', projet: 'PADESCE', reference: 'PAY-2025-0170', libelle: 'Location salle formation', debit: 450000 },
+  { date: '18/05/2025', compte: 'Compte Mobile Money (OM - 6912...)', projet: 'PANSFI', reference: 'PAY-2025-0173', libelle: 'Recharge crédit communication', debit: 40000 },
+  { date: '20/05/2025', compte: 'BGFI Bank (Compte 002)', projet: 'PILOTAGE', reference: 'PAY-2025-0175', libelle: 'Abonnement outil de pilotage', debit: 320000 },
+  { date: '23/05/2025', compte: 'Compte Mobile Money (OM - 6912...)', projet: 'PANSFI', reference: 'PAY-2025-0177', libelle: 'Achat carburant véhicule', debit: 65000 },
+  { date: '25/05/2025', compte: 'Caisse Principale (CP)', projet: 'TRESORERIE', reference: 'PAY-2025-0178', libelle: 'Remboursement avance salariale', debit: 200000 },
+]
+
+const parseDateFr = (value: string) => {
+  const [day, month, year] = value.split('/').map(Number)
+  return new Date(year, month - 1, day).getTime()
+}
+
+function buildJournal() {
+  const running = { ...COMPTES_SOLDES_INITIAUX }
+  const chronologique = [...MOUVEMENTS].sort((a, b) => parseDateFr(a.date) - parseDateFr(b.date))
+  return chronologique.map((mouvement) => {
+    const soldeAvant = running[mouvement.compte] ?? 0
+    const soldeApres = soldeAvant - mouvement.debit
+    running[mouvement.compte] = soldeApres
+    return { ...mouvement, soldeAvant, soldeApres }
+  })
+}
+
+const JOURNAL = buildJournal()
+const SOLDES_ACTUELS = JOURNAL.reduce<Record<string, number>>((acc, mouvement) => {
+  acc[mouvement.compte] = mouvement.soldeApres
+  return acc
+}, { ...COMPTES_SOLDES_INITIAUX })
 
 const statutPaiementClass = (statut: string) => {
   if (statut === 'Payé') return 'paye'
@@ -145,9 +209,39 @@ function RepartitionDonut() {
 
 export default function TresoreriePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [search, setSearch] = useState('')
+  const [executions, setExecutions] = useState<Record<string, { preuve?: string; confirmee: boolean }>>(() =>
+    Object.fromEntries(
+      DEMANDES.filter((demande) => demande.execution)
+        .map((demande) => [demande.reference, { preuve: demande.execution?.preuve, confirmee: demande.execution?.confirmee ?? false }])
+    ))
+  const [pendingUpload, setPendingUpload] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const triggerUpload = (reference: string) => {
+    setPendingUpload(reference)
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && pendingUpload) {
+      setExecutions((current) => ({
+        ...current,
+        [pendingUpload]: { preuve: file.name, confirmee: current[pendingUpload]?.confirmee ?? false },
+      }))
+    }
+    setPendingUpload(null)
+    event.target.value = ''
+  }
+
+  const confirmExecution = (reference: string) => {
+    setExecutions((current) => (current[reference]?.preuve ? { ...current, [reference]: { ...current[reference], confirmee: true } } : current))
+  }
 
   return (
     <section className="tr-page">
+      <input ref={fileInputRef} type="file" accept="image/*" className="tr-hidden-input" onChange={handleFileChange} />
+
       <div className="tr-header-row">
         <nav className="tr-subtabs">
           <button className="active" onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
@@ -157,6 +251,18 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
           <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Rapports financiers</button>
         </nav>
         <button type="button" className="tr-btn-primary"><Plus size={14} />Nouvelle demande de paiement</button>
+      </div>
+
+      <div className="tr-info-banner">
+        <span className="tr-info-banner-icon"><Info size={15} /></span>
+        <div className="tr-info-banner-items">
+          {PROCESSUS_INFO.map((item) => (
+            <div key={item.titre} className="tr-info-banner-item">
+              <span className="tr-info-banner-item-icon"><item.icon size={14} /></span>
+              <div className="tr-info-banner-item-text"><strong>{item.titre}</strong><span>{item.texte}</span></div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="tr-top">
@@ -211,32 +317,65 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                 <tr>
                   <th>Référence</th><th>Projet</th><th>Code activité</th><th>Libellé</th>
                   <th>Compte débiteur</th><th>Compte créditeur</th><th>Montant</th><th>Justificatif</th>
-                  <th>Initié par</th><th>Date</th><th>Validation Direction</th><th>Validation Ressources</th>
-                  <th>Statut paiement</th><th>Actions</th>
+                  <th>Demandé par (Manager)</th><th>Date</th><th>Validation Direction</th><th>Validation Ressources</th>
+                  <th>Exécution (Trésorier)</th><th>Statut paiement</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {DEMANDES.map((demande) => (
-                  <tr key={demande.reference}>
-                    <td className="tr-code">{demande.reference}</td>
-                    <td>{demande.projet}</td>
-                    <td>{demande.codeActivite}</td>
-                    <td className="tr-name">{demande.libelle}</td>
-                    <td>{demande.compteDebiteur}</td>
-                    <td>
-                      <strong>{demande.compteCrediteur}</strong>
-                      {demande.compteCrediteurSub && <small className="tr-sub">{demande.compteCrediteurSub}</small>}
-                    </td>
-                    <td className="tr-montant">{fmtMontant(demande.montant)}</td>
-                    <td><span className="tr-pieces"><Paperclip size={12} />{demande.justificatifs}</span></td>
-                    <td>{demande.initiePar}</td>
-                    <td>{demande.date}</td>
-                    <td><ValidationCell validation={demande.validationDirection} /></td>
-                    <td><ValidationCell validation={demande.validationRessources} /></td>
-                    <td><span className={`tr-pill tr-pill-${statutPaiementClass(demande.statutPaiement)}`}>{demande.statutPaiement}</span></td>
-                    <td><button type="button" className="tr-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
-                  </tr>
-                ))}
+                {DEMANDES.map((demande) => {
+                  const execState = executions[demande.reference]
+                  const effectiveStatut = execState?.confirmee ? 'Payé' : demande.statutPaiement
+                  return (
+                    <tr key={demande.reference}>
+                      <td className="tr-code">{demande.reference}</td>
+                      <td>{demande.projet}</td>
+                      <td>{demande.codeActivite}</td>
+                      <td className="tr-name">{demande.libelle}</td>
+                      <td>{demande.compteDebiteur}</td>
+                      <td>
+                        <strong>{demande.compteCrediteur}</strong>
+                        {demande.compteCrediteurSub && <small className="tr-sub">{demande.compteCrediteurSub}</small>}
+                      </td>
+                      <td className="tr-montant">{fmtMontant(demande.montant)}</td>
+                      <td><span className="tr-pieces"><Paperclip size={12} />{demande.justificatifs}</span></td>
+                      <td>{demande.initiePar}</td>
+                      <td>{demande.date}</td>
+                      <td><ValidationCell validation={demande.validationDirection} /></td>
+                      <td><ValidationCell validation={demande.validationRessources} /></td>
+                      <td>
+                        {demande.execution ? (
+                          <div className="tr-execution">
+                            <span className="tr-execution-tresorier"><Landmark size={11} />{demande.execution.tresorier}</span>
+                            {execState?.preuve ? (
+                              <span className="tr-execution-proof"><ImagePlus size={12} />{execState.preuve}</span>
+                            ) : (
+                              <button type="button" className="tr-execution-upload" onClick={() => triggerUpload(demande.reference)}>
+                                <Upload size={12} />Charger la preuve
+                              </button>
+                            )}
+                            {execState?.confirmee ? (
+                              <span className="tr-execution-confirmed"><ShieldCheck size={12} />Exécution confirmée</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="tr-execution-confirm"
+                                disabled={!execState?.preuve}
+                                title={execState?.preuve ? 'Confirmer l’exécution (Manager)' : 'Preuve de paiement requise avant confirmation'}
+                                onClick={() => confirmExecution(demande.reference)}
+                              >
+                                <ClipboardCheck size={12} />Confirmer l’exécution
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="tr-validation-empty">-</span>
+                        )}
+                      </td>
+                      <td><span className={`tr-pill tr-pill-${statutPaiementClass(effectiveStatut)}`}>{effectiveStatut}</span></td>
+                      <td><button type="button" className="tr-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -285,6 +424,47 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
           </div>
         </aside>
       </div>
+
+      <section className="tr-journal-panel">
+        <div className="tr-journal-head">
+          <h3><ScrollText size={15} />Journal des paiements</h3>
+          <span>Mouvements par date, compte bancaire et projet — calcul automatique des soldes disponibles.</span>
+        </div>
+
+        <div className="tr-comptes-strip">
+          {Object.entries(SOLDES_ACTUELS).map(([compte, solde]) => (
+            <div key={compte} className="tr-compte-chip">
+              <span className="tr-compte-chip-icon"><Landmark size={12} /></span>
+              <div><strong>{compte}</strong><span>{fmtMontant(solde)} FCFA</span></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="tr-table-wrap">
+          <table className="tr-table tr-journal-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Compte bancaire</th><th>Projet</th><th>Référence</th><th>Libellé</th>
+                <th>Débit (FCFA)</th><th>Solde avant</th><th>Solde après</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...JOURNAL].reverse().map((mouvement) => (
+                <tr key={mouvement.reference}>
+                  <td>{mouvement.date}</td>
+                  <td>{mouvement.compte}</td>
+                  <td>{mouvement.projet}</td>
+                  <td className="tr-code">{mouvement.reference}</td>
+                  <td className="tr-name">{mouvement.libelle}</td>
+                  <td className="tr-montant tr-montant-negative">- {fmtMontant(mouvement.debit)}</td>
+                  <td>{fmtMontant(mouvement.soldeAvant)}</td>
+                  <td className="tr-montant">{fmtMontant(mouvement.soldeApres)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   )
 }

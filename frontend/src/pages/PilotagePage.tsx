@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import {
   Boxes, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardList, Clock, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
-  RotateCcw, Search, SlidersHorizontal, TrendingUp, Users,
+  RotateCcw, Search, SlidersHorizontal, Users,
 } from 'lucide-react'
 import './PilotagePage.css'
 
@@ -227,7 +227,6 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
 
 const KPIS = [
   { icon: <Briefcase size={18} />, tone: 'purple', label: 'PROJETS ACTIFS', value: '96', sub: '75,00% du total' },
-  { icon: <TrendingUp size={18} />, tone: 'green', label: 'AVANCEMENT GLOBAL', value: '68%', sub: '+ 8% vs période précédente', bar: 68, barColor: '#16a34a' },
   { icon: <Users size={18} />, tone: 'blue', label: 'EHS CONSOMMÉS', value: '1 746,50 EHS', sub: 'Sur 2 560,00 EHS prévus', bar: 68, barColor: '#3b82f6' },
   { icon: <Clock size={18} />, tone: 'orange', label: 'EHS RESTANTS', value: '813,50 EHS', sub: 'À consommer', bar: 32, barColor: '#f59e0b' },
   { icon: <Boxes size={18} />, tone: 'teal', label: 'ÉQUIVALENTE EHS CONSOMMÉ', value: '1 324,60 EHS', sub: 'Sur 1 950,00 EHS prévus', bar: 68, barColor: '#0d9488' },

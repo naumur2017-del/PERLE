@@ -54,6 +54,27 @@
 
 .tr-btn-primary:hover { background: #5b3aa8; }
 
+.tr-hidden-input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+
+/* =============== INFO BANNER =============== */
+.tr-info-banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e5e1f5;
+  border-radius: 12px;
+  background: #f7f5ff;
+}
+
+.tr-info-banner-icon { display: grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; background: #efe9fd; color: #6b46c1; }
+
+.tr-info-banner-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; flex: 1; }
+
+.tr-info-banner-item { display: flex; gap: 8px; }
+.tr-info-banner-item-icon { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px; background: #ffffff; color: #6b46c1; }
+.tr-info-banner-item-text strong { display: block; font-size: 11px; color: #14123a; margin-bottom: 2px; }
+.tr-info-banner-item-text span { font-size: 10.5px; color: #6c6c85; line-height: 1.4; }
+
 /* =============== TOP: KPIS + GAUGE =============== */
 .tr-top { display: grid; grid-template-columns: 1fr 190px; gap: 14px; align-items: stretch; }
 .tr-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
@@ -159,6 +180,72 @@
 .tr-validation small { color: #8f8fa6; font-size: 9.5px; }
 .tr-validation-empty { color: #c3c2d6; }
 
+.tr-execution { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 168px; white-space: normal; }
+
+.tr-execution-tresorier { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: #35335c; }
+
+.tr-execution-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px dashed #c7bff0;
+  border-radius: 6px;
+  background: #f7f5ff;
+  color: #6b46c1;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tr-execution-upload:hover { background: #efe9fd; border-style: solid; }
+
+.tr-execution-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 9.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tr-execution-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: #6b46c1;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tr-execution-confirm:hover:not(:disabled) { background: #5b3aa8; }
+.tr-execution-confirm:disabled { background: #eeecf7; color: #a8a8bd; cursor: not-allowed; }
+
+.tr-execution-confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #15803d;
+}
+
 .tr-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .tr-pill-attente { background: #dbeafe; color: #1d4ed8; }
 .tr-pill-pret { background: #ede9fe; color: #7c3aed; }
@@ -211,11 +298,48 @@
 .tr-circuit strong { display: block; font-size: 11px; color: #14123a; }
 .tr-circuit small { font-size: 9.5px; color: #8f8fa6; }
 
+/* =============== JOURNAL DES PAIEMENTS =============== */
+.tr-journal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #eae7f6;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
+}
+
+.tr-journal-head { display: flex; flex-direction: column; gap: 3px; }
+.tr-journal-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 700; color: #14123a; }
+.tr-journal-head span { font-size: 11px; color: #8f8fa6; }
+
+.tr-comptes-strip { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.tr-compte-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #eae7f6;
+  border-radius: 10px;
+  background: #faf9fe;
+}
+
+.tr-compte-chip-icon { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; background: #efe9fd; color: #6b46c1; }
+.tr-compte-chip strong { display: block; font-size: 9.5px; font-weight: 700; color: #4a4a63; white-space: nowrap; }
+.tr-compte-chip span { font-size: 11px; font-weight: 700; color: #14123a; white-space: nowrap; }
+
+.tr-journal-table { min-width: 1100px; }
+.tr-montant-negative { color: #b91c1c; }
+
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1300px) {
   .tr-kpis { grid-template-columns: repeat(3, 1fr); }
   .tr-top { grid-template-columns: 1fr; }
   .tr-main { grid-template-columns: 1fr; }
+  .tr-info-banner { flex-direction: column; }
+  .tr-info-banner-items { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {

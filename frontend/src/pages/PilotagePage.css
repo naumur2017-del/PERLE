@@ -124,7 +124,7 @@
 /* =============== KPI CARDS =============== */
 .pil-kpis {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 14px;
   padding: 22px 32px 0;
 }

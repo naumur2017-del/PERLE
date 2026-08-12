@@ -197,11 +197,6 @@
 .ce-employe-cell { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #14123a; }
 .ce-avatar { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: white; font-size: 10px; font-weight: 700; flex: 0 0 26px; }
 
-.ce-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-.ce-pill-termine { background: #dcfce7; color: #15803d; }
-.ce-pill-cours { background: #dbeafe; color: #1d4ed8; }
-.ce-pill-retard { background: #fee2e2; color: #b91c1c; }
-
 .ce-note-cell { display: inline-flex; align-items: center; gap: 7px; }
 .ce-note-cell b { color: #14123a; font-size: 11px; }
 

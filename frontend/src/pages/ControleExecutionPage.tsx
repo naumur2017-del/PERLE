@@ -95,7 +95,6 @@ function hashName(name: string) {
 const avatarColor = (name: string) => AVATAR_COLORS[hashName(name) % AVATAR_COLORS.length]
 const initials = (name: string) => name.split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
-const statutClass = (statut: Evaluation['statut']) => statut === 'Terminée' ? 'termine' : statut === 'En cours' ? 'cours' : 'retard'
 const staffingDotClass = (tone: 'green' | 'orange' | 'red') => tone
 
 function StarRow({ value, size = 11 }: { value: number; size?: number }) {
@@ -120,7 +119,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   }).join(' ')
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="ce-spark" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.6" strokeDasharray="3 3" strokeLinecap="round" />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   )
 }
@@ -229,7 +228,7 @@ export default function ControleExecutionPage({ navigateTo }: { navigateTo: (pag
               <thead>
                 <tr>
                   <th>Projet</th><th>Tâche</th><th>Employé</th><th>Équipe</th><th>Manager</th>
-                  <th>Statut</th><th>Note /5</th><th>Dernière évaluation</th><th></th>
+                  <th>Note /5</th><th>Dernière évaluation</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -245,7 +244,6 @@ export default function ControleExecutionPage({ navigateTo }: { navigateTo: (pag
                     </td>
                     <td>{e.equipe}</td>
                     <td>{e.manager}</td>
-                    <td><span className={`ce-pill ce-pill-${statutClass(e.statut)}`}>{e.statut}</span></td>
                     <td><span className="ce-note-cell"><StarRow value={e.note} /><b>{e.note} / 5</b></span></td>
                     <td>{e.derniereEvaluation}</td>
                     <td><button type="button" className="ce-row-action" aria-label="Voir le détail"><ChevronRight size={14} /></button></td>
