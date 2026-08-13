@@ -1,139 +1,107 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  ArrowDownCircle, ArrowUpCircle, BadgeCheck, CalendarRange, Clock, Download, Eye, FileBarChart,
-  FileText, Info, Landmark, List, MoreVertical, PieChart, PlayCircle, Receipt, RotateCcw, Scale,
-  Target, TrendingUp, Wallet,
+  ArrowDownRight, ArrowUpRight, BadgeCheck, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  Download, Eye, FileBarChart, Receipt, Search, Target, Wallet, X,
 } from 'lucide-react'
 import './RapportsFinanciersPage.css'
 
-interface Rapport {
-  numero: number
-  intitule: string
-  type: string
-  typeTone: string
-  periode: string
-  projetCompte: string
-  dateGeneration: string
-  generePar: string
-  format: 'PDF' | 'Excel'
+type Sens = 'entree' | 'sortie'
+
+interface Operation {
+  reference: string
+  date: string
+  heure: string
+  initiateur: string
+  initiateurRole: string
+  beneficiaire: string
+  montant: number
+  sens: Sens
+  compteDebiteurCode: string
+  compteDebiteurNom: string
+  compteDebiteurSub: string
+  compteCrediteurCode: string
+  compteCrediteurNom: string
+  compteCrediteurSub: string
+  typeOperation: string
+  statut: string
 }
 
-const RAPPORTS: Rapport[] = [
-  { numero: 1, intitule: 'Rapport financier mensuel - Juillet 2025', type: 'Mensuel', typeTone: 'blue', periode: '01/07/2025 - 31/07/2025', projetCompte: 'Tous les projets', dateGeneration: '04/08/2025 10:15', generePar: 'Ajara Lamare', format: 'PDF' },
-  { numero: 2, intitule: 'Rapport financier mensuel - Juin 2025', type: 'Mensuel', typeTone: 'blue', periode: '01/06/2025 - 30/06/2025', projetCompte: 'Tous les projets', dateGeneration: '01/07/2025 09:20', generePar: 'Théodore Bessala', format: 'PDF' },
-  { numero: 3, intitule: 'Rapport financier par projet - PADESCE', type: 'Par projet', typeTone: 'green', periode: '01/01/2025 - 30/06/2025', projetCompte: 'PADESCE', dateGeneration: '30/06/2025 15:45', generePar: 'Pamella Guebediang', format: 'PDF' },
-  { numero: 4, intitule: 'Rapport financier par compte bancaire', type: 'Par compte', typeTone: 'indigo', periode: '01/01/2025 - 30/06/2025', projetCompte: 'BGFI Bank - CP', dateGeneration: '30/06/2025 15:40', generePar: 'Pamella Guebediang', format: 'Excel' },
-  { numero: 5, intitule: 'Rapport des flux de trésorerie', type: 'Flux de trésorerie', typeTone: 'cyan', periode: '01/04/2025 - 30/06/2025', projetCompte: 'Tous les projets', dateGeneration: '30/06/2025 14:10', generePar: 'Ajara Lamare', format: 'PDF' },
-  { numero: 6, intitule: 'Rapport financier trimestriel - T2 2025', type: 'Trimestriel', typeTone: 'orange', periode: '01/04/2025 - 30/06/2025', projetCompte: 'Tous les projets', dateGeneration: '05/07/2025 11:05', generePar: 'Théodore Bessala', format: 'PDF' },
-  { numero: 7, intitule: 'Rapport financier annuel - 2024', type: 'Annuel', typeTone: 'red', periode: '01/01/2024 - 31/12/2024', projetCompte: 'Tous les projets', dateGeneration: '15/01/2025 10:30', generePar: 'Ajara Lamare', format: 'PDF' },
-  { numero: 8, intitule: 'Rapport des encaissements détaillés', type: 'Détaillé', typeTone: 'gray', periode: '01/01/2025 - 04/08/2025', projetCompte: 'Tous les projets', dateGeneration: '04/08/2025 09:00', generePar: 'Pamella Guebediang', format: 'Excel' },
+const OPERATIONS: Operation[] = [
+  { reference: 'OP-2025-0156', date: '15/06/2025', heure: '10:32', initiateur: 'Ajara Lamare', initiateurRole: 'Manager MO1', beneficiaire: 'Hôtel Mont Fébé', montant: 485000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401100', compteCrediteurNom: 'Fournisseurs', compteCrediteurSub: 'Fournisseurs locaux', typeOperation: 'Virement fournisseur', statut: 'Exécuté' },
+  { reference: 'OP-2025-0155', date: '14/06/2025', heure: '15:45', initiateur: 'Ibrahim Mbouombou', initiateurRole: 'Contrôleur de gestion', beneficiaire: 'NAUMUR SARL', montant: 2350000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401100', compteCrediteurNom: 'Fournisseurs', compteCrediteurSub: 'Fournisseurs locaux', typeOperation: 'Virement fournisseur', statut: 'Exécuté' },
+  { reference: 'OP-2025-0154', date: '13/06/2025', heure: '09:18', initiateur: 'Pamella Guebediang', initiateurRole: 'Contrôleur de gestion', beneficiaire: 'TOTAL Energies', montant: 320000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401200', compteCrediteurNom: 'Prestataires', compteCrediteurSub: 'Prestataires', typeOperation: 'Règlement facture', statut: 'Exécuté' },
+  { reference: 'OP-2025-0153', date: '12/06/2025', heure: '11:05', initiateur: 'Sophie Ndongo', initiateurRole: 'Assistante comptable', beneficiaire: 'BICEC', montant: 5000000, sens: 'entree', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '701100', compteCrediteurNom: 'Produits projets', compteCrediteurSub: 'Produits d’activités', typeOperation: 'Encaissement projet', statut: 'Exécuté' },
+  { reference: 'OP-2025-0152', date: '11/06/2025', heure: '14:20', initiateur: 'Essogo Erine', initiateurRole: 'Comptable', beneficiaire: 'Africa IT Solutions', montant: 1750000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401100', compteCrediteurNom: 'Fournisseurs', compteCrediteurSub: 'Fournisseurs locaux', typeOperation: 'Virement fournisseur', statut: 'Exécuté' },
+  { reference: 'OP-2025-0151', date: '10/06/2025', heure: '16:10', initiateur: 'Théodore Bessala', initiateurRole: 'Responsable RH', beneficiaire: 'CNPS', montant: 250000, sens: 'entree', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '752000', compteCrediteurNom: 'Remboursements', compteCrediteurSub: 'Remboursements divers', typeOperation: 'Remboursement reçu', statut: 'Exécuté' },
+  { reference: 'OP-2025-0150', date: '09/06/2025', heure: '12:30', initiateur: 'Ajara Lamare', initiateurRole: 'Manager MO1', beneficiaire: 'IPAY', montant: 320000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401100', compteCrediteurNom: 'Fournisseurs', compteCrediteurSub: 'Fournisseurs locaux', typeOperation: 'Virement fournisseur', statut: 'Exécuté' },
+  { reference: 'OP-2025-0149', date: '06/06/2025', heure: '10:15', initiateur: 'Ajara Lamare', initiateurRole: 'Manager MO1', beneficiaire: 'PADSCE', montant: 8900000, sens: 'entree', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '701100', compteCrediteurNom: 'Produits projets', compteCrediteurSub: 'Produits d’activités', typeOperation: 'Financement projet', statut: 'Exécuté' },
+  { reference: 'OP-2025-0148', date: '05/06/2025', heure: '09:40', initiateur: 'Essogo Erine', initiateurRole: 'Comptable', beneficiaire: 'Fournitures Bureau Plus', montant: 125000, sens: 'sortie', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '401200', compteCrediteurNom: 'Prestataires', compteCrediteurSub: 'Prestataires', typeOperation: 'Achat fournitures', statut: 'Exécuté' },
+  { reference: 'OP-2025-0147', date: '04/06/2025', heure: '11:22', initiateur: 'Ibrahim Mbouombou', initiateurRole: 'Contrôleur de gestion', beneficiaire: 'Remboursement avance', montant: 250000, sens: 'entree', compteDebiteurCode: '521100', compteDebiteurNom: 'Banque BICEC', compteDebiteurSub: 'Compte principal', compteCrediteurCode: '752000', compteCrediteurNom: 'Remboursements', compteCrediteurSub: 'Remboursements divers', typeOperation: 'Remboursement avance', statut: 'Exécuté' },
 ]
 
-const KPIS = [
-  { icon: ArrowDownCircle, tone: 'green', label: 'Total encaissements', value: '125 450 000', sub: '↑ 14,5% vs période précédente' },
-  { icon: ArrowUpCircle, tone: 'red', label: 'Total décaissements', value: '98 320 000', sub: '↑ 8,2% vs période précédente' },
-  { icon: Scale, tone: 'blue', label: 'Solde net de la période', value: '27 130 000', sub: '↑ 33,1% vs période précédente' },
-  { icon: Wallet, tone: 'orange', label: 'Solde final des comptes', value: '85 370 000', sub: 'Mise à jour : 04/08/2025 11:30' },
-]
+const TOTAL_OPERATIONS = 142
+const PAGE_SIZE = 10
+const TOTAL_PAGES = Math.ceil(TOTAL_OPERATIONS / PAGE_SIZE)
 
-const REPARTITION_FLUX = [
-  { label: 'Encaissements', value: 125450000, color: '#16a34a' },
-  { label: 'Décaissements', value: 98320000, color: '#3b82f6' },
-]
-
-const FLUX_PAR_MOIS = [
-  { label: 'Jan', encaissements: 12, decaissements: 9 },
-  { label: 'Fév', encaissements: 14, decaissements: 10 },
-  { label: 'Mars', encaissements: 16, decaissements: 12 },
-  { label: 'Avr', encaissements: 15, decaissements: 13 },
-  { label: 'Mai', encaissements: 18, decaissements: 14 },
-  { label: 'Juin', encaissements: 20, decaissements: 15 },
-  { label: 'Juil', encaissements: 17, decaissements: 13 },
-  { label: 'Août', encaissements: 13, decaissements: 12 },
-]
-
-const TYPES_RAPPORTS = [
-  { icon: FileText, tone: 'blue', label: 'Rapport mensuel', sub: 'Synthèse des encaissements et décaissements par mois.' },
-  { icon: PieChart, tone: 'green', label: 'Rapport par projet', sub: 'Analyse financière détaillée par projet.' },
-  { icon: Landmark, tone: 'purple', label: 'Rapport par compte', sub: 'Situation financière par compte ou caisse.' },
-  { icon: TrendingUp, tone: 'cyan', label: 'Flux de trésorerie', sub: 'Analyse des flux de trésorerie sur une période.' },
-  { icon: CalendarRange, tone: 'red', label: 'Rapport trimestriel / annuel', sub: 'Synthèse globale trimestrielle ou annuelle.' },
-  { icon: List, tone: 'gray', label: 'Rapport détaillé', sub: 'Détails de toutes les transactions par type d’opération.' },
-]
+const TYPES_OPERATION = Array.from(new Set(OPERATIONS.map((op) => op.typeOperation)))
+const PROJETS = ['PADESCE', 'PANSFI', 'MIDER', 'CGA', 'BAC OFFICE']
+const STATUTS = ['Exécuté', 'En attente', 'Rejeté']
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
-function RepartitionDonut() {
-  const total = REPARTITION_FLUX.reduce((sum, item) => sum + item.value, 0)
-  const cx = 80, cy = 80, outer = 68, inner = 44
-  const slices = REPARTITION_FLUX.reduce<{ label: string; value: number; color: string; path: string }[]>((acc, item) => {
-    const from = acc.length > 0 ? acc.reduce((sum, s) => sum + s.value, 0) / total : 0
-    const to = from + item.value / total
-    const point = (ratio: number, r: number) => {
-      const angle = -Math.PI / 2 + ratio * Math.PI * 2
-      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as const
-    }
-    const [x1, y1] = point(from, outer)
-    const [x2, y2] = point(to, outer)
-    const [xi2, yi2] = point(to, inner)
-    const [xi1, yi1] = point(from, inner)
-    const large = to - from > 0.5 ? 1 : 0
-    acc.push({ ...item, path: `M ${x1} ${y1} A ${outer} ${outer} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${inner} ${inner} 0 ${large} 0 ${xi1} ${yi1} Z` })
-    return acc
-  }, [])
-
+function OperationDetailModal({ operation, onClose }: { operation: Operation; onClose: () => void }) {
   return (
-    <div className="rf-donut-wrap">
-      <svg viewBox="0 0 160 160" className="rf-donut-svg" role="img" aria-label="Répartition des flux">
-        {slices.map((slice) => <path key={slice.label} d={slice.path} fill={slice.color} />)}
-        <text x={cx} y={cy - 6} textAnchor="middle" className="rf-donut-value">{fmtMontant(total)}</text>
-        <text x={cx} y={cy + 12} textAnchor="middle" className="rf-donut-sub">FCFA</text>
-      </svg>
-      <ul className="rf-donut-legend">
-        {REPARTITION_FLUX.map((item) => (
-          <li key={item.label}>
-            <i style={{ background: item.color }} />
-            <span>{item.label}</span>
-            <b>{fmtMontant(item.value)} ({Math.round((item.value / total) * 100)}%)</b>
-          </li>
-        ))}
-      </ul>
+    <div className="rf-modal-backdrop" onClick={onClose}>
+      <div className="rf-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="rf-modal-head">
+          <div>
+            <h3>Détail de l’opération</h3>
+            <span className="rf-modal-ref">{operation.reference}</span>
+          </div>
+          <button type="button" className="rf-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+
+        <div className={`rf-modal-montant rf-modal-montant-${operation.sens}`}>
+          {operation.sens === 'sortie' ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+          <span>{fmtMontant(operation.montant)} FCFA</span>
+          <small>{operation.sens === 'sortie' ? 'Sortie' : 'Entrée'}</small>
+        </div>
+
+        <dl className="rf-modal-grid">
+          <div><dt>Date</dt><dd>{operation.date} · {operation.heure}</dd></div>
+          <div><dt>Statut</dt><dd><span className="rf-status-pill">{operation.statut}</span></dd></div>
+          <div><dt>Initiateur</dt><dd>{operation.initiateur}<small>{operation.initiateurRole}</small></dd></div>
+          <div><dt>Bénéficiaire</dt><dd>{operation.beneficiaire}</dd></div>
+          <div><dt>Compte débiteur</dt><dd>{operation.compteDebiteurCode} - {operation.compteDebiteurNom}<small>{operation.compteDebiteurSub}</small></dd></div>
+          <div><dt>Compte créditeur</dt><dd>{operation.compteCrediteurCode} - {operation.compteCrediteurNom}<small>{operation.compteCrediteurSub}</small></dd></div>
+          <div><dt>Type d’opération</dt><dd>{operation.typeOperation}</dd></div>
+        </dl>
+      </div>
     </div>
   )
 }
 
-function FluxParMoisChart() {
-  const width = 260, height = 170, left = 26, right = 250, top = 10, bottom = 140
-  const maxY = 40
-  const slot = (right - left) / FLUX_PAR_MOIS.length
-  const barWidth = Math.min(9, slot * 0.32)
-  const y = (value: number) => bottom - (value / maxY) * (bottom - top)
-  const ticks = [0, 20, 40]
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="rf-bar-svg" role="img" aria-label="Flux par mois">
-      {ticks.map((tick) => (
-        <g key={tick}>
-          <line x1={left} x2={right} y1={y(tick)} y2={y(tick)} className="rf-bar-grid" />
-          <text x={left - 6} y={y(tick) + 3} className="rf-bar-axis" textAnchor="end">{tick === 0 ? '0' : `${tick}M`}</text>
-        </g>
-      ))}
-      {FLUX_PAR_MOIS.map((entry, index) => {
-        const x = left + slot * index
-        return (
-          <g key={entry.label}>
-            <rect x={x + slot / 2 - barWidth - 1.5} y={y(entry.encaissements)} width={barWidth} height={bottom - y(entry.encaissements)} fill="#16a34a" rx="1.5" />
-            <rect x={x + slot / 2 + 1.5} y={y(entry.decaissements)} width={barWidth} height={bottom - y(entry.decaissements)} fill="#3b82f6" rx="1.5" />
-            <text x={x + slot / 2} y={height - 2} className="rf-bar-axis" textAnchor="middle">{entry.label}</text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (page: string) => void }) {
-  const [projet, setProjet] = useState('Tous')
+  const [search, setSearch] = useState('')
+  const [typeFiltre, setTypeFiltre] = useState('Tous')
+  const [statutFiltre, setStatutFiltre] = useState('Tous')
+  const [selected, setSelected] = useState<Operation | null>(null)
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return OPERATIONS.filter((op) => {
+      const matchesQuery = !query
+        || op.reference.toLowerCase().includes(query)
+        || op.initiateur.toLowerCase().includes(query)
+        || op.beneficiaire.toLowerCase().includes(query)
+        || op.typeOperation.toLowerCase().includes(query)
+      const matchesType = typeFiltre === 'Tous' || op.typeOperation === typeFiltre
+      const matchesStatut = statutFiltre === 'Tous' || op.statut === statutFiltre
+      return matchesQuery && matchesType && matchesStatut
+    })
+  }, [search, typeFiltre, statutFiltre])
+
+  const isFiltered = search.trim() !== '' || typeFiltre !== 'Tous' || statutFiltre !== 'Tous'
 
   return (
     <section className="rf-page">
@@ -145,128 +113,131 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
         <button className="active" onClick={() => navigateTo('tresorerie-rapports')}><FileBarChart size={14} />Rapports financiers</button>
       </nav>
 
-      <div className="rf-filters-panel">
-        <h3>Filtres de recherche</h3>
-        <div className="rf-filters">
-          <label>Période<div className="rf-daterange">01/01/2025 → 04/08/2025</div></label>
-          <label>Projet
-            <select value={projet} onChange={(event) => setProjet(event.target.value)}>
-              <option value="Tous">Tous les projets</option>
+      <section className="rf-table-panel">
+        <div className="rf-list-head">
+          <div>
+            <h3>Liste des opérations</h3>
+            <p>Consultez toutes les opérations financières (entrées et sorties) enregistrées sur les comptes.</p>
+          </div>
+          <button type="button" className="rf-btn-outline"><Download size={14} />Exporter</button>
+        </div>
+
+        <div className="rf-op-filters">
+          <label>Période<div className="rf-daterange">01/05/2025 → 31/12/2025</div></label>
+          <label>Type d’opération
+            <select value={typeFiltre} onChange={(event) => setTypeFiltre(event.target.value)}>
+              <option value="Tous">Tous les types</option>
+              {TYPES_OPERATION.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
-          <label>Type de rapport<select defaultValue="Tous"><option>Tous les types</option></select></label>
-          <label>Compte / Caisse<select defaultValue="Tous"><option>Tous les comptes</option></select></label>
-          <label>Statut<select defaultValue="Tous"><option>Tous</option></select></label>
+          <label>Projet
+            <select defaultValue="Tous">
+              <option value="Tous">Tous les projets</option>
+              {PROJETS.map((projet) => <option key={projet} value={projet}>{projet}</option>)}
+            </select>
+          </label>
+          <label>Statut
+            <select value={statutFiltre} onChange={(event) => setStatutFiltre(event.target.value)}>
+              <option value="Tous">Tous les statuts</option>
+              {STATUTS.map((statut) => <option key={statut} value={statut}>{statut}</option>)}
+            </select>
+          </label>
+          <label className="rf-search">
+            <Search size={14} />
+            <input placeholder="Rechercher une opération..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          </label>
         </div>
-        <div className="rf-filters">
-          <label>Regrouper par<select defaultValue="Mois"><option>Mois</option><option>Trimestre</option><option>Année</option></select></label>
-          <label>Format d’export<div className="rf-export-format"><span>PDF</span><Download size={13} /></div></label>
-          <div className="rf-filters-actions">
-            <button type="button" className="rf-btn-outline"><RotateCcw size={14} />Réinitialiser</button>
-            <button type="button" className="rf-btn-primary"><PlayCircle size={14} />Générer le rapport</button>
-          </div>
-        </div>
-      </div>
 
-      <div className="rf-body">
-        <div className="rf-content">
-          <div className="rf-kpis">
-            {KPIS.map((kpi) => (
-              <article key={kpi.label} className={`rf-kpi rf-kpi-${kpi.tone}`}>
-                <span className="rf-kpi-icon"><kpi.icon size={20} /></span>
-                <div>
-                  <strong>{kpi.value} <small>FCFA</small></strong>
-                  <span>{kpi.label}</span>
-                  <small>{kpi.sub}</small>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <section className="rf-table-panel">
-            <div className="rf-table-head"><h3>Liste des rapports financiers</h3></div>
-            <div className="rf-table-wrap">
-              <table className="rf-table">
-                <thead>
-                  <tr>
-                    <th>N°</th><th>Intitulé du rapport</th><th>Type de rapport</th><th>Période couverte</th>
-                    <th>Projet / Compte</th><th>Date de génération</th><th>Généré par</th><th>Format</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {RAPPORTS.map((rapport) => (
-                    <tr key={rapport.numero}>
-                      <td>{rapport.numero}</td>
-                      <td className="rf-name">{rapport.intitule}</td>
-                      <td><span className={`rf-type rf-type-${rapport.typeTone}`}>{rapport.type}</span></td>
-                      <td>{rapport.periode}</td>
-                      <td>{rapport.projetCompte}</td>
-                      <td>{rapport.dateGeneration}</td>
-                      <td>{rapport.generePar}</td>
-                      <td><span className={`rf-format ${rapport.format === 'PDF' ? 'pdf' : 'excel'}`}>{rapport.format}</span></td>
-                      <td>
-                        <div className="rf-actions">
-                          <button type="button" className="rf-row-action" aria-label="Voir"><Eye size={13} /></button>
-                          <button type="button" className="rf-row-action" aria-label="Télécharger"><Download size={13} /></button>
-                          <button type="button" className="rf-row-action" aria-label="Actions"><MoreVertical size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="rf-table-foot">
-              <span>Affichage de 1 à {RAPPORTS.length} sur {RAPPORTS.length} rapports</span>
-              <nav className="rf-pagination" aria-label="Pagination">
-                <button type="button" disabled>«</button>
-                <button type="button" disabled>‹</button>
-                <button type="button" className="is-active">1</button>
-                <button type="button" disabled>›</button>
-                <button type="button" disabled>»</button>
-              </nav>
-            </div>
-          </section>
-
-          <section className="rf-types-panel">
-            <h3>Types de rapports disponibles</h3>
-            <div className="rf-types-grid">
-              {TYPES_RAPPORTS.map((type) => (
-                <article key={type.label} className={`rf-type-card rf-type-card-${type.tone}`}>
-                  <span className="rf-type-card-icon"><type.icon size={18} /></span>
-                  <strong>{type.label}</strong>
-                  <small>{type.sub}</small>
-                </article>
+        <div className="rf-table-wrap">
+          <table className="rf-table rf-op-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Initiateur</th><th>Bénéficiaire</th><th>Montant (FCFA)</th>
+                <th>Compte débiteur</th><th>Compte créditeur</th><th>Type d’opération</th>
+                <th>Statut</th><th>Référence</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((op) => (
+                <tr key={op.reference}>
+                  <td>
+                    <strong>{op.date}</strong>
+                    <small className="rf-sub">{op.heure}</small>
+                  </td>
+                  <td>
+                    <strong>{op.initiateur}</strong>
+                    <small className="rf-sub">{op.initiateurRole}</small>
+                  </td>
+                  <td className="rf-name">{op.beneficiaire}</td>
+                  <td>
+                    <div className={`rf-op-montant rf-op-montant-${op.sens}`}>
+                      {op.sens === 'sortie' ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
+                      {fmtMontant(op.montant)}
+                    </div>
+                    <small className="rf-sub">{op.sens === 'sortie' ? 'Sortie' : 'Entrée'}</small>
+                  </td>
+                  <td>
+                    <strong>{op.compteDebiteurCode} - {op.compteDebiteurNom}</strong>
+                    <small className="rf-sub">{op.compteDebiteurSub}</small>
+                  </td>
+                  <td>
+                    <strong>{op.compteCrediteurCode} - {op.compteCrediteurNom}</strong>
+                    <small className="rf-sub">{op.compteCrediteurSub}</small>
+                  </td>
+                  <td>
+                    <span className={`rf-type-op rf-type-op-${op.sens}`}>
+                      {op.sens === 'sortie' ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
+                      {op.typeOperation}
+                    </span>
+                  </td>
+                  <td><span className="rf-status-pill">{op.statut}</span></td>
+                  <td className="rf-code">{op.reference}</td>
+                  <td>
+                    <button type="button" className="rf-row-action" aria-label="Voir le détail" onClick={() => setSelected(op)}>
+                      <Eye size={13} />
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </section>
+              {filtered.length === 0 && (
+                <tr><td colSpan={10} className="rf-empty">Aucune opération ne correspond à votre recherche.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
-        <aside className="rf-side">
-          <div className="rf-panel">
-            <h3>Répartition des flux</h3>
-            <RepartitionDonut />
+        <div className="rf-table-foot">
+          <span>
+            {isFiltered
+              ? `${filtered.length} opération${filtered.length > 1 ? 's' : ''} trouvée${filtered.length > 1 ? 's' : ''}`
+              : `Affichage de 1 à ${OPERATIONS.length} sur ${TOTAL_OPERATIONS} opérations`}
+          </span>
+          <div className="rf-table-foot-right">
+            <label className="rf-page-size">
+              <select defaultValue="10">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+            <nav className="rf-pagination" aria-label="Pagination">
+              <button type="button" disabled><ChevronsLeft size={14} /></button>
+              <button type="button" disabled><ChevronLeft size={14} /></button>
+              <button type="button" className="is-active">1</button>
+              <button type="button">2</button>
+              <button type="button">3</button>
+              <button type="button">4</button>
+              <button type="button">5</button>
+              <span className="rf-page-ellipsis">…</span>
+              <button type="button">{TOTAL_PAGES}</button>
+              <button type="button"><ChevronRight size={14} /></button>
+              <button type="button"><ChevronsRight size={14} /></button>
+            </nav>
           </div>
+        </div>
+      </section>
 
-          <div className="rf-panel">
-            <h3>Flux par mois (FCFA)</h3>
-            <div className="rf-bar-legend">
-              <span><i className="green" />Encaissements</span>
-              <span><i className="blue" />Décaissements</span>
-            </div>
-            <FluxParMoisChart />
-          </div>
-
-          <div className="rf-panel">
-            <h3>Informations</h3>
-            <ul className="rf-info-list">
-              <li><Info size={14} /><span>Les rapports sont générés à partir des données validées.</span></li>
-              <li><BadgeCheck size={14} /><span>Les montants sont exprimés en FCFA.</span></li>
-              <li><Clock size={14} /><span>Dernière mise à jour des données : 04/08/2025 11:30</span></li>
-            </ul>
-          </div>
-        </aside>
-      </div>
+      {selected && <OperationDetailModal operation={selected} onClose={() => setSelected(null)} />}
     </section>
   )
 }
