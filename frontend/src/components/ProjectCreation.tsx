@@ -1,23 +1,38 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
 
 const BUDGET_EXECUTION = 38400000
 const COUTS_LIGNES_INITIAL = 29100000
 
+interface DraftProject {
+  id: string
+  name: string
+  client: string
+  description: string
+  montantHt: number
+  marge: number
+  chargesTransversales: number
+  budgetExecution: number
+  dateDebut: string
+  dateFin: string
+  savedAt: string
+  tasks: string[][]
+}
+
 const initialTasks = [
-  ['PRJ.001', 'Étude de faisabilité', 'E', '15,00', '0', '15,00', 'Ajara Lamare', 'Herman Tsaffock', '06/05/2025', '15/05/2025'],
-  ['PRJ.002', 'Conception détaillée', 'E', '31,00', '0', '31,00', 'Ajara Lamare', 'Belomo Edwige', '16/05/2025', '15/06/2025'],
-  ['PRJ.003', 'Achat matériel', 'D', '0', '6 000 000', '15,00', 'Herman Tsaffock', 'Essogo Eric', '01/06/2025', '30/07/2025'],
-  ['PRJ.004', 'Développement', 'E', '60,00', '0', '60,00', 'Ajara Lamare', 'Theodore Bessala', '01/07/2025', '30/09/2025'],
-  ['PRJ.005', 'Tests et recette', 'E', '45,00', '0', '45,00', 'Ajara Lamare', 'Herman Tsaffock', '01/10/2025', '15/11/2025'],
-  ['PRJ.006', 'Formation utilisateurs', 'D', '0', '1 200 000', '8,00', 'Theodore Bessala', 'Belomo Edwige', '05/11/2025', '30/11/2025'],
-  ['PRJ.007', 'Mise en production', 'E', '15,00', '1 000 000', '6,67', 'Ajara Lamare', 'Belomo Edwige', '01/12/2025', '15/12/2025'],
+  ['PRJ.001', 'Étude de faisabilité', 'E', '15,00', '0', '15,00', 'PI – Pilotage et amélioration', '06/05/2025', '15/05/2025'],
+  ['PRJ.002', 'Conception détaillée', 'E', '31,00', '0', '31,00', 'MO – Maîtrise d’œuvre', '16/05/2025', '15/06/2025'],
+  ['PRJ.003', 'Achat matériel', 'D', '0', '6 000 000', '15,00', 'BO – Back Office', '01/06/2025', '30/07/2025'],
+  ['PRJ.004', 'Développement', 'E', '60,00', '0', '60,00', 'IT – Systèmes d’information', '01/07/2025', '30/09/2025'],
+  ['PRJ.005', 'Tests et recette', 'E', '45,00', '0', '45,00', 'IT – Systèmes d’information', '01/10/2025', '15/11/2025'],
+  ['PRJ.006', 'Formation utilisateurs', 'D', '0', '1 200 000', '8,00', 'FO – Fonctions support', '05/11/2025', '30/11/2025'],
+  ['PRJ.007', 'Mise en production', 'E', '15,00', '1 000 000', '6,67', 'OP – Opérations', '01/12/2025', '15/12/2025'],
 ]
 
 const fmtFcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`
 const fmtPercent = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
 
 export default function ProjectCreation({ onCancel }: { onCancel: () => void }) {
+  const [pageTab, setPageTab] = useState<'nouveau' | 'brouillon' | 'historique'>('nouveau')
   const [step, setStep] = useState(1)
   const [projectName, setProjectName] = useState('Projet d’étude et de mise en œuvre du système ERP')
   const [clientName, setClientName] = useState('')
@@ -25,6 +40,23 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   const [projectTasks, setProjectTasks] = useState(initialTasks)
   const [reserveAmount, setReserveAmount] = useState(0)
   const [saveMenuOpen, setSaveMenuOpen] = useState(false)
+  const [drafts, setDrafts] = useState<DraftProject[]>([])
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null)
+
+  const openDraft = (draft: DraftProject) => {
+    setEditingDraftId(draft.id)
+    setProjectName(draft.name)
+    setClientName(draft.client === 'Client non renseigné' ? '' : draft.client)
+    setProjectDescription(draft.description)
+    setProjectTasks(draft.tasks)
+    setReserveAmount(0)
+    setPageTab('nouveau')
+  }
+
+  const cancelDraftEdit = () => {
+    setEditingDraftId(null)
+    setPageTab('brouillon')
+  }
 
   const reserveActive = reserveAmount > 0
   const coutsLignesBudgetaires = COUTS_LIGNES_INITIAL + reserveAmount
@@ -38,7 +70,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   const saveTaskToProject = () => {
     setProjectTasks((currentTasks) => [
       ...currentTasks,
-      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Allocation des ressources', 'E', '12,00', '0', '12,00', 'Équipe Pilotage', 'Ressources', '01/11/2026', '08/11/2026'],
+      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Allocation des ressources', 'E', '12,00', '0', '12,00', 'RES – Ressources', '01/11/2026', '08/11/2026'],
     ])
     setStep(1)
   }
@@ -48,7 +80,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     const montant = reste
     setProjectTasks((currentTasks) => [
       ...currentTasks,
-      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Réserve', 'D', '0', montant.toLocaleString('fr-FR'), '-', 'Équipe Pilotage', '-', '-', '-'],
+      [`PRJ.${String(currentTasks.length + 1).padStart(3, '0')}`, 'Réserve', 'D', '0', montant.toLocaleString('fr-FR'), '-', '-', '-', '-'],
     ])
     setReserveAmount(montant)
   }
@@ -60,7 +92,38 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
   const saveProject = (mode: 'brouillon' | 'definitif') => {
     setSaveMenuOpen(false)
-    window.alert(mode === 'brouillon' ? 'Le projet a été enregistré dans le brouillon.' : 'Le projet a été enregistré définitivement.')
+    if (mode === 'brouillon') {
+      if (editingDraftId) {
+        setDrafts((current) => current.map((draft) => draft.id === editingDraftId
+          ? { ...draft, name: projectName, client: clientName || 'Client non renseigné', description: projectDescription, tasks: projectTasks, savedAt: new Date().toLocaleDateString('fr-FR') }
+          : draft))
+      } else {
+        setDrafts((current) => [
+          {
+            id: `BRJ.${String(current.length + 1).padStart(3, '0')}`,
+            name: projectName,
+            client: clientName || 'Client non renseigné',
+            description: projectDescription,
+            montantHt: 80000000,
+            marge: 40,
+            chargesTransversales: 12,
+            budgetExecution: BUDGET_EXECUTION,
+            dateDebut: '01/05/2025',
+            dateFin: '31/12/2025',
+            savedAt: new Date().toLocaleDateString('fr-FR'),
+            tasks: projectTasks,
+          },
+          ...current,
+        ])
+      }
+      window.alert('Le projet a été enregistré dans le brouillon.')
+      return
+    }
+    if (editingDraftId) {
+      setDrafts((current) => current.filter((draft) => draft.id !== editingDraftId))
+      setEditingDraftId(null)
+    }
+    window.alert('Le projet a été enregistré définitivement.')
   }
 
   useEffect(() => {
@@ -73,7 +136,61 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   return (
     <>
     <section className="creation-page" aria-hidden={step === 2}>
-      <div className="creation-layout">
+      <nav className="creation-page-tabs">
+        <button className={pageTab === 'nouveau' ? 'active' : ''} onClick={() => setPageTab('nouveau')}>Créer un nouveau projet</button>
+        <button className={pageTab === 'brouillon' ? 'active' : ''} onClick={() => setPageTab('brouillon')}>Brouillon</button>
+        <button className={pageTab === 'historique' ? 'active' : ''} onClick={() => setPageTab('historique')}>Historique</button>
+      </nav>
+
+      {pageTab === 'historique' && (
+        <div className="creation-empty-panel">
+          <p>Aucun historique de projet disponible pour le moment.</p>
+        </div>
+      )}
+
+      {pageTab === 'brouillon' && (
+        drafts.length === 0 ? (
+          <div className="creation-empty-panel">
+            <p>Aucun projet enregistré dans le brouillon pour le moment.</p>
+          </div>
+        ) : (
+          <div className="draft-panel">
+            <table className="draft-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Nom du projet</th>
+                  <th>Client</th>
+                  <th>Montant HT</th>
+                  <th>Budget d’exécution</th>
+                  <th>Enregistré le</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((draft) => (
+                  <tr key={draft.id}>
+                    <td className="draft-code"><button type="button" className="draft-code-link" onClick={() => openDraft(draft)}>{draft.id}</button></td>
+                    <td className="draft-name">{draft.name}</td>
+                    <td>{draft.client}</td>
+                    <td>{fmtFcfa(draft.montantHt)}</td>
+                    <td>{fmtFcfa(draft.budgetExecution)}</td>
+                    <td>{draft.savedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {pageTab === 'nouveau' && editingDraftId && (
+        <div className="draft-edit-banner">
+          <span>Modification du brouillon <strong>{editingDraftId}</strong></span>
+          <button type="button" onClick={cancelDraftEdit}>Retour au brouillon</button>
+        </div>
+      )}
+
+      {pageTab === 'nouveau' && <div className="creation-layout">
         <aside className="creation-form-card">
           <div className="creation-steps">
             <div className="creation-step active"><b>1</b><span><strong>Informations générales</strong><small>Détails du projet</small></span></div>
@@ -118,7 +235,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             )}
           </div>
           <div className="form-actions project-form-actions">
-            <button className="secondary-action" onClick={onCancel}>Annuler</button>
+            <button className="secondary-action" onClick={() => (editingDraftId ? cancelDraftEdit() : onCancel())}>Annuler</button>
             <button className="primary-action" onClick={goToChargesStep}>Définir les lignes budgétaires</button>
             <div className="save-project-wrap">
               <button type="button" className="save-project" onClick={() => setSaveMenuOpen((open) => !open)}>Enregistrer le projet ▾</button>
@@ -152,22 +269,22 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
           <div className="task-toolbar"><div><button>◉ &nbsp; Masquer / Afficher colonnes</button><button>▽ &nbsp; Filtres</button><button>↶ &nbsp; Réinitialiser</button></div><label>Type de ligne budgétaire<select><option>Tous</option></select></label><button className="excel-button">▣ &nbsp; Export Excel</button></div>
 
-          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la ligne budgétaire</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Assignée par</th><th>Attribuée à</th><th>Début</th><th>Fin</th><th>Wrike</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td><td>{task[9]}</td><td><a className="wrike-link" href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(task[0])}`} target="_blank" rel="noopener noreferrer" title="Ouvrir dans Wrike"><ExternalLink size={13} /></a></td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={5} /></tr></tfoot></table></div>
+          <div className="task-table-wrap"><table className="task-table"><thead><tr><th>Code</th><th>Nom de la ligne budgétaire</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Équivalent EHS</th><th>Attribuée à</th><th>Début</th><th>Fin</th></tr></thead><tbody>{projectTasks.map((task) => <tr key={task[0]}><td>{task[0]}</td><td>{task[1]}</td><td><span className={`task-type ${task[2] === 'D' ? 'money' : ''}`}>{task[2]}</span></td><td>{task[3]}</td><td>{task[4]}</td><td>{task[5]}</td><td>{task[6]}</td><td>{task[7]}</td><td>{task[8]}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>Total</td><td>166,00</td><td>8 200 000</td><td>180,67</td><td colSpan={3} /></tr></tfoot></table></div>
 
           <div className="task-totals"><article><span>Nombre de lignes budgétaires</span><strong>{projectTasks.length}</strong></article><article className="green"><span>Lignes budgétaires de type E (EHS)</span><strong>5 (71,43%)</strong></article><article className="purple"><span>Lignes budgétaires de type D (Monétaire)</span><strong>2 (28,57%)</strong></article><article><span>Total EHS</span><strong>166,00</strong></article><article><span>Total Monétaire (HT)</span><strong>8 200 000 FCFA</strong></article></div>
         </div>
-      </div>
+      </div>}
     </section>
     {step === 2 && <div className="charges-overlay" role="dialog" aria-modal="true" aria-label="Charges et planification" onMouseDown={() => setStep(1)}>
       <div className="charges-overlay-content" onMouseDown={(event) => event.stopPropagation()}>
-        <ProjectChargesStep onSaveTasks={saveTaskToProject} />
+        <ProjectChargesStep onSaveTasks={saveTaskToProject} onCancel={() => setStep(1)} />
       </div>
     </div>}
     </>
   )
 }
 
-function ProjectChargesStep({ onSaveTasks }: { onSaveTasks: () => void }) {
+function ProjectChargesStep({ onSaveTasks, onCancel }: { onSaveTasks: () => void; onCancel: () => void }) {
   const [openGroups, setOpenGroups] = useState(['bo', 'mo'])
   const groups = [
     { id: 'bo', icon: '▣', title: 'BO – Back Office', task: ['BO101', 'Rédaction du livrable', 'BO', 'E', '18', '0', '18', '05/09/2025', '18/09/2025', '10j'] },
@@ -194,13 +311,16 @@ function ProjectChargesStep({ onSaveTasks }: { onSaveTasks: () => void }) {
       return <article className={`charge-group ${isOpen ? 'open' : ''}`} key={group.id}>
         <button className="charge-group-title" onClick={() => toggleGroup(group.id)}><span>{group.icon} &nbsp; {group.title}</span><b>{isOpen ? '⌃' : '⌄'}</b></button>
         {isOpen && group.task && <div className="charge-group-content">
-          <div className="charge-table-wrap"><table><thead><tr><th>Code de la ligne budgétaire</th><th>Nom de la ligne budgétaire</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>Wrike</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><a className="wrike-link" href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(group.task[0])}`} target="_blank" rel="noopener noreferrer" title="Ouvrir dans Wrike"><ExternalLink size={13} /></a></td><td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la ligne budgétaire ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
+          <div className="charge-table-wrap"><table><thead><tr><th>Code de la ligne budgétaire</th><th>Nom de la ligne budgétaire</th><th>Division / Cellule</th><th>Type</th><th>EHS</th><th>Monétaire (FCFA)</th><th>Éq. EHS</th><th>Date de début</th><th>Date de fin</th><th>Durée</th><th>CRUD</th></tr></thead><tbody><tr>{group.task.map((cell, index) => <td key={index}>{index === 3 ? <span className="task-type">{cell}</span> : index === 9 ? <><strong>{cell}</strong><small>jours ouvrés</small></> : cell}</td>)}<td><div className="task-crud"><button title="Consulter" onClick={() => window.alert(`Consultation de ${group.task?.[1]}`)}>◉</button><button title="Modifier" onClick={() => window.alert(`Modification de ${group.task?.[1]}`)}>✎</button><button className="delete" title="Supprimer" onClick={() => window.confirm(`Supprimer la ligne budgétaire ${group.task?.[1]} ?`)}>⌫</button></div></td></tr></tbody></table></div>
           <button className="add-charge" onClick={() => window.alert(`Ajouter une ligne budgétaire dans ${group.title}`)}>＋ &nbsp; Ajouter une ligne budgétaire/charge</button>
         </div>}
       </article>
     })}</div>
 
     <div className="charge-legend">ⓘ &nbsp; <b>E</b> = consomme les EHS &nbsp;&nbsp; | &nbsp;&nbsp; <b>D</b> = consomme directement de la monnaie</div>
-    <div className="charges-actions single-action"><button className="save-project" onClick={onSaveTasks}>Enregistrer les lignes budgétaires</button></div>
+    <div className="charges-actions">
+      <button type="button" className="secondary-action" onClick={onCancel}>Annuler</button>
+      <button className="save-project" onClick={onSaveTasks}>Enregistrer les lignes budgétaires</button>
+    </div>
   </section>
 }
