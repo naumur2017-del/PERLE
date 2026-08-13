@@ -264,12 +264,6 @@
 .ge-notes-empty { margin: 4px 0 0; font-size: 11px; color: #8f8fa6; text-align: center; }
 
 /* =============== LEGEND ROW =============== */
-.ge-legend-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-
-.ge-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.ge-legend-title { font-size: 11px; font-weight: 700; color: #14123a; margin-right: 4px; }
-.ge-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #4a4a63; }
-
 .ge-legend-info { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 9px; background: #eef2ff; color: #4338ca; font-size: 10.5px; font-weight: 600; max-width: 480px; }
 .ge-legend-info svg { flex: 0 0 auto; }
 
@@ -285,7 +279,6 @@
 @media (max-width: 900px) {
   .ge-page { padding: 16px; }
   .ge-kpis { grid-template-columns: repeat(2, 1fr); }
-  .ge-legend-row { flex-direction: column; align-items: flex-start; }
 }
 
 @media (max-width: 560px) {

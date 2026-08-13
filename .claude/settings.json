@@ -4,7 +4,8 @@
       "Bash(curl -s http://localhost:5173/src/App.tsx)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173)",
       "Bash(grep -rl *)",
-      "Bash(node shot13.mjs)"
+      "Bash(node shot13.mjs)",
+      "Bash(git push *)"
     ]
   }
 }

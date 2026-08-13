@@ -169,14 +169,6 @@ const KPIS = [
   { icon: Users2, tone: 'blue', label: 'Équipes', value: '9', sub: 'Dans l’organisation' },
 ]
 
-const LEGENDE_GRADES = [
-  { code: 'G5', label: 'Expert' },
-  { code: 'G4', label: 'Senior' },
-  { code: 'G3', label: 'Confirmé' },
-  { code: 'G2', label: 'Junior' },
-  { code: 'G1', label: 'Stagiaire' },
-]
-
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
 const statutClass = (statut: StatutEmploye) => {
@@ -533,17 +525,9 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         {selected && <DetailEmploye employe={selected} onClose={() => setSelectedId(null)} />}
       </div>
 
-      <div className="ge-legend-row">
-        <div className="ge-legend">
-          <span className="ge-legend-title">Légende des grades</span>
-          {LEGENDE_GRADES.map((grade) => (
-            <span key={grade.code} className="ge-legend-item"><b className="ge-grade-pill">{grade.code}</b>{grade.label}</span>
-          ))}
-        </div>
-        <div className="ge-legend-info">
-          <Info size={14} />
-          <span>Un employé doit avoir un grade actif dans une équipe pour pouvoir être staffé sur une tâche de cette équipe.</span>
-        </div>
+      <div className="ge-legend-info">
+        <Info size={14} />
+        <span>Un employé doit avoir un grade actif dans une équipe pour pouvoir être staffé sur une tâche de cette équipe.</span>
       </div>
 
       {!selected && (
