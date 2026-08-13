@@ -1,470 +1,307 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useState } from 'react'
 import {
-  BadgeCheck, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, ClipboardCheck,
-  Clock, Filter, Hourglass, ImagePlus, Info, Landmark, MoreVertical, Paperclip, Plus, Receipt,
-  RotateCcw, ScrollText, Search, ShieldCheck, Target, Upload, UserCog, Wallet,
+  BadgeCheck, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
+  CircleDot, Download, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
 } from 'lucide-react'
 import './TresoreriePage.css'
 
-interface Validation {
+interface Brouillon {
+  numero: string
+  dateCreation: string
+  projet: string
+  ligneBudgetaire: string
+  fournisseur: string
+  mercurial: string
+  montant: number
+  devise: string
   statut: string
-  date?: string
-  par?: string
+  dateMaj: string
 }
 
-interface Execution {
-  tresorier: string
-  preuve?: string
-  confirmee: boolean
-}
+const BROUILLONS: Brouillon[] = [
+  { numero: 'DP-2025-096', dateCreation: '11/06/2025', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00156', montant: 2350000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '11/06/2025' },
+  { numero: 'DP-2025-095', dateCreation: '10/06/2025', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00155', montant: 485000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '10/06/2025' },
+  { numero: 'DP-2025-094', dateCreation: '09/06/2025', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00154', montant: 150000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '09/06/2025' },
+  { numero: 'DP-2025-093', dateCreation: '09/06/2025', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00153', montant: 320000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '09/06/2025' },
+  { numero: 'DP-2025-092', dateCreation: '08/06/2025', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '08/06/2025' },
+]
 
-interface DemandePaiement {
+interface HistoriqueEntry {
   reference: string
   projet: string
-  codeActivite: string
   libelle: string
-  compteDebiteur: string
-  compteCrediteur: string
-  compteCrediteurSub?: string
   montant: number
-  justificatifs: number
   initiePar: string
   date: string
-  validationDirection: Validation
-  validationRessources: Validation
-  statutPaiement: string
-  execution?: Execution
+  statut: string
 }
 
-const DEMANDES: DemandePaiement[] = [
-  { reference: 'PAY-2025-0184', projet: 'PADESCE', codeActivite: 'PAD-AC-126', libelle: 'Achat matériel informatique', compteDebiteur: 'BGFI Bank (Compte 009)', compteCrediteur: 'SMI SARL', montant: 2450000, justificatifs: 3, initiePar: 'Pamella G.', date: '30/05/2025', validationDirection: { statut: 'Validé', date: '30/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'En attente' }, statutPaiement: 'En attente Ressources' },
-  { reference: 'PAY-2025-0183', projet: 'PANSFI', codeActivite: 'PAN-FO-052', libelle: 'Formation des formateurs', compteDebiteur: 'Caisse Principale (CP)', compteCrediteur: 'Ibrahim Patrice', compteCrediteurSub: 'Matricule : NAU-0057', montant: 350000, justificatifs: 2, initiePar: 'Herman T.', date: '29/05/2025', validationDirection: { statut: 'Validé', date: '28/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'En attente' }, statutPaiement: 'En attente Ressources' },
-  { reference: 'PAY-2025-0182', projet: 'MIDER', codeActivite: 'MID-TR-010', libelle: 'Frais de déplacement mission terrain', compteDebiteur: 'Compte Mobile Money (OM - 6798...)', compteCrediteur: 'Maïa Patrice', compteCrediteurSub: 'Matricule : NAU-0101', montant: 120000, justificatifs: 2, initiePar: 'Maïa P.', date: '28/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer', execution: { tresorier: 'Théodore B.', confirmee: false } },
-  { reference: 'PAY-2025-0181', projet: 'PILOTAGE', codeActivite: 'PIL-AD-021', libelle: 'Consulting externe', compteDebiteur: 'BGFI Bank (Compte 002)', compteCrediteur: 'Consult Plus SA', montant: 1800000, justificatifs: 4, initiePar: 'Ajara L.', date: '27/05/2025', validationDirection: { statut: 'Refusé', date: '27/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: '-' }, statutPaiement: 'Refusé' },
-  { reference: 'PAY-2025-0180', projet: 'CARAVEL', codeActivite: 'CAR-MK-003', libelle: 'Achat fournitures marketing', compteDebiteur: 'Caisse Secondaire (CS)', compteCrediteur: 'Office Plus SA', montant: 275000, justificatifs: 1, initiePar: 'Maxwell E.', date: '26/05/2025', validationDirection: { statut: 'Validé', date: '26/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: 'Prête à payer', par: 'Théodore B.' }, statutPaiement: 'Prête à payer', execution: { tresorier: 'Théodore B.', confirmee: false } },
-  { reference: 'PAY-2025-0179', projet: 'BAC OFFICE', codeActivite: 'BAC-JU-007', libelle: 'Impression et reliure documents', compteDebiteur: 'Compte Bancaire UBA (Compte 003)', compteCrediteur: 'Imprimerie Moderne', montant: 95000, justificatifs: 1, initiePar: 'Julienne E.', date: '25/05/2025', validationDirection: { statut: 'Correction demandée', date: '25/05/2025', par: 'Ngando D.G.' }, validationRessources: { statut: '-' }, statutPaiement: 'Correction demandée' },
-  { reference: 'PAY-2025-0178', projet: 'TRESORERIE', codeActivite: 'TRE-BA-015', libelle: 'Remboursement avance salariale', compteDebiteur: 'Caisse Principale (CP)', compteCrediteur: 'Pamella Guebediang', compteCrediteurSub: 'Matricule : NAU-0084', montant: 200000, justificatifs: 1, initiePar: 'Théodore B.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '25/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '25/05/2025' }, statutPaiement: 'Payé', execution: { tresorier: 'Théodore B.', preuve: 'preuve_paiement_0178.jpg', confirmee: true } },
-  { reference: 'PAY-2025-0177', projet: 'PANSFI', codeActivite: 'PAN-AC-011', libelle: 'Achat carburant véhicule', compteDebiteur: 'Compte Mobile Money (OM - 6912...)', compteCrediteur: 'Station Total Bastos', montant: 65000, justificatifs: 1, initiePar: 'Herman T.', date: '23/05/2025', validationDirection: { statut: 'Validé', date: '24/05/2025', par: 'Théodore B.' }, validationRessources: { statut: 'Payé', date: '24/05/2025' }, statutPaiement: 'Payé', execution: { tresorier: 'Théodore B.', preuve: 'preuve_paiement_0177.jpg', confirmee: true } },
+const HISTORIQUE: HistoriqueEntry[] = [
+  { reference: 'PAY-2025-0178', projet: 'TRESORERIE', libelle: 'Remboursement avance salariale', montant: 200000, initiePar: 'Théodore B.', date: '23/05/2025', statut: 'Payé' },
+  { reference: 'PAY-2025-0177', projet: 'PANSFI', libelle: 'Achat carburant véhicule', montant: 65000, initiePar: 'Herman T.', date: '23/05/2025', statut: 'Payé' },
+  { reference: 'PAY-2025-0182', projet: 'MIDER', libelle: 'Frais de déplacement mission terrain', montant: 120000, initiePar: 'Maïa P.', date: '28/05/2025', statut: 'Prête à payer' },
+  { reference: 'PAY-2025-0181', projet: 'PILOTAGE', libelle: 'Consulting externe', montant: 1800000, initiePar: 'Ajara L.', date: '27/05/2025', statut: 'Refusé' },
+  { reference: 'PAY-2025-0179', projet: 'BAC OFFICE', libelle: 'Impression et reliure documents', montant: 95000, initiePar: 'Julienne E.', date: '25/05/2025', statut: 'Correction demandée' },
 ]
 
-const TOTAL_DEMANDES = 184
-
-const KPIS = [
-  { icon: Receipt, tone: 'purple', label: 'Total demandes', value: '184', sub: 'Toutes demandes' },
-  { icon: Hourglass, tone: 'orange', label: 'En attente Direction', value: '28', sub: '15,2%' },
-  { icon: Clock, tone: 'blue', label: 'En attente Ressources', value: '34', sub: '18,5%' },
-  { icon: CheckCircle2, tone: 'green', label: 'Validées (Ressources)', value: '61', sub: '33,2%' },
-  { icon: Wallet, tone: 'violet', label: 'Prêtes à payer', value: '24', sub: '13,0%' },
-  { icon: BadgeCheck, tone: 'indigo', label: 'Payées', value: '35', sub: '19,0%' },
-]
-
-const REPARTITION = [
-  { label: 'En attente Direction', value: 28, color: '#f59e0b' },
-  { label: 'En attente Ressources', value: 34, color: '#3b82f6' },
-  { label: 'Prêtes à payer', value: 24, color: '#8b5cf6' },
-  { label: 'Payées', value: 35, color: '#16a34a' },
-  { label: 'Refusées', value: 22, color: '#dc2626' },
-  { label: 'Correction demandée', value: 18, color: '#eab308' },
-  { label: 'Brouillon', value: 23, color: '#9ca3af' },
-]
-
-const RESUME_FINANCIER = [
-  { label: 'Montant total demandes', value: 98450000 },
-  { label: 'Montant validé (Ressources)', value: 62750000 },
-  { label: 'Montant payé', value: 35870000 },
-  { label: 'Montant en attente', value: 26600000 },
-]
-
-const CIRCUIT = [
-  { label: 'Création de la demande', sub: 'Demande — Manager', tone: 'purple' },
-  { label: 'Validation de la Direction', sub: 'Autorisation de la dépense', tone: 'orange' },
-  { label: 'Validation Ressources', sub: 'Contrôle et conformité', tone: 'blue' },
-  { label: 'Exécution du paiement', sub: 'Exécution — Trésorier (preuve obligatoire)', tone: 'green' },
-  { label: 'Paiement confirmé', sub: 'Confirmation — Manager', tone: 'slate' },
-]
-
-const PROCESSUS_INFO = [
-  { icon: UserCog, titre: 'Demande vs exécution', texte: 'La demande de paiement est créée par le manager ; son exécution effective est réalisée par le trésorier.' },
-  { icon: ImagePlus, titre: 'Justificatif obligatoire', texte: 'Le trésorier doit charger une preuve de paiement (capture ou photo) avant que le manager puisse confirmer l’exécution.' },
-  { icon: ScrollText, titre: 'Journal des paiements', texte: 'Tous les mouvements sont consignés par date, compte bancaire et projet, avec calcul automatique des soldes.' },
-]
+const PROJETS_OPTIONS = ['Digitalisation AN', 'PADESCE', 'Caravel', 'PERLE', 'IPAY', 'PANSFI', 'MIDER', 'PILOTAGE']
+const LIGNES_OPTIONS = ['LBG-01 – Frais généraux', 'LBG-05 – Développement logiciel', 'LBG-08 – Communication', 'LBG-09 – Matériel informatique', 'LBG-12 – Frais de mission']
+const FOURNISSEURS_OPTIONS = ['NAUMUR SARL', 'Hôtel Mont Fébé', 'Orange Cameroun', 'TOTAL Energies', 'Africa IT Solutions']
+const TYPES_DEPENSE_OPTIONS = ['Transversal', 'Non Transversal']
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
-interface Mouvement {
-  date: string
-  compte: string
-  projet: string
-  reference: string
-  libelle: string
-  debit: number
-}
-
-const COMPTES_SOLDES_INITIAUX: Record<string, number> = {
-  'BGFI Bank (Compte 009)': 18500000,
-  'BGFI Bank (Compte 002)': 9200000,
-  'Caisse Principale (CP)': 3200000,
-  'Caisse Secondaire (CS)': 1450000,
-  'Compte Bancaire UBA (Compte 003)': 6100000,
-  'Compte Mobile Money (OM - 6798...)': 850000,
-  'Compte Mobile Money (OM - 6912...)': 620000,
-}
-
-const MOUVEMENTS: Mouvement[] = [
-  { date: '10/05/2025', compte: 'Caisse Principale (CP)', projet: 'TRESORERIE', reference: 'PAY-2025-0165', libelle: 'Achat consommables bureau', debit: 85000 },
-  { date: '14/05/2025', compte: 'BGFI Bank (Compte 009)', projet: 'PADESCE', reference: 'PAY-2025-0170', libelle: 'Location salle formation', debit: 450000 },
-  { date: '18/05/2025', compte: 'Compte Mobile Money (OM - 6912...)', projet: 'PANSFI', reference: 'PAY-2025-0173', libelle: 'Recharge crédit communication', debit: 40000 },
-  { date: '20/05/2025', compte: 'BGFI Bank (Compte 002)', projet: 'PILOTAGE', reference: 'PAY-2025-0175', libelle: 'Abonnement outil de pilotage', debit: 320000 },
-  { date: '23/05/2025', compte: 'Compte Mobile Money (OM - 6912...)', projet: 'PANSFI', reference: 'PAY-2025-0177', libelle: 'Achat carburant véhicule', debit: 65000 },
-  { date: '25/05/2025', compte: 'Caisse Principale (CP)', projet: 'TRESORERIE', reference: 'PAY-2025-0178', libelle: 'Remboursement avance salariale', debit: 200000 },
-]
-
-const parseDateFr = (value: string) => {
-  const [day, month, year] = value.split('/').map(Number)
-  return new Date(year, month - 1, day).getTime()
-}
-
-function buildJournal() {
-  const running = { ...COMPTES_SOLDES_INITIAUX }
-  const chronologique = [...MOUVEMENTS].sort((a, b) => parseDateFr(a.date) - parseDateFr(b.date))
-  return chronologique.map((mouvement) => {
-    const soldeAvant = running[mouvement.compte] ?? 0
-    const soldeApres = soldeAvant - mouvement.debit
-    running[mouvement.compte] = soldeApres
-    return { ...mouvement, soldeAvant, soldeApres }
-  })
-}
-
-const JOURNAL = buildJournal()
-const SOLDES_ACTUELS = JOURNAL.reduce<Record<string, number>>((acc, mouvement) => {
-  acc[mouvement.compte] = mouvement.soldeApres
-  return acc
-}, { ...COMPTES_SOLDES_INITIAUX })
-
-const statutPaiementClass = (statut: string) => {
+const statutClass = (statut: string) => {
   if (statut === 'Payé') return 'paye'
   if (statut === 'Prête à payer') return 'pret'
   if (statut === 'Refusé') return 'refuse'
   if (statut === 'Correction demandée') return 'correction'
+  if (statut === 'Brouillon') return 'brouillon'
   return 'attente'
 }
 
-const validationClass = (statut: string) => {
-  if (statut === 'Validé' || statut === 'Payé' || statut === 'Prête à payer') return 'ok'
-  if (statut === 'Refusé') return 'ko'
-  if (statut === 'Correction demandée') return 'warn'
-  return 'pending'
-}
-
-function ValidationCell({ validation }: { validation: Validation }) {
-  if (validation.statut === '-') return <span className="tr-validation-empty">-</span>
-  return (
-    <div className={`tr-validation ${validationClass(validation.statut)}`}>
-      <span className="tr-validation-statut">{validation.statut}</span>
-      {(validation.date || validation.par) && (
-        <small>{validation.date}{validation.date && validation.par ? ' ' : ''}{validation.par}</small>
-      )}
-    </div>
-  )
-}
-
-function RepartitionDonut() {
-  const total = REPARTITION.reduce((sum, item) => sum + item.value, 0)
-  const cx = 80, cy = 80, outer = 68, inner = 44
-  const slices = REPARTITION.reduce<{ label: string; value: number; color: string; path: string }[]>((acc, item) => {
-    const from = acc.length > 0 ? acc.reduce((sum, s) => sum + s.value, 0) / total : 0
-    const to = from + item.value / total
-    const point = (ratio: number, r: number) => {
-      const angle = -Math.PI / 2 + ratio * Math.PI * 2
-      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as const
-    }
-    const [x1, y1] = point(from, outer)
-    const [x2, y2] = point(to, outer)
-    const [xi2, yi2] = point(to, inner)
-    const [xi1, yi1] = point(from, inner)
-    const large = to - from > 0.5 ? 1 : 0
-    acc.push({ ...item, path: `M ${x1} ${y1} A ${outer} ${outer} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${inner} ${inner} 0 ${large} 0 ${xi1} ${yi1} Z` })
-    return acc
-  }, [])
-
-  return (
-    <div className="tr-donut-wrap">
-      <svg viewBox="0 0 160 160" className="tr-donut-svg" role="img" aria-label="Répartition des demandes par statut">
-        {slices.map((slice) => <path key={slice.label} d={slice.path} fill={slice.color} />)}
-        <text x={cx} y={cy - 4} textAnchor="middle" className="tr-donut-value">{total}</text>
-        <text x={cx} y={cy + 13} textAnchor="middle" className="tr-donut-sub">Total</text>
-      </svg>
-      <ul className="tr-donut-legend">
-        {REPARTITION.map((item) => (
-          <li key={item.label}>
-            <i style={{ background: item.color }} />
-            <span>{item.label}</span>
-            <b>{item.value} ({((item.value / total) * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)</b>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
+const emptyForm = { projet: '', ligneBudgetaire: '', fournisseur: '', typeDepense: '', montant: '', dateDepense: '', objet: '', commentaires: '' }
+type FormState = typeof emptyForm
 
 export default function TresoreriePage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>('nouveau')
+  const [form, setForm] = useState<FormState>(emptyForm)
   const [search, setSearch] = useState('')
-  const [executions, setExecutions] = useState<Record<string, { preuve?: string; confirmee: boolean }>>(() =>
-    Object.fromEntries(
-      DEMANDES.filter((demande) => demande.execution)
-        .map((demande) => [demande.reference, { preuve: demande.execution?.preuve, confirmee: demande.execution?.confirmee ?? false }])
-    ))
-  const [pendingUpload, setPendingUpload] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [drafts, setDrafts] = useState<Brouillon[]>(BROUILLONS)
+  const [draftSectionOpen, setDraftSectionOpen] = useState(true)
 
-  const triggerUpload = (reference: string) => {
-    setPendingUpload(reference)
-    fileInputRef.current?.click()
-  }
+  const updateField = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }))
+  const resetForm = () => setForm(emptyForm)
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && pendingUpload) {
-      setExecutions((current) => ({
-        ...current,
-        [pendingUpload]: { preuve: file.name, confirmee: current[pendingUpload]?.confirmee ?? false },
-      }))
+  const submitDemande = () => {
+    if (!form.projet || !form.ligneBudgetaire || !form.fournisseur || !form.typeDepense || !form.montant || !form.dateDepense || !form.objet) {
+      window.alert('Veuillez renseigner tous les champs obligatoires (*).')
+      return
     }
-    setPendingUpload(null)
-    event.target.value = ''
+    window.alert('La demande de paiement a été soumise avec succès.')
+    resetForm()
   }
 
-  const confirmExecution = (reference: string) => {
-    setExecutions((current) => (current[reference]?.preuve ? { ...current, [reference]: { ...current[reference], confirmee: true } } : current))
+  const saveDraft = () => {
+    const today = new Date().toLocaleDateString('fr-FR')
+    const newDraft: Brouillon = {
+      numero: `DP-2025-${String(97 + drafts.length).padStart(3, '0')}`,
+      dateCreation: today,
+      projet: form.projet || '-',
+      ligneBudgetaire: form.ligneBudgetaire || '-',
+      fournisseur: form.fournisseur || '-',
+      mercurial: '-',
+      montant: Number(form.montant) || 0,
+      devise: 'FCFA',
+      statut: 'Brouillon',
+      dateMaj: today,
+    }
+    setDrafts((current) => [newDraft, ...current])
+    window.alert('La demande a été enregistrée dans le brouillon.')
+    resetForm()
   }
+
+  const filteredBrouillons = drafts.filter((brouillon) => {
+    if (!search.trim()) return true
+    const q = search.trim().toLowerCase()
+    return brouillon.numero.toLowerCase().includes(q)
+      || brouillon.projet.toLowerCase().includes(q)
+      || brouillon.fournisseur.toLowerCase().includes(q)
+      || brouillon.ligneBudgetaire.toLowerCase().includes(q)
+  })
 
   return (
     <section className="tr-page">
-      <input ref={fileInputRef} type="file" accept="image/*" className="tr-hidden-input" onChange={handleFileChange} />
+      <nav className="tr-subtabs">
+        <button className="active" onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
+        <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
+        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
+        <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Rapports financiers</button>
+      </nav>
 
-      <div className="tr-header-row">
-        <nav className="tr-subtabs">
-          <button className="active" onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
-          <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
-          <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
-          <button onClick={() => navigateTo('tresorerie-budgets')}><Target size={14} />Budgets</button>
-          <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Rapports financiers</button>
-        </nav>
-        <button type="button" className="tr-btn-primary"><Plus size={14} />Nouvelle demande de paiement</button>
-      </div>
+      <nav className="tr-request-tabs">
+        <button className={innerTab === 'nouveau' ? 'active' : ''} onClick={() => setInnerTab('nouveau')}>Nouvelle demande</button>
+        <button className={innerTab === 'historique' ? 'active' : ''} onClick={() => setInnerTab('historique')}>Historique</button>
+      </nav>
 
-      <div className="tr-info-banner">
-        <span className="tr-info-banner-icon"><Info size={15} /></span>
-        <div className="tr-info-banner-items">
-          {PROCESSUS_INFO.map((item) => (
-            <div key={item.titre} className="tr-info-banner-item">
-              <span className="tr-info-banner-item-icon"><item.icon size={14} /></span>
-              <div className="tr-info-banner-item-text"><strong>{item.titre}</strong><span>{item.texte}</span></div>
+      {innerTab === 'nouveau' && (
+        <>
+          <div className="tr-request-card">
+            <div className="tr-request-heading">
+              <h2>Nouvelle demande de paiement</h2>
+              <p>Remplissez les informations ci-dessous pour soumettre une demande de paiement.</p>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="tr-top">
-        <div className="tr-kpis">
-          {KPIS.map((kpi) => (
-            <article key={kpi.label} className={`tr-kpi tr-kpi-${kpi.tone}`}>
-              <span className="tr-kpi-icon"><kpi.icon size={16} /></span>
-              <div>
-                <strong>{kpi.value}</strong>
-                <span>{kpi.label}</span>
-                <small>{kpi.sub}</small>
+            <div className="tr-request-grid four">
+              <label>Projet <em>*</em>
+                <select value={form.projet} onChange={(event) => updateField('projet', event.target.value)}>
+                  <option value="">Sélectionner un projet</option>
+                  {PROJETS_OPTIONS.map((projet) => <option key={projet}>{projet}</option>)}
+                </select>
+              </label>
+              <label>Ligne budgétaire <em>*</em>
+                <select value={form.ligneBudgetaire} onChange={(event) => updateField('ligneBudgetaire', event.target.value)}>
+                  <option value="">Sélectionner une ligne budgétaire</option>
+                  {LIGNES_OPTIONS.map((ligne) => <option key={ligne}>{ligne}</option>)}
+                </select>
+              </label>
+              <label>Fournisseur / Bénéficiaire <em>*</em>
+                <select value={form.fournisseur} onChange={(event) => updateField('fournisseur', event.target.value)}>
+                  <option value="">Sélectionner un fournisseur</option>
+                  {FOURNISSEURS_OPTIONS.map((fournisseur) => <option key={fournisseur}>{fournisseur}</option>)}
+                </select>
+              </label>
+              <label>Type de dépense <em>*</em>
+                <select value={form.typeDepense} onChange={(event) => updateField('typeDepense', event.target.value)}>
+                  <option value="">Sélectionner un type de dépense</option>
+                  {TYPES_DEPENSE_OPTIONS.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="tr-request-grid three">
+              <label>Montant demandé (FCFA) <em>*</em>
+                <input type="number" min="0" value={form.montant} onChange={(event) => updateField('montant', event.target.value)} placeholder="0" />
+              </label>
+              <label>Devise
+                <input value="FCFA" readOnly />
+              </label>
+              <label>Date de la dépense <em>*</em>
+                <input type="date" value={form.dateDepense} onChange={(event) => updateField('dateDepense', event.target.value)} />
+              </label>
+            </div>
+
+            <div className="tr-request-grid two">
+              <label>Objet / Description de la demande <em>*</em>
+                <textarea rows={4} value={form.objet} onChange={(event) => updateField('objet', event.target.value)} placeholder="Décrivez l'objet de la demande et toute information utile..." />
+              </label>
+              <label className="tr-textarea-counted">Commentaires (optionnel)
+                <textarea rows={4} maxLength={500} value={form.commentaires} onChange={(event) => updateField('commentaires', event.target.value)} placeholder="Commentaires supplémentaires..." />
+                <span className="tr-char-count">{form.commentaires.length}/500</span>
+              </label>
+            </div>
+
+            <div className="tr-request-actions">
+              <button type="button" className="tr-reset" onClick={resetForm}><RotateCcw size={14} />Réinitialiser</button>
+              <button type="button" className="tr-reset" onClick={saveDraft}><Save size={14} />Enregistrer le brouillon</button>
+              <button type="button" className="tr-btn-primary" onClick={submitDemande}>Soumettre la demande</button>
+            </div>
+          </div>
+
+          <div className="tr-draft-panel">
+            <div className="tr-draft-head">
+              <div className="tr-draft-head-title">
+                <h3>Brouillon (demandes non soumises)</h3>
+                <Info size={13} />
               </div>
-            </article>
-          ))}
-        </div>
-        <div className="tr-gauge-card">
-          <svg width="100" height="100" viewBox="0 0 100 100" className="tr-gauge">
-            <circle cx="50" cy="50" r="42" fill="none" stroke="#efeafb" strokeWidth="9" />
-            <circle cx="50" cy="50" r="42" fill="none" stroke="#16a34a" strokeWidth="9" strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - 0.72)} transform="rotate(-90 50 50)" />
-            <text x="50" y="56" textAnchor="middle" className="tr-gauge-text">72%</text>
-          </svg>
-          <strong>Taux d’exécution des paiements</strong>
-          <small>Objectif : 80%</small>
-        </div>
-      </div>
+              <button
+                type="button"
+                className="tr-draft-toggle"
+                onClick={() => setDraftSectionOpen((open) => !open)}
+                aria-expanded={draftSectionOpen}
+                aria-label={draftSectionOpen ? 'Masquer les brouillons' : 'Afficher les brouillons'}
+              >
+                {draftSectionOpen ? <><ChevronUp size={14} />Masquer</> : <><ChevronDown size={14} />Afficher</>}
+              </button>
+            </div>
 
-      <div className="tr-filters">
-        <label>Projet<select defaultValue="Tous"><option>Tous les projets</option></select></label>
-        <label>Code activité<select defaultValue="Tous"><option>Tous les codes</option></select></label>
-        <label>Initié par<select defaultValue="Tous"><option>Tous les collaborateurs</option></select></label>
-        <label>Compte débiteur<select defaultValue="Tous"><option>Tous les comptes</option></select></label>
-        <label>Compte créditeur<select defaultValue="Tous"><option>Tous les comptes / Employés</option></select></label>
-        <label>Statut paiement<select defaultValue="Tous"><option>Tous les statuts</option></select></label>
-      </div>
-      <div className="tr-filters">
-        <label>Date de début<input type="date" defaultValue="2025-01-01" /></label>
-        <label>Date de fin<input type="date" defaultValue="2025-05-31" /></label>
-        <label className="tr-search">
-          <Search size={14} />
-          <input placeholder="Rechercher (référence, libellé, bénéficiaire...)" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </label>
-        <button type="button" className="tr-reset" onClick={() => setSearch('')}><RotateCcw size={14} />Réinitialiser</button>
-        <button type="button" className="tr-btn-primary"><Filter size={14} />Filtrer</button>
-      </div>
+            {draftSectionOpen && (
+              <>
+                <div className="tr-filters">
+                  <label>Période
+                    <span className="tr-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</span>
+                  </label>
+                  <label>Projet
+                    <select defaultValue="Tous"><option>Tous les projets</option></select>
+                  </label>
+                  <label>Ligne budgétaire
+                    <select defaultValue="Toutes"><option>Toutes les lignes</option></select>
+                  </label>
+                  <label className="tr-search">
+                    <Search size={14} />
+                    <input placeholder="Rechercher une demande..." value={search} onChange={(event) => setSearch(event.target.value)} />
+                  </label>
+                  <button type="button" className="tr-btn-primary"><Download size={14} />Exporter</button>
+                </div>
 
-      <div className="tr-main">
+                <div className="tr-table-panel">
+                  <div className="tr-table-wrap">
+                    <table className="tr-table">
+                      <thead>
+                        <tr>
+                          <th>N° demande</th><th>Date de création</th><th>Projet</th><th>Ligne budgétaire</th>
+                          <th>Fournisseur / Bénéficiaire</th><th>Mercurial</th><th>Montant (FCFA)</th><th>Devise</th>
+                          <th>Statut</th><th>Dernière mise à jour</th><th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredBrouillons.map((brouillon) => (
+                          <tr key={brouillon.numero}>
+                            <td className="tr-code">{brouillon.numero}</td>
+                            <td>{brouillon.dateCreation}</td>
+                            <td>{brouillon.projet}</td>
+                            <td className="tr-name">{brouillon.ligneBudgetaire}</td>
+                            <td>{brouillon.fournisseur}</td>
+                            <td>{brouillon.mercurial}</td>
+                            <td className="tr-montant">{fmtMontant(brouillon.montant)}</td>
+                            <td>{brouillon.devise}</td>
+                            <td><span className={`tr-pill tr-pill-${statutClass(brouillon.statut)}`}>{brouillon.statut}</span></td>
+                            <td>{brouillon.dateMaj}</td>
+                            <td>
+                              <div className="tr-draft-actions">
+                                <button type="button" className="tr-row-action" aria-label="Modifier"><Pencil size={13} /></button>
+                                <button type="button" className="tr-row-action danger" aria-label="Supprimer"><Trash2 size={13} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredBrouillons.length === 0 && (
+                          <tr><td colSpan={11} className="tr-empty">Aucun brouillon ne correspond à cette recherche.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="tr-table-foot">
+                    <span>Affichage de {filteredBrouillons.length === 0 ? 0 : 1} à {filteredBrouillons.length} sur {filteredBrouillons.length} brouillons</span>
+                    <nav className="tr-pagination" aria-label="Pagination">
+                      <button type="button" disabled><ChevronsLeft size={14} /></button>
+                      <button type="button" disabled><ChevronLeft size={14} /></button>
+                      <button type="button" className="is-active">1</button>
+                      <button type="button" disabled><ChevronRight size={14} /></button>
+                      <button type="button" disabled><ChevronsRight size={14} /></button>
+                    </nav>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {innerTab === 'historique' && (
         <div className="tr-table-panel">
           <div className="tr-table-wrap">
             <table className="tr-table">
               <thead>
-                <tr>
-                  <th>Référence</th><th>Projet</th><th>Code activité</th><th>Libellé</th>
-                  <th>Compte débiteur</th><th>Compte créditeur</th><th>Montant</th><th>Justificatif</th>
-                  <th>Demandé par (Manager)</th><th>Date</th><th>Validation Direction</th><th>Validation Ressources</th>
-                  <th>Exécution (Trésorier)</th><th>Statut paiement</th><th>Actions</th>
-                </tr>
+                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Montant (FCFA)</th><th>Initié par</th><th>Date</th><th>Statut</th></tr>
               </thead>
               <tbody>
-                {DEMANDES.map((demande) => {
-                  const execState = executions[demande.reference]
-                  const effectiveStatut = execState?.confirmee ? 'Payé' : demande.statutPaiement
-                  return (
-                    <tr key={demande.reference}>
-                      <td className="tr-code">{demande.reference}</td>
-                      <td>{demande.projet}</td>
-                      <td>{demande.codeActivite}</td>
-                      <td className="tr-name">{demande.libelle}</td>
-                      <td>{demande.compteDebiteur}</td>
-                      <td>
-                        <strong>{demande.compteCrediteur}</strong>
-                        {demande.compteCrediteurSub && <small className="tr-sub">{demande.compteCrediteurSub}</small>}
-                      </td>
-                      <td className="tr-montant">{fmtMontant(demande.montant)}</td>
-                      <td><span className="tr-pieces"><Paperclip size={12} />{demande.justificatifs}</span></td>
-                      <td>{demande.initiePar}</td>
-                      <td>{demande.date}</td>
-                      <td><ValidationCell validation={demande.validationDirection} /></td>
-                      <td><ValidationCell validation={demande.validationRessources} /></td>
-                      <td>
-                        {demande.execution ? (
-                          <div className="tr-execution">
-                            <span className="tr-execution-tresorier"><Landmark size={11} />{demande.execution.tresorier}</span>
-                            {execState?.preuve ? (
-                              <span className="tr-execution-proof"><ImagePlus size={12} />{execState.preuve}</span>
-                            ) : (
-                              <button type="button" className="tr-execution-upload" onClick={() => triggerUpload(demande.reference)}>
-                                <Upload size={12} />Charger la preuve
-                              </button>
-                            )}
-                            {execState?.confirmee ? (
-                              <span className="tr-execution-confirmed"><ShieldCheck size={12} />Exécution confirmée</span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="tr-execution-confirm"
-                                disabled={!execState?.preuve}
-                                title={execState?.preuve ? 'Confirmer l’exécution (Manager)' : 'Preuve de paiement requise avant confirmation'}
-                                onClick={() => confirmExecution(demande.reference)}
-                              >
-                                <ClipboardCheck size={12} />Confirmer l’exécution
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="tr-validation-empty">-</span>
-                        )}
-                      </td>
-                      <td><span className={`tr-pill tr-pill-${statutPaiementClass(effectiveStatut)}`}>{effectiveStatut}</span></td>
-                      <td><button type="button" className="tr-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
-                    </tr>
-                  )
-                })}
+                {HISTORIQUE.map((entry) => (
+                  <tr key={entry.reference}>
+                    <td className="tr-code">{entry.reference}</td>
+                    <td>{entry.projet}</td>
+                    <td className="tr-name">{entry.libelle}</td>
+                    <td className="tr-montant">{fmtMontant(entry.montant)}</td>
+                    <td>{entry.initiePar}</td>
+                    <td>{entry.date}</td>
+                    <td><span className={`tr-pill tr-pill-${statutClass(entry.statut)}`}>{entry.statut}</span></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          <div className="tr-table-foot">
-            <span>Affichage de 1 à {DEMANDES.length} sur {TOTAL_DEMANDES} demandes</span>
-            <nav className="tr-pagination" aria-label="Pagination">
-              <button type="button" disabled><ChevronLeft size={14} /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">4</button>
-              <button type="button">5</button>
-              <span className="tr-page-ellipsis">…</span>
-              <button type="button">19</button>
-              <button type="button"><ChevronRight size={14} /></button>
-            </nav>
-          </div>
         </div>
-
-        <aside className="tr-side">
-          <div className="tr-panel">
-            <h3>Répartition par statut</h3>
-            <RepartitionDonut />
-          </div>
-
-          <div className="tr-panel">
-            <h3>Résumé financier (FCFA)</h3>
-            <ul className="tr-resume">
-              {RESUME_FINANCIER.map((item) => (
-                <li key={item.label}><span>{item.label}</span><b>{fmtMontant(item.value)}</b></li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="tr-panel">
-            <h3>Circuit de validation</h3>
-            <ul className="tr-circuit">
-              {CIRCUIT.map((step, index) => (
-                <li key={step.label}>
-                  <span className={`tr-circuit-dot ${step.tone}`}><CalendarClock size={12} /></span>
-                  <div><strong>{step.label}</strong><small>{step.sub}</small></div>
-                  {index < CIRCUIT.length - 1 && <span className="tr-circuit-line" />}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </aside>
-      </div>
-
-      <section className="tr-journal-panel">
-        <div className="tr-journal-head">
-          <h3><ScrollText size={15} />Journal des paiements</h3>
-          <span>Mouvements par date, compte bancaire et projet — calcul automatique des soldes disponibles.</span>
-        </div>
-
-        <div className="tr-comptes-strip">
-          {Object.entries(SOLDES_ACTUELS).map(([compte, solde]) => (
-            <div key={compte} className="tr-compte-chip">
-              <span className="tr-compte-chip-icon"><Landmark size={12} /></span>
-              <div><strong>{compte}</strong><span>{fmtMontant(solde)} FCFA</span></div>
-            </div>
-          ))}
-        </div>
-
-        <div className="tr-table-wrap">
-          <table className="tr-table tr-journal-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>Compte bancaire</th><th>Projet</th><th>Référence</th><th>Libellé</th>
-                <th>Débit (FCFA)</th><th>Solde avant</th><th>Solde après</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...JOURNAL].reverse().map((mouvement) => (
-                <tr key={mouvement.reference}>
-                  <td>{mouvement.date}</td>
-                  <td>{mouvement.compte}</td>
-                  <td>{mouvement.projet}</td>
-                  <td className="tr-code">{mouvement.reference}</td>
-                  <td className="tr-name">{mouvement.libelle}</td>
-                  <td className="tr-montant tr-montant-negative">- {fmtMontant(mouvement.debit)}</td>
-                  <td>{fmtMontant(mouvement.soldeAvant)}</td>
-                  <td className="tr-montant">{fmtMontant(mouvement.soldeApres)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      )}
     </section>
   )
 }

@@ -615,6 +615,36 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: -10px;
+  z-index: 40;
+  width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(20, 15, 60, 0.18);
+}
+
+.notification-dropdown li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #14123a;
+}
+
+.notification-dropdown li:not(:last-child) { border-bottom: 1px solid #f0eef8; }
+.notification-dropdown li span { font-size: 12px; font-weight: 600; }
+.notification-dropdown li small { font-size: 10.5px; color: #8f8fa6; }
+.notification-dropdown li.notification-empty { color: #a8a8bd; font-size: 12px; font-weight: 600; text-align: center; border-bottom: none; }
+
 .user-profile {
   display: flex;
   align-items: center;

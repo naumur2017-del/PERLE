@@ -96,6 +96,12 @@ interface TaskTimer {
   running: boolean
 }
 
+interface AppNotification {
+  id: string
+  message: string
+  date: string
+}
+
 const fmtTimer = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600)
   const m = Math.floor((totalSeconds % 3600) / 60)
@@ -117,7 +123,13 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('perle-sidebar-collapsed') === '1')
   const [taskTimers, setTaskTimers] = useState<TaskTimer[]>([])
   const [taskTimersCollapsed, setTaskTimersCollapsed] = useState(false)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const mainContentRef = useRef<HTMLElement>(null)
+
+  const addNotification = (message: string) => {
+    setNotifications((current) => [{ id: `ntf-${Date.now()}-${current.length}`, message, date: new Date().toLocaleString('fr-FR') }, ...current])
+  }
 
   const startTaskTimer = (code: string, nom: string) => {
     setTaskTimers((current) => current.some((timer) => timer.code === code)
@@ -344,7 +356,7 @@ function App() {
       case 'gestion-grades': return <ModulePage title={pageConfig['gestion-grades'].title} description={pageConfig['gestion-grades'].description} icon={icons.gestion} />
       case 'gestion-organigramme': return <ModulePage title={pageConfig['gestion-organigramme'].title} description={pageConfig['gestion-organigramme'].description} icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
-      case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} />
+      case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
       case 'tresorerie-comptes': return <ComptesCaissesPage navigateTo={navigateTo} />
       case 'tresorerie-budgets': return <ModulePage title={pageConfig['tresorerie-budgets'].title} description={pageConfig['tresorerie-budgets'].description} icon={icons.tresorerie} />
       case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
@@ -486,7 +498,24 @@ function App() {
                 <span className="dropdown-icon">▼</span>
               </button>
               <div className="hero-actions">
-                <button className="notification-btn">🔔</button>
+                <div className="notification-wrapper">
+                  <button className="notification-btn" onClick={() => setNotificationsOpen((open) => !open)}>
+                    🔔
+                    {notifications.length > 0 && <span className="notification-badge">{notifications.length}</span>}
+                  </button>
+                  {notificationsOpen && (
+                    <ul className="notification-dropdown" onMouseLeave={() => setNotificationsOpen(false)}>
+                      {notifications.length === 0 ? (
+                        <li className="notification-empty">Aucune notification</li>
+                      ) : notifications.map((notification) => (
+                        <li key={notification.id}>
+                          <span>{notification.message}</span>
+                          <small>{notification.date}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <div className="user-profile">
                   <span className="avatar">EP</span>
                   <div className="user-info">
