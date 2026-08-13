@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   BadgeCheck, Briefcase, Download, Edit2, Info, Landmark, Plus, Receipt, RefreshCw, Search,
-  Smartphone, Target, Trash2, UploadCloud, Wallet, Wallet2,
+  Smartphone, Trash2, UploadCloud, Wallet, Wallet2,
 } from 'lucide-react'
 import './ComptesCaissesPage.css'
 
@@ -57,7 +57,6 @@ export default function ComptesCaissesPage({ navigateTo }: { navigateTo: (page: 
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
         <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
         <button className="active" onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
-        <button onClick={() => navigateTo('tresorerie-budgets')}><Target size={14} />Budgets</button>
         <button onClick={() => navigateTo('tresorerie-rapports')}><Receipt size={14} />Rapports financiers</button>
       </nav>
 

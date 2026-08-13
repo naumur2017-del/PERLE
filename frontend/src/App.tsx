@@ -46,7 +46,6 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
   'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-caisses', title: 'Comptes et caisses', description: 'Suivez les soldes et mouvements de vos comptes bancaires, mobile money et caisses.' },
-  'tresorerie-budgets': { path: '/tresorerie/budgets', title: 'Budgets', description: 'Suivez la consommation budgétaire par projet et par ligne de dépense.' },
   'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
@@ -248,7 +247,6 @@ function App() {
         { id: 'tresorerie', label: 'Demandes de paiement' },
         { id: 'tresorerie-paiements', label: 'Paiements exécutés' },
         { id: 'tresorerie-comptes', label: 'Comptes et caisses' },
-        { id: 'tresorerie-budgets', label: 'Budgets' },
         { id: 'tresorerie-rapports', label: 'Rapports financiers' },
       ],
     },
@@ -358,7 +356,6 @@ function App() {
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
       case 'tresorerie-comptes': return <ComptesCaissesPage navigateTo={navigateTo} />
-      case 'tresorerie-budgets': return <ModulePage title={pageConfig['tresorerie-budgets'].title} description={pageConfig['tresorerie-budgets'].description} icon={icons.tresorerie} />
       case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage />

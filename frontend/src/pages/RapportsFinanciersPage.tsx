@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, BadgeCheck, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  Download, Eye, FileBarChart, Receipt, Search, Target, Wallet, X,
+  Download, Eye, FileBarChart, Receipt, Search, Wallet, X,
 } from 'lucide-react'
 import './RapportsFinanciersPage.css'
 
@@ -109,7 +109,6 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
         <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
         <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
-        <button onClick={() => navigateTo('tresorerie-budgets')}><Target size={14} />Budgets</button>
         <button className="active" onClick={() => navigateTo('tresorerie-rapports')}><FileBarChart size={14} />Rapports financiers</button>
       </nav>
 

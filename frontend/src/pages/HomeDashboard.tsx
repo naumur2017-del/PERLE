@@ -31,6 +31,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
   const [period, setPeriod] = useState<DirPeriod>(stored.period ?? 'year')
   const [loading, setLoading] = useState(false)
   const [refreshedAt, setRefreshedAt] = useState(clock())
+  const [collapsed, setCollapsed] = useState(false)
 
   // Le filtre de période est conservé pendant la session.
   useEffect(() => { sessionStorage.setItem(FILTER_KEY, JSON.stringify({ period })) }, [period])
@@ -75,9 +76,18 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
         <button type="button" className="dsh-btn dsh-btn-primary" onClick={refresh} disabled={loading}>
           {loading ? '⟳ Actualisation…' : '⟳ Actualiser'}
         </button>
+        <button
+          type="button"
+          className="dsh-btn"
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((current) => !current)}
+        >
+          {collapsed ? '⌄ Afficher la section Direction' : '⌃ Masquer la section Direction'}
+        </button>
       </div>
     </div>
 
+    {!collapsed && <>
     {/* ---------------------------------------------------------------- */}
     {/* Indicateurs de tête                                               */}
     {/* ---------------------------------------------------------------- */}
@@ -238,5 +248,6 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
         ]}
       />
     </Panel>
+    </>}
   </section>
 }
