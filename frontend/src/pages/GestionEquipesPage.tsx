@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
   BarChart3, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
-  Info, Network, Pencil, Plus, RotateCcw, Search, Star, StickyNote, UserCheck, UserPlus, UserX,
+  Info, Network, Pencil, Plus, RotateCcw, Search, Star, UploadCloud, UserPlus,
   Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
@@ -42,8 +42,8 @@ interface Employe {
   dateEntree: string
   derniereMajDate: string
   derniereMajPar: string
-  affectations: Affectation[]
-  historique: Record<string, Mouvement[]>
+  affectation: Affectation
+  historique: Mouvement[]
 }
 
 const EQUIPES = [
@@ -63,97 +63,75 @@ const EMPLOYES: Employe[] = [
     id: 'EMP-2025-021', nom: 'Essogo Erine', email: 'erine.essogo@naumur.com', initiales: 'EE', couleur: '#4338ca',
     statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Comptable', manager: 'Ajara Lamare',
     telephone: '+237 6 77 12 34 56', typeContrat: 'CDI', dateEntree: '10/05/2022', derniereMajDate: '10/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [
-      { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '01/06/2026', salaire: 125000, statut: 'Actif' },
-      { equipeCode: 'BO2', equipeNom: 'BO2 - Back Office 2', grade: 'G3', dateEffet: '15/03/2026', salaire: 95000, statut: 'Actif' },
-      { equipeCode: 'PI', equipeNom: 'PI - Pilotage & Ingénierie', grade: 'G2', dateEffet: '10/02/2025', salaire: 75000, statut: 'Actif' },
-      { equipeCode: 'IT', equipeNom: 'IT - Informatique', grade: 'G2', dateEffet: '01/12/2024', salaire: 75000, statut: 'Inactif' },
+    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '01/06/2026', salaire: 125000, statut: 'Actif' },
+    historique: [
+      { date: '01/06/2026', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' },
+      { date: '15/10/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '31/05/2026' },
+      { date: '10/02/2025', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '14/10/2025' },
     ],
-    historique: {
-      MO1: [
-        { date: '01/06/2026', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' },
-        { date: '15/10/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '31/05/2026' },
-        { date: '10/02/2025', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '14/10/2025' },
-      ],
-    },
   },
   {
     id: 'EMP-2025-005', nom: 'Mbouombouo Ibrahim', email: 'ibrahim.m@naumur.com', initiales: 'IM', couleur: '#16a34a',
     statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Contrôleur de gestion', manager: 'Ajara Lamare',
     telephone: '+237 6 90 22 11 08', typeContrat: 'CDI', dateEntree: '12/07/2021', derniereMajDate: '08/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [
-      { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '08/02/2025', salaire: 120000, statut: 'Actif' },
-      { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '12/07/2023', salaire: 90000, statut: 'Actif' },
-    ],
-    historique: { MO1: [{ date: '08/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }] },
+    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '08/02/2025', salaire: 120000, statut: 'Actif' },
+    historique: [{ date: '08/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-014', nom: 'Guebediang Pamella', email: 'pamella.g@naumur.com', initiales: 'PG', couleur: '#f59e0b',
     statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Contrôleur de gestion', manager: 'Ajara Lamare',
     telephone: '+237 6 55 87 43 21', typeContrat: 'CDI', dateEntree: '12/07/2021', derniereMajDate: '05/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [
-      { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G3', dateEffet: '05/02/2025', salaire: 95000, statut: 'Actif' },
-      { equipeCode: 'BO2', equipeNom: 'BO2 - Back Office 2', grade: 'G3', dateEffet: '01/03/2023', salaire: 95000, statut: 'Actif' },
-    ],
-    historique: { MO1: [{ date: '05/02/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }] },
+    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G3', dateEffet: '05/02/2025', salaire: 95000, statut: 'Actif' },
+    historique: [{ date: '05/02/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-009', nom: 'Bessala Ndzana Théodore', email: 'theodore.b@naumur.com', initiales: 'BT', couleur: '#db2777',
     statut: 'Actif', departement: 'Ressources Humaines', fonction: 'Responsable RH', manager: 'Ngando D. Garnier',
     telephone: '+237 6 71 09 88 45', typeContrat: 'CDI', dateEntree: '01/02/2019', derniereMajDate: '01/02/2025', derniereMajPar: 'Direction',
-    affectations: [
-      { equipeCode: 'RH', equipeNom: 'RH - Ressources Humaines', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' },
-      { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G3', dateEffet: '01/06/2022', salaire: 95000, statut: 'Actif' },
-    ],
-    historique: { RH: [{ date: '01/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }] },
+    affectation: { equipeCode: 'RH', equipeNom: 'RH - Ressources Humaines', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' },
+    historique: [{ date: '01/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-010', nom: 'Assabe Zainabou', email: 'zainabou.a@naumur.com', initiales: 'AZ', couleur: '#0ea5e9',
     statut: 'Actif', departement: 'Direction Générale', fonction: 'Assistante de direction', manager: 'Ngando D. Garnier',
     telephone: '+237 6 82 34 19 67', typeContrat: 'CDI', dateEntree: '15/03/2018', derniereMajDate: '01/02/2025', derniereMajPar: 'Direction',
-    affectations: [{ equipeCode: 'DG', equipeNom: 'DG - Direction Générale', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' }],
-    historique: { DG: [{ date: '01/02/2025', ancienGrade: 'G4', nouveauGrade: 'G4', type: 'Affectation initiale', dateFin: '—' }] },
+    affectation: { equipeCode: 'DG', equipeNom: 'DG - Direction Générale', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' },
+    historique: [{ date: '01/02/2025', ancienGrade: 'G4', nouveauGrade: 'G4', type: 'Affectation initiale', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-012', nom: 'Herman Tsaffack', email: 'herman.t@naumur.com', initiales: 'HT', couleur: '#dc2626',
     statut: 'Actif', departement: 'Ressources Humaines', fonction: 'Maintenancier & Réseau', manager: 'Théodore Bessala',
     telephone: '+237 6 96 40 12 78', typeContrat: 'CDD', dateEntree: '15/08/2022', derniereMajDate: '28/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [
-      { equipeCode: 'IT', equipeNom: 'IT - Informatique', grade: 'G3', dateEffet: '28/01/2025', salaire: 95000, statut: 'Actif' },
-      { equipeCode: 'BO2', equipeNom: 'BO2 - Back Office 2', grade: 'G2', dateEffet: '15/08/2022', salaire: 75000, statut: 'Actif' },
-    ],
-    historique: { IT: [{ date: '28/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }] },
+    affectation: { equipeCode: 'IT', equipeNom: 'IT - Informatique', grade: 'G3', dateEffet: '28/01/2025', salaire: 95000, statut: 'Actif' },
+    historique: [{ date: '28/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-018', nom: 'Bella Gamaliel Fabrice', email: 'gamaliel.b@naumur.com', initiales: 'BG', couleur: '#0d9488',
     statut: 'Actif', departement: 'Back Office', fonction: 'Agent back office', manager: 'Ajara Lamare',
     telephone: '+237 6 60 15 27 39', typeContrat: 'CDI', dateEntree: '25/01/2023', derniereMajDate: '25/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [
-      { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '25/01/2025', salaire: 90000, statut: 'Actif' },
-      { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G2', dateEffet: '25/01/2023', salaire: 75000, statut: 'Actif' },
-    ],
-    historique: { BO1: [{ date: '25/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }] },
+    affectation: { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '25/01/2025', salaire: 90000, statut: 'Actif' },
+    historique: [{ date: '25/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-022', nom: 'Nyanné Kédé Jezabel', email: 'jezabel.n@naumur.com', initiales: 'NJ', couleur: '#a855f7',
     statut: 'En congé', departement: 'Back Office', fonction: 'Agent back office', manager: 'Ajara Lamare',
     telephone: '+237 6 54 78 90 23', typeContrat: 'CDI', dateEntree: '15/01/2023', derniereMajDate: '15/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectations: [{ equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '15/01/2025', salaire: 90000, statut: 'Actif' }],
-    historique: { BO1: [{ date: '15/01/2025', ancienGrade: 'G3', nouveauGrade: 'G3', type: 'Affectation initiale', dateFin: '—' }] },
+    affectation: { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '15/01/2025', salaire: 90000, statut: 'Actif' },
+    historique: [{ date: '15/01/2025', ancienGrade: 'G3', nouveauGrade: 'G3', type: 'Affectation initiale', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-030', nom: 'Essogo Jacques', email: 'jacques.e@naumur.com', initiales: 'EJ', couleur: '#6b7280',
     statut: 'Inactif', departement: 'Trésorerie', fonction: 'Trésorier', manager: 'Direction',
     telephone: '+237 6 91 45 60 82', typeContrat: 'CDI', dateEntree: '10/12/2024', derniereMajDate: '10/12/2024', derniereMajPar: 'Direction',
-    affectations: [{ equipeCode: 'TR', equipeNom: 'TR - Trésorerie', grade: 'G2', dateEffet: '10/12/2024', salaire: 75000, statut: 'Inactif' }],
-    historique: { TR: [{ date: '10/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }] },
+    affectation: { equipeCode: 'TR', equipeNom: 'TR - Trésorerie', grade: 'G2', dateEffet: '10/12/2024', salaire: 75000, statut: 'Inactif' },
+    historique: [{ date: '10/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }],
   },
   {
     id: 'EMP-2025-031', nom: 'Ngono Mireille', email: 'mireille.n@naumur.com', initiales: 'NM', couleur: '#ea580c',
     statut: 'Inactif', departement: 'Architecture', fonction: 'Analyste architecture', manager: 'Direction',
     telephone: '+237 6 83 21 74 09', typeContrat: 'CDD', dateEntree: '05/12/2024', derniereMajDate: '05/12/2024', derniereMajPar: 'Direction',
-    affectations: [{ equipeCode: 'ARC', equipeNom: 'ARC - Architecture', grade: 'G2', dateEffet: '05/12/2024', salaire: 75000, statut: 'Inactif' }],
-    historique: { ARC: [{ date: '05/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }] },
+    affectation: { equipeCode: 'ARC', equipeNom: 'ARC - Architecture', grade: 'G2', dateEffet: '05/12/2024', salaire: 75000, statut: 'Inactif' },
+    historique: [{ date: '05/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }],
   },
 ]
 
@@ -164,8 +142,6 @@ const TYPES_MOUVEMENT = ['Promotion', 'Affectation initiale', 'Mutation', 'Rétr
 
 const KPIS = [
   { icon: Users, tone: 'purple', label: 'Total employés', value: '136', sub: 'Actifs' },
-  { icon: UserCheck, tone: 'green', label: 'Employés staffables', value: '124', sub: 'Avec grade actif' },
-  { icon: UserX, tone: 'orange', label: 'Sans grade défini', value: '12', sub: 'Dans au moins une équipe' },
   { icon: Star, tone: 'pink', label: 'Promotions ce mois', value: '8', sub: 'Toutes équipes' },
   { icon: Users2, tone: 'blue', label: 'Équipes', value: '9', sub: 'Dans l’organisation' },
 ]
@@ -178,15 +154,14 @@ const statutClass = (statut: StatutEmploye) => {
   return 'inactif'
 }
 
-type EmployeColumnId = 'id' | 'employe' | 'statut' | 'departement' | 'gradePrincipal' | 'equipesGrades' | 'derniereMaj'
+type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'gradePrincipal' | 'derniereMaj'
 
 const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
   { id: 'id', label: 'ID Employé' },
   { id: 'employe', label: 'Employé' },
   { id: 'statut', label: 'Statut' },
-  { id: 'departement', label: 'Département' },
+  { id: 'equipe', label: 'Équipe' },
   { id: 'gradePrincipal', label: 'Grade principal' },
-  { id: 'equipesGrades', label: 'Équipes & grades actifs' },
   { id: 'derniereMaj', label: 'Dernière mise à jour' },
 ]
 
@@ -204,22 +179,8 @@ const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (
     ),
   },
   statut: { render: (e) => <span className={`ge-pill ge-pill-${statutClass(e.statut)}`}>{e.statut}</span> },
-  departement: { render: (e) => e.departement },
-  gradePrincipal: { render: (e) => <span className="ge-grade-pill">{e.affectations[0]?.grade ?? '—'}</span> },
-  equipesGrades: {
-    render: (e) => {
-      const badgesVisibles = e.affectations.slice(0, 3)
-      const reste = e.affectations.length - badgesVisibles.length
-      return (
-        <div className="ge-team-badges">
-          {badgesVisibles.map((affectation) => (
-            <span key={affectation.equipeCode} className="ge-team-badge">{affectation.equipeCode} ({affectation.grade})</span>
-          ))}
-          {reste > 0 && <span className="ge-team-badge ge-team-badge-more">+{reste}</span>}
-        </div>
-      )
-    },
-  },
+  equipe: { render: (e) => e.affectation.equipeNom },
+  gradePrincipal: { render: (e) => <span className="ge-grade-pill">{e.affectation.grade}</span> },
   derniereMaj: { render: (e) => <><strong>{e.derniereMajDate}</strong><small className="ge-sub">Par {e.derniereMajPar}</small></> },
 }
 
@@ -243,14 +204,10 @@ function InfosGeneralesTab({ employe }: { employe: Employe }) {
 }
 
 function AffectationsTab({ employe }: { employe: Employe }) {
-  const equipesEmploye = employe.affectations.map((a) => a.equipeCode)
-  const [equipeSelectionnee, setEquipeSelectionnee] = useState(equipesEmploye[0])
   const [typeMouvement, setTypeMouvement] = useState('Tous')
 
-  const historique = (employe.historique[equipeSelectionnee] ?? []).filter(
-    (m) => typeMouvement === 'Tous' || m.type === typeMouvement
-  )
-  const equipeSelectionneeNom = employe.affectations.find((a) => a.equipeCode === equipeSelectionnee)?.equipeNom ?? equipeSelectionnee
+  const historique = employe.historique.filter((m) => typeMouvement === 'Tous' || m.type === typeMouvement)
+  const { affectation } = employe
 
   return (
     <div className="ge-detail-section">
@@ -261,26 +218,19 @@ function AffectationsTab({ employe }: { employe: Employe }) {
             <tr><th>Équipe</th><th>Grade actuel</th><th>Date d’effet</th><th>Salaire / valeur liée au grade</th><th>Statut</th></tr>
           </thead>
           <tbody>
-            {employe.affectations.map((affectation) => (
-              <tr key={affectation.equipeCode}>
-                <td>{affectation.equipeNom}</td>
-                <td><span className="ge-grade-pill">{affectation.grade}</span></td>
-                <td>{affectation.dateEffet}</td>
-                <td>{fmtMontant(affectation.salaire)} FCFA / EHS</td>
-                <td><span className={`ge-pill ge-pill-${affectation.statut === 'Actif' ? 'actif' : 'inactif'}`}>{affectation.statut}</span></td>
-              </tr>
-            ))}
+            <tr key={affectation.equipeCode}>
+              <td>{affectation.equipeNom}</td>
+              <td><span className="ge-grade-pill">{affectation.grade}</span></td>
+              <td>{affectation.dateEffet}</td>
+              <td>{fmtMontant(affectation.salaire)} FCFA / EHS</td>
+              <td><span className={`ge-pill ge-pill-${affectation.statut === 'Actif' ? 'actif' : 'inactif'}`}>{affectation.statut}</span></td>
+            </tr>
           </tbody>
         </table>
       </div>
 
-      <h4 className="ge-detail-section-title-spaced">Historique des grades & promotions ({equipeSelectionnee})</h4>
+      <h4 className="ge-detail-section-title-spaced">Historique des grades & promotions</h4>
       <div className="ge-detail-filters">
-        <label>Équipe
-          <select value={equipeSelectionnee} onChange={(event) => setEquipeSelectionnee(event.target.value)}>
-            {employe.affectations.map((a) => <option key={a.equipeCode} value={a.equipeCode}>{a.equipeNom}</option>)}
-          </select>
-        </label>
         <label>Type de mouvement
           <select value={typeMouvement} onChange={(event) => setTypeMouvement(event.target.value)}>
             <option value="Tous">Tous</option>
@@ -304,50 +254,54 @@ function AffectationsTab({ employe }: { employe: Employe }) {
               </tr>
             ))}
             {historique.length === 0 && (
-              <tr><td colSpan={5} className="ge-detail-empty">Aucun mouvement pour {equipeSelectionneeNom}.</td></tr>
+              <tr><td colSpan={5} className="ge-detail-empty">Aucun mouvement pour {affectation.equipeNom}.</td></tr>
             )}
           </tbody>
         </table>
       </div>
-
-      <button type="button" className="ge-btn-outline ge-detail-history-btn">
-        <BarChart3 size={14} />Voir l’historique complet de toutes les équipes
-      </button>
     </div>
   )
 }
 
+type DocKey = 'cv' | 'cni' | 'contrat'
+
+const DOC_TYPES: { key: DocKey; label: string }[] = [
+  { key: 'cv', label: 'CV' },
+  { key: 'cni', label: 'CNI / Carte d’identité' },
+  { key: 'contrat', label: 'Contrat de travail' },
+]
+
 function DocumentsTab({ employe }: { employe: Employe }) {
-  const documents = [
-    { nom: 'Contrat de travail.pdf', date: employe.dateEntree },
-    { nom: 'Carte nationale d’identité.pdf', date: employe.dateEntree },
-    { nom: 'Diplôme.pdf', date: employe.dateEntree },
-  ]
+  const [files, setFiles] = useState<Record<DocKey, File | null>>({ cv: null, cni: null, contrat: null })
+
+  const handleUpload = (key: DocKey, event: ChangeEvent<HTMLInputElement>) => {
+    setFiles((prev) => ({ ...prev, [key]: event.target.files?.[0] ?? null }))
+  }
+
   return (
     <ul className="ge-doc-list">
-      {documents.map((doc) => (
-        <li key={doc.nom}>
-          <span className="ge-doc-icon"><FileText size={14} /></span>
-          <div><strong>{doc.nom}</strong><small>Ajouté le {doc.date}</small></div>
-          <button type="button" className="ge-row-action" aria-label={`Télécharger ${doc.nom}`}><Download size={13} /></button>
-        </li>
-      ))}
+      {DOC_TYPES.map((doc) => {
+        const file = files[doc.key]
+        return (
+          <li key={doc.key}>
+            <span className="ge-doc-icon"><FileText size={14} /></span>
+            <div>
+              <strong>{doc.label}</strong>
+              <small>{file ? file.name : `Aucun fichier pour ${employe.nom}`}</small>
+            </div>
+            <label className="ge-doc-upload-btn">
+              <UploadCloud size={13} />{file ? 'Remplacer' : 'Téléverser'}
+              <input type="file" className="ge-hidden-input" onChange={(event) => handleUpload(doc.key, event)} />
+            </label>
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
-function NotesTab() {
-  return (
-    <div className="ge-notes">
-      <textarea className="ge-notes-input" placeholder="Ajouter une note sur cet employé..." rows={3} />
-      <button type="button" className="ge-btn-primary ge-notes-submit"><StickyNote size={13} />Ajouter la note</button>
-      <p className="ge-notes-empty">Aucune note pour le moment.</p>
-    </div>
-  )
-}
-
 function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => void }) {
-  const [tab, setTab] = useState<'infos' | 'affectations' | 'documents' | 'notes'>('affectations')
+  const [tab, setTab] = useState<'infos' | 'affectations' | 'documents'>('affectations')
 
   return (
     <aside className="ge-detail-panel">
@@ -372,14 +326,12 @@ function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => 
         <button className={tab === 'infos' ? 'active' : ''} onClick={() => setTab('infos')}>Infos générales</button>
         <button className={tab === 'affectations' ? 'active' : ''} onClick={() => setTab('affectations')}>Affectations & grades</button>
         <button className={tab === 'documents' ? 'active' : ''} onClick={() => setTab('documents')}>Documents</button>
-        <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>Notes</button>
       </nav>
 
       <div className="ge-detail-body">
         {tab === 'infos' && <InfosGeneralesTab employe={employe} />}
         {tab === 'affectations' && <AffectationsTab employe={employe} />}
         {tab === 'documents' && <DocumentsTab employe={employe} />}
-        {tab === 'notes' && <NotesTab />}
       </div>
     </aside>
   )
@@ -403,8 +355,8 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         || employe.email.toLowerCase().includes(query)
       const matchesStatut = statutFiltre === 'Tous' || employe.statut === statutFiltre
       const matchesDepartement = departementFiltre === 'Tous' || employe.departement === departementFiltre
-      const matchesEquipe = equipeFiltre === 'Tous' || employe.affectations.some((a) => a.equipeCode === equipeFiltre)
-      const matchesGrade = gradeFiltre === 'Tous' || employe.affectations.some((a) => a.grade === gradeFiltre)
+      const matchesEquipe = equipeFiltre === 'Tous' || employe.affectation.equipeCode === equipeFiltre
+      const matchesGrade = gradeFiltre === 'Tous' || employe.affectation.grade === gradeFiltre
       return matchesQuery && matchesStatut && matchesDepartement && matchesEquipe && matchesGrade
     })
   }, [search, statutFiltre, departementFiltre, equipeFiltre, gradeFiltre])
@@ -500,12 +452,16 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
               </thead>
               <tbody>
                 {filtered.map((employe) => (
-                  <tr key={employe.id} className={employe.id === selectedId ? 'is-selected' : ''}>
+                  <tr
+                    key={employe.id}
+                    className={employe.id === selectedId ? 'is-selected' : ''}
+                    onClick={() => setSelectedId(employe.id)}
+                  >
                     {visibleColumns.map((c) => {
                       const def = EMPLOYE_CELL_DEFS[c.id]
                       return <td key={c.id} className={def.className}>{def.render(employe)}</td>
                     })}
-                    <td>
+                    <td onClick={(event) => event.stopPropagation()}>
                       <div className="ge-actions">
                         <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
                         <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
@@ -547,7 +503,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
           </div>
         </div>
 
-        {selected && <DetailEmploye employe={selected} onClose={() => setSelectedId(null)} />}
+        {selected && <DetailEmploye key={selected.id} employe={selected} onClose={() => setSelectedId(null)} />}
       </div>
 
       <div className="ge-legend-info">
