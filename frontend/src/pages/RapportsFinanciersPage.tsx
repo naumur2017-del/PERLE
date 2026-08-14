@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   ArrowDownRight, ArrowUpRight, BadgeCheck, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Download, Eye, FileBarChart, Receipt, Search, Wallet, X,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './RapportsFinanciersPage.css'
 
 type Sens = 'entree' | 'sortie'
@@ -49,6 +50,49 @@ const STATUTS = ['Exécuté', 'En attente', 'Rejeté']
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
+type OperationColumnId = 'date' | 'initiateur' | 'beneficiaire' | 'montant' | 'compteDebiteur' | 'compteCrediteur' | 'typeOperation' | 'statut' | 'reference'
+
+const OPERATION_COLUMNS: ColumnDef<OperationColumnId>[] = [
+  { id: 'date', label: 'Date' },
+  { id: 'initiateur', label: 'Initiateur' },
+  { id: 'beneficiaire', label: 'Bénéficiaire' },
+  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'compteDebiteur', label: 'Compte débiteur' },
+  { id: 'compteCrediteur', label: 'Compte créditeur' },
+  { id: 'typeOperation', label: 'Type d’opération' },
+  { id: 'statut', label: 'Statut' },
+  { id: 'reference', label: 'Référence' },
+]
+
+const OPERATION_CELL_DEFS: Record<OperationColumnId, { className?: string; render: (op: Operation) => ReactNode }> = {
+  date: { render: (op) => <><strong>{op.date}</strong><small className="rf-sub">{op.heure}</small></> },
+  initiateur: { render: (op) => <><strong>{op.initiateur}</strong><small className="rf-sub">{op.initiateurRole}</small></> },
+  beneficiaire: { className: 'rf-name', render: (op) => op.beneficiaire },
+  montant: {
+    render: (op) => (
+      <>
+        <div className={`rf-op-montant rf-op-montant-${op.sens}`}>
+          {op.sens === 'sortie' ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
+          {fmtMontant(op.montant)}
+        </div>
+        <small className="rf-sub">{op.sens === 'sortie' ? 'Sortie' : 'Entrée'}</small>
+      </>
+    ),
+  },
+  compteDebiteur: { render: (op) => <><strong>{op.compteDebiteurCode} - {op.compteDebiteurNom}</strong><small className="rf-sub">{op.compteDebiteurSub}</small></> },
+  compteCrediteur: { render: (op) => <><strong>{op.compteCrediteurCode} - {op.compteCrediteurNom}</strong><small className="rf-sub">{op.compteCrediteurSub}</small></> },
+  typeOperation: {
+    render: (op) => (
+      <span className={`rf-type-op rf-type-op-${op.sens}`}>
+        {op.sens === 'sortie' ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
+        {op.typeOperation}
+      </span>
+    ),
+  },
+  statut: { render: (op) => <span className="rf-status-pill">{op.statut}</span> },
+  reference: { className: 'rf-code', render: (op) => op.reference },
+}
+
 function OperationDetailModal({ operation, onClose }: { operation: Operation; onClose: () => void }) {
   return (
     <div className="rf-modal-backdrop" onClick={onClose}>
@@ -86,6 +130,7 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
   const [typeFiltre, setTypeFiltre] = useState('Tous')
   const [statutFiltre, setStatutFiltre] = useState('Tous')
   const [selected, setSelected] = useState<Operation | null>(null)
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(OPERATION_COLUMNS)
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -118,7 +163,10 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
             <h3>Liste des opérations</h3>
             <p>Consultez toutes les opérations financières (entrées et sorties) enregistrées sur les comptes.</p>
           </div>
-          <button type="button" className="rf-btn-outline"><Download size={14} />Exporter</button>
+          <div className="rf-list-head-actions">
+            <ColumnsMenu columns={OPERATION_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="rf-btn-outline" />
+            <button type="button" className="rf-btn-outline"><Download size={14} />Exporter</button>
+          </div>
         </div>
 
         <div className="rf-op-filters">
@@ -151,46 +199,17 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
           <table className="rf-table rf-op-table">
             <thead>
               <tr>
-                <th>Date</th><th>Initiateur</th><th>Bénéficiaire</th><th>Montant (FCFA)</th>
-                <th>Compte débiteur</th><th>Compte créditeur</th><th>Type d’opération</th>
-                <th>Statut</th><th>Référence</th><th>Actions</th>
+                {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((op) => (
                 <tr key={op.reference}>
-                  <td>
-                    <strong>{op.date}</strong>
-                    <small className="rf-sub">{op.heure}</small>
-                  </td>
-                  <td>
-                    <strong>{op.initiateur}</strong>
-                    <small className="rf-sub">{op.initiateurRole}</small>
-                  </td>
-                  <td className="rf-name">{op.beneficiaire}</td>
-                  <td>
-                    <div className={`rf-op-montant rf-op-montant-${op.sens}`}>
-                      {op.sens === 'sortie' ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
-                      {fmtMontant(op.montant)}
-                    </div>
-                    <small className="rf-sub">{op.sens === 'sortie' ? 'Sortie' : 'Entrée'}</small>
-                  </td>
-                  <td>
-                    <strong>{op.compteDebiteurCode} - {op.compteDebiteurNom}</strong>
-                    <small className="rf-sub">{op.compteDebiteurSub}</small>
-                  </td>
-                  <td>
-                    <strong>{op.compteCrediteurCode} - {op.compteCrediteurNom}</strong>
-                    <small className="rf-sub">{op.compteCrediteurSub}</small>
-                  </td>
-                  <td>
-                    <span className={`rf-type-op rf-type-op-${op.sens}`}>
-                      {op.sens === 'sortie' ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
-                      {op.typeOperation}
-                    </span>
-                  </td>
-                  <td><span className="rf-status-pill">{op.statut}</span></td>
-                  <td className="rf-code">{op.reference}</td>
+                  {visibleColumns.map((c) => {
+                    const def = OPERATION_CELL_DEFS[c.id]
+                    return <td key={c.id} className={def.className}>{def.render(op)}</td>
+                  })}
                   <td>
                     <button type="button" className="rf-row-action" aria-label="Voir le détail" onClick={() => setSelected(op)}>
                       <Eye size={13} />
@@ -199,7 +218,7 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="rf-empty">Aucune opération ne correspond à votre recherche.</td></tr>
+                <tr><td colSpan={visibleColumns.length + 1} className="rf-empty">Aucune opération ne correspond à votre recherche.</td></tr>
               )}
             </tbody>
           </table>

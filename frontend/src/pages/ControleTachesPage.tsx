@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList,
   Gauge, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ControleTachesPage.css'
 
 interface Tache {
@@ -11,7 +12,6 @@ interface Tache {
   nom: string
   division: string
   ligneBudgetaire: string
-  type: 'E' | 'D'
   attribuePar: string
   attribueA: string
   dateDebut: string
@@ -26,12 +26,12 @@ interface Tache {
 }
 
 const TACHES: Tache[] = [
-  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', type: 'E', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, statut: 'En cours', priorite: 'Élevée' },
-  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, statut: 'En pause', priorite: 'Moyenne' },
-  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, statut: 'Terminée', priorite: 'Élevée' },
-  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', type: 'E', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, statut: 'En retard', priorite: 'Élevée' },
-  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', type: 'D', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, statut: 'En cours', priorite: 'Moyenne' },
-  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', type: 'E', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, statut: 'En cours', priorite: 'Faible' },
+  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, statut: 'En cours', priorite: 'Élevée' },
+  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, statut: 'En pause', priorite: 'Moyenne' },
+  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, statut: 'Terminée', priorite: 'Élevée' },
+  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, statut: 'En retard', priorite: 'Élevée' },
+  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, statut: 'En cours', priorite: 'Moyenne' },
+  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, statut: 'En cours', priorite: 'Faible' },
 ]
 
 const KPIS = [
@@ -90,6 +90,50 @@ const statutClass = (statut: Tache['statut']) => {
 
 const prioriteClass = (priorite: Tache['priorite']) => priorite === 'Élevée' ? 'elevee' : priorite === 'Moyenne' ? 'moyenne' : 'faible'
 
+type TacheColumnId =
+  | 'code' | 'projet' | 'ligneBudgetaire' | 'nom' | 'division' | 'attribuePar' | 'attribueA'
+  | 'dateDebut' | 'dateFin' | 'echeance'
+  | 'dureePrevue' | 'dureeConsommee' | 'dureeRestante'
+  | 'progTemporelle' | 'statut' | 'priorite'
+
+const TACHE_COLUMNS: ColumnDef<TacheColumnId>[] = [
+  { id: 'code', label: 'Code tâche' },
+  { id: 'projet', label: 'Projet' },
+  { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+  { id: 'nom', label: 'Nom de la tâche' },
+  { id: 'division', label: 'Équipe' },
+  { id: 'attribuePar', label: 'Attribué par' },
+  { id: 'attribueA', label: 'Attribué à' },
+  { id: 'dateDebut', label: 'Date début' },
+  { id: 'dateFin', label: 'Date fin' },
+  { id: 'echeance', label: 'Échéance' },
+  { id: 'dureePrevue', label: 'Prévue', group: 'Durée (jours)' },
+  { id: 'dureeConsommee', label: 'Consommée', group: 'Durée (jours)' },
+  { id: 'dureeRestante', label: 'Restante', group: 'Durée (jours)' },
+  { id: 'progTemporelle', label: 'Progression' },
+  { id: 'statut', label: 'Statut' },
+  { id: 'priorite', label: 'Priorité' },
+]
+
+const TACHE_CELL_DEFS: Record<TacheColumnId, { className?: string; render: (t: Tache) => ReactNode }> = {
+  code: { className: 'ct-code', render: (t) => t.code },
+  projet: { render: (t) => t.projet },
+  ligneBudgetaire: { render: (t) => t.ligneBudgetaire },
+  nom: { className: 'ct-name', render: (t) => t.nom },
+  division: { render: (t) => t.division },
+  attribuePar: { render: (t) => t.attribuePar },
+  attribueA: { render: (t) => t.attribueA },
+  dateDebut: { render: (t) => t.dateDebut },
+  dateFin: { render: (t) => t.dateFin },
+  echeance: { render: (t) => t.echeance },
+  dureePrevue: { render: (t) => t.dureePrevue },
+  dureeConsommee: { render: (t) => t.dureeConsommee },
+  dureeRestante: { render: (t) => t.dureeRestante },
+  progTemporelle: { render: (t) => `${t.progTemporelle}%` },
+  statut: { render: (t) => <span className={`ct-pill ct-pill-${statutClass(t.statut)}`}>{t.statut}</span> },
+  priorite: { render: (t) => <span className={`ct-priorite ct-priorite-${prioriteClass(t.priorite)}`}>{t.priorite}</span> },
+}
+
 function RepartitionDonut() {
   const total = REPARTITION.reduce((sum, item) => sum + item.value, 0)
   const cx = 80, cy = 80, outer = 68, inner = 44
@@ -132,7 +176,8 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
   const [filterStatut, setFilterStatut] = useState('Tous')
   const [filterPriorite, setFilterPriorite] = useState('Toutes')
-  const [filterType, setFilterType] = useState('Tous')
+  const { hiddenColumns, toggleColumn, visibleColumns, headerCells } = useColumnVisibility(TACHE_COLUMNS)
+  const totalColSpan = visibleColumns.length + 1
 
   const projets = useMemo(() => Array.from(new Set(TACHES.map((t) => t.projet))), [])
   const lignesBudgetaires = useMemo(() => Array.from(new Set(TACHES.map((t) => t.ligneBudgetaire))), [])
@@ -140,7 +185,7 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
 
   const resetFiltres = () => {
     setSearch(''); setFilterProjet('Tous'); setFilterLigne('Toutes'); setFilterEquipe('Toutes')
-    setFilterStatut('Tous'); setFilterPriorite('Toutes'); setFilterType('Tous')
+    setFilterStatut('Tous'); setFilterPriorite('Toutes')
   }
 
   const tachesFiltrees = TACHES.filter((tache) => (
@@ -149,7 +194,6 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
     && (filterEquipe === 'Toutes' || tache.division === filterEquipe)
     && (filterStatut === 'Tous' || tache.statut === filterStatut)
     && (filterPriorite === 'Toutes' || tache.priorite === filterPriorite)
-    && (filterType === 'Tous' || tache.type === filterType)
     && (search.trim() === '' || `${tache.code} ${tache.nom} ${tache.attribueA} ${tache.attribuePar}`.toLowerCase().includes(search.trim().toLowerCase()))
   ))
 
@@ -172,6 +216,26 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
             </div>
           </article>
         ))}
+      </div>
+
+      <div className="ct-side-panels">
+        <div className="ct-panel">
+          <h3>Répartition des tâches</h3>
+          <RepartitionDonut />
+        </div>
+        <div className="ct-panel">
+          <h3>Alertes</h3>
+          <ul className="ct-alertes">
+            {ALERTES.map((alerte) => (
+              <li key={alerte.label}>
+                <span className={`ct-alerte-icon ${alerte.tone}`}><alerte.icon size={14} /></span>
+                <span className="ct-alerte-label">{alerte.label}</span>
+                <b>{alerte.value}</b>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="ct-btn-outline ct-alertes-cta">Voir toutes les alertes</button>
+        </div>
       </div>
 
       <div className="ct-filters">
@@ -205,12 +269,6 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
             <option>Élevée</option><option>Moyenne</option><option>Faible</option>
           </select>
         </label>
-        <label>Type
-          <select value={filterType} onChange={(event) => setFilterType(event.target.value)}>
-            <option value="Tous">Tous (E / D)</option>
-            <option value="E">E</option><option value="D">D</option>
-          </select>
-        </label>
         <label className="ct-search">
           <Search size={14} />
           <input placeholder="Rechercher une tâche (code, nom, collaborateur...)" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -218,97 +276,53 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
         <button type="button" className="ct-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
-      <div className="ct-main">
-        <div className="ct-table-panel">
-          <div className="ct-table-head"><h3>Liste des tâches ({tachesFiltrees.length.toLocaleString('fr-FR')} sur 1 248)</h3></div>
-          <div className="ct-table-wrap">
-            <table className="ct-table">
-              <thead>
-                <tr>
-                  <th rowSpan={2}>Code tâche</th>
-                  <th rowSpan={2}>Projet</th>
-                  <th rowSpan={2}>Ligne budgétaire</th>
-                  <th rowSpan={2}>Nom de la tâche</th>
-                  <th rowSpan={2}>Équipe</th>
-                  <th rowSpan={2}>Type</th>
-                  <th rowSpan={2}>Attribué par</th>
-                  <th rowSpan={2}>Attribué à</th>
-                  <th rowSpan={2}>Date début</th>
-                  <th rowSpan={2}>Date fin</th>
-                  <th rowSpan={2}>Échéance</th>
-                  <th colSpan={3}>Durée (jours)</th>
-                  <th rowSpan={2}>Progression</th>
-                  <th rowSpan={2}>Statut</th>
-                  <th rowSpan={2}>Priorité</th>
-                  <th rowSpan={2}></th>
-                </tr>
-                <tr>
-                  <th>Prévue</th><th>Consommée</th><th>Restante</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tachesFiltrees.length === 0 && (
-                  <tr><td colSpan={17} className="ct-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
-                )}
-                {tachesFiltrees.map((tache) => (
-                  <tr key={tache.code}>
-                    <td className="ct-code">{tache.code}</td>
-                    <td>{tache.projet}</td>
-                    <td>{tache.ligneBudgetaire}</td>
-                    <td className="ct-name">{tache.nom}</td>
-                    <td>{tache.division}</td>
-                    <td><span className={`ct-type ${tache.type === 'D' ? 'money' : ''}`}>{tache.type}</span></td>
-                    <td>{tache.attribuePar}</td>
-                    <td>{tache.attribueA}</td>
-                    <td>{tache.dateDebut}</td>
-                    <td>{tache.dateFin}</td>
-                    <td>{tache.echeance}</td>
-                    <td>{tache.dureePrevue}</td>
-                    <td>{tache.dureeConsommee}</td>
-                    <td>{tache.dureeRestante}</td>
-                    <td>{tache.progTemporelle}%</td>
-                    <td><span className={`ct-pill ct-pill-${statutClass(tache.statut)}`}>{tache.statut}</span></td>
-                    <td><span className={`ct-priorite ct-priorite-${prioriteClass(tache.priorite)}`}>{tache.priorite}</span></td>
-                    <td><button type="button" className="ct-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="ct-table-foot">
-            <span>Affichage de 1 à {tachesFiltrees.length} sur 1 248 tâches</span>
-            <nav className="ct-pagination" aria-label="Pagination">
-              <button type="button" disabled><ChevronLeft size={14} /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">4</button>
-              <span className="ct-page-ellipsis">…</span>
-              <button type="button">208</button>
-              <button type="button"><ChevronRight size={14} /></button>
-            </nav>
-          </div>
+      <div className="ct-table-panel">
+        <div className="ct-table-head">
+          <h3>Liste des tâches ({tachesFiltrees.length.toLocaleString('fr-FR')} sur 1 248)</h3>
+          <ColumnsMenu columns={TACHE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
         </div>
-
-        <aside className="ct-side">
-          <div className="ct-panel">
-            <h3>Répartition des tâches</h3>
-            <RepartitionDonut />
-          </div>
-          <div className="ct-panel">
-            <h3>Alertes</h3>
-            <ul className="ct-alertes">
-              {ALERTES.map((alerte) => (
-                <li key={alerte.label}>
-                  <span className={`ct-alerte-icon ${alerte.tone}`}><alerte.icon size={14} /></span>
-                  <span className="ct-alerte-label">{alerte.label}</span>
-                  <b>{alerte.value}</b>
-                </li>
+        <div className="ct-table-wrap">
+          <table className="ct-table">
+            <thead>
+              <tr>
+                {headerCells.map((cell) => cell.isGroup
+                  ? <th key={cell.key} colSpan={cell.colSpan}>{cell.label}</th>
+                  : <th key={cell.key} rowSpan={2}>{cell.label}</th>)}
+                <th rowSpan={2}></th>
+              </tr>
+              <tr>
+                {visibleColumns.filter((c) => c.group).map((c) => <th key={c.id}>{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {tachesFiltrees.length === 0 && (
+                <tr><td colSpan={totalColSpan} className="ct-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+              )}
+              {tachesFiltrees.map((tache) => (
+                <tr key={tache.code}>
+                  {visibleColumns.map((c) => {
+                    const def = TACHE_CELL_DEFS[c.id]
+                    return <td key={c.id} className={def.className}>{def.render(tache)}</td>
+                  })}
+                  <td><button type="button" className="ct-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
+                </tr>
               ))}
-            </ul>
-            <button type="button" className="ct-btn-outline ct-alertes-cta">Voir toutes les alertes</button>
-          </div>
-        </aside>
+            </tbody>
+          </table>
+        </div>
+        <div className="ct-table-foot">
+          <span>Affichage de 1 à {tachesFiltrees.length} sur 1 248 tâches</span>
+          <nav className="ct-pagination" aria-label="Pagination">
+            <button type="button" disabled><ChevronLeft size={14} /></button>
+            <button type="button" className="is-active">1</button>
+            <button type="button">2</button>
+            <button type="button">3</button>
+            <button type="button">4</button>
+            <span className="ct-page-ellipsis">…</span>
+            <button type="button">208</button>
+            <button type="button"><ChevronRight size={14} /></button>
+          </nav>
+        </div>
       </div>
 
       <div className="ct-bottom">

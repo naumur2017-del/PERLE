@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ClipboardList, Download, Gauge, Info, RefreshCw, RotateCcw, Star, UserCheck, UserMinus,
   UserPlus, UserX,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ControleExecutionPage.css'
 
 interface Evaluation {
@@ -97,6 +98,18 @@ const initials = (name: string) => name.split(' ').filter(Boolean).map((w) => w[
 
 const staffingDotClass = (tone: 'green' | 'orange' | 'red') => tone
 
+type EvalColumnId = 'projet' | 'tache' | 'employe' | 'equipe' | 'manager' | 'note' | 'derniereEvaluation'
+
+const EVAL_COLUMNS: ColumnDef<EvalColumnId>[] = [
+  { id: 'projet', label: 'Projet' },
+  { id: 'tache', label: 'Tâche' },
+  { id: 'employe', label: 'Employé' },
+  { id: 'equipe', label: 'Équipe' },
+  { id: 'manager', label: 'Manager' },
+  { id: 'note', label: 'Note /5' },
+  { id: 'derniereEvaluation', label: 'Dernière évaluation' },
+]
+
 function StarRow({ value, size = 11 }: { value: number; size?: number }) {
   const rounded = Math.round(value)
   return (
@@ -124,10 +137,28 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
+const EVAL_CELL_DEFS: Record<EvalColumnId, { className?: string; render: (e: Evaluation) => ReactNode }> = {
+  projet: { render: (e) => e.projet },
+  tache: { className: 'ce-name', render: (e) => e.tache },
+  employe: {
+    render: (e) => (
+      <div className="ce-employe-cell">
+        <span className="ce-avatar" style={{ background: avatarColor(e.employe) }}>{initials(e.employe)}</span>
+        {e.employe}
+      </div>
+    ),
+  },
+  equipe: { render: (e) => e.equipe },
+  manager: { render: (e) => e.manager },
+  note: { render: (e) => <span className="ce-note-cell"><StarRow value={e.note} /><b>{e.note} / 5</b></span> },
+  derniereEvaluation: { render: (e) => e.derniereEvaluation },
+}
+
 export default function ControleExecutionPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [exportOpen, setExportOpen] = useState(false)
   const [resumeVue, setResumeVue] = useState<ResumeVue>('projet')
   const resume = RESUME_DATA[resumeVue]
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EVAL_COLUMNS)
 
   return (
     <section className="ce-page">
@@ -222,30 +253,25 @@ export default function ControleExecutionPage({ navigateTo }: { navigateTo: (pag
 
       <div className="ce-main">
         <div className="ce-table-panel">
-          <div className="ce-table-head"><h3>Performance des tâches<Info size={13} /></h3></div>
+          <div className="ce-table-head">
+            <h3>Performance des tâches<Info size={13} /></h3>
+            <ColumnsMenu columns={EVAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+          </div>
           <div className="ce-table-wrap">
             <table className="ce-table">
               <thead>
                 <tr>
-                  <th>Projet</th><th>Tâche</th><th>Employé</th><th>Équipe</th><th>Manager</th>
-                  <th>Note /5</th><th>Dernière évaluation</th><th></th>
+                  {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {EVALUATIONS.map((e, index) => (
                   <tr key={`${e.projet}-${index}`}>
-                    <td>{e.projet}</td>
-                    <td className="ce-name">{e.tache}</td>
-                    <td>
-                      <div className="ce-employe-cell">
-                        <span className="ce-avatar" style={{ background: avatarColor(e.employe) }}>{initials(e.employe)}</span>
-                        {e.employe}
-                      </div>
-                    </td>
-                    <td>{e.equipe}</td>
-                    <td>{e.manager}</td>
-                    <td><span className="ce-note-cell"><StarRow value={e.note} /><b>{e.note} / 5</b></span></td>
-                    <td>{e.derniereEvaluation}</td>
+                    {visibleColumns.map((c) => {
+                      const def = EVAL_CELL_DEFS[c.id]
+                      return <td key={c.id} className={def.className}>{def.render(e)}</td>
+                    })}
                     <td><button type="button" className="ce-row-action" aria-label="Voir le détail"><ChevronRight size={14} /></button></td>
                   </tr>
                 ))}

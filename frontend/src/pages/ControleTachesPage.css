@@ -138,12 +138,11 @@
 
 .ct-reset:hover { background: #f7f5ff; }
 
-/* =============== MAIN: TABLE + SIDE =============== */
-.ct-main {
+/* =============== SIDE PANELS: DONUT + ALERTES =============== */
+.ct-side-panels {
   display: grid;
-  grid-template-columns: minmax(0, 2.6fr) minmax(240px, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 14px;
-  align-items: start;
 }
 
 .ct-table-panel,
@@ -155,7 +154,7 @@
 }
 
 .ct-table-panel { overflow: hidden; }
-.ct-table-head { padding: 16px 18px; border-bottom: 1px solid #eae7f6; }
+.ct-table-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #eae7f6; }
 .ct-table-head h3 { margin: 0; font-size: 13.5px; font-weight: 700; color: #14123a; }
 
 .ct-table-wrap { overflow-x: auto; }
@@ -168,9 +167,6 @@
 
 .ct-code { color: #6b46c1; font-weight: 700; }
 .ct-name { color: #14123a; font-weight: 600; white-space: normal; min-width: 160px; }
-
-.ct-type { display: inline-grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: #daf5df; color: #138c3a; font-size: 9px; font-weight: 700; }
-.ct-type.money { background: #e9e4ff; color: #5938de; }
 
 .ct-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .ct-pill-attente { background: #eef0f3; color: #4b5563; }
@@ -195,8 +191,6 @@
 .ct-pagination button.is-active { background: #6b46c1; border-color: #6b46c1; color: #fff; }
 .ct-page-ellipsis { padding: 0 4px; color: #a8a8bd; }
 
-/* =============== SIDE: DONUT + ALERTES =============== */
-.ct-side { display: flex; flex-direction: column; gap: 14px; }
 .ct-panel { padding: 16px; }
 .ct-panel h3 { margin: 0 0 12px; font-size: 12px; font-weight: 700; color: #14123a; }
 
@@ -242,7 +236,6 @@
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1300px) {
   .ct-kpis { grid-template-columns: repeat(4, 1fr); }
-  .ct-main { grid-template-columns: 1fr; }
   .ct-bottom { grid-template-columns: 1fr; }
 }
 

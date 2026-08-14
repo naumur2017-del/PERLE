@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   BadgeCheck, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
   CircleDot, Download, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './TresoreriePage.css'
 
 interface Brouillon {
@@ -63,11 +64,40 @@ const statutClass = (statut: string) => {
 const emptyForm = { projet: '', ligneBudgetaire: '', fournisseur: '', typeDepense: '', montant: '', dateDepense: '', objet: '', commentaires: '' }
 type FormState = typeof emptyForm
 
+type BrouillonColumnId = 'numero' | 'dateCreation' | 'projet' | 'ligneBudgetaire' | 'fournisseur' | 'mercurial' | 'montant' | 'devise' | 'statut' | 'dateMaj'
+
+const BROUILLON_COLUMNS: ColumnDef<BrouillonColumnId>[] = [
+  { id: 'numero', label: 'N° demande' },
+  { id: 'dateCreation', label: 'Date de création' },
+  { id: 'projet', label: 'Projet' },
+  { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+  { id: 'fournisseur', label: 'Fournisseur / Bénéficiaire' },
+  { id: 'mercurial', label: 'Mercurial' },
+  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'devise', label: 'Devise' },
+  { id: 'statut', label: 'Statut' },
+  { id: 'dateMaj', label: 'Dernière mise à jour' },
+]
+
+const BROUILLON_CELL_DEFS: Record<BrouillonColumnId, { className?: string; render: (b: Brouillon) => ReactNode }> = {
+  numero: { className: 'tr-code', render: (b) => b.numero },
+  dateCreation: { render: (b) => b.dateCreation },
+  projet: { render: (b) => b.projet },
+  ligneBudgetaire: { className: 'tr-name', render: (b) => b.ligneBudgetaire },
+  fournisseur: { render: (b) => b.fournisseur },
+  mercurial: { render: (b) => b.mercurial },
+  montant: { className: 'tr-montant', render: (b) => fmtMontant(b.montant) },
+  devise: { render: (b) => b.devise },
+  statut: { render: (b) => <span className={`tr-pill tr-pill-${statutClass(b.statut)}`}>{b.statut}</span> },
+  dateMaj: { render: (b) => b.dateMaj },
+}
+
 export default function TresoreriePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>('nouveau')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [search, setSearch] = useState('')
   const [drafts, setDrafts] = useState<Brouillon[]>(BROUILLONS)
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(BROUILLON_COLUMNS)
   const [draftSectionOpen, setDraftSectionOpen] = useState(true)
 
   const updateField = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }))
@@ -221,6 +251,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                     <Search size={14} />
                     <input placeholder="Rechercher une demande..." value={search} onChange={(event) => setSearch(event.target.value)} />
                   </label>
+                  <ColumnsMenu columns={BROUILLON_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="tr-reset" />
                   <button type="button" className="tr-btn-primary"><Download size={14} />Exporter</button>
                 </div>
 
@@ -229,24 +260,17 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                     <table className="tr-table">
                       <thead>
                         <tr>
-                          <th>N° demande</th><th>Date de création</th><th>Projet</th><th>Ligne budgétaire</th>
-                          <th>Fournisseur / Bénéficiaire</th><th>Mercurial</th><th>Montant (FCFA)</th><th>Devise</th>
-                          <th>Statut</th><th>Dernière mise à jour</th><th>Actions</th>
+                          {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredBrouillons.map((brouillon) => (
                           <tr key={brouillon.numero}>
-                            <td className="tr-code">{brouillon.numero}</td>
-                            <td>{brouillon.dateCreation}</td>
-                            <td>{brouillon.projet}</td>
-                            <td className="tr-name">{brouillon.ligneBudgetaire}</td>
-                            <td>{brouillon.fournisseur}</td>
-                            <td>{brouillon.mercurial}</td>
-                            <td className="tr-montant">{fmtMontant(brouillon.montant)}</td>
-                            <td>{brouillon.devise}</td>
-                            <td><span className={`tr-pill tr-pill-${statutClass(brouillon.statut)}`}>{brouillon.statut}</span></td>
-                            <td>{brouillon.dateMaj}</td>
+                            {visibleColumns.map((c) => {
+                              const def = BROUILLON_CELL_DEFS[c.id]
+                              return <td key={c.id} className={def.className}>{def.render(brouillon)}</td>
+                            })}
                             <td>
                               <div className="tr-draft-actions">
                                 <button type="button" className="tr-row-action" aria-label="Modifier"><Pencil size={13} /></button>
@@ -256,7 +280,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                           </tr>
                         ))}
                         {filteredBrouillons.length === 0 && (
-                          <tr><td colSpan={11} className="tr-empty">Aucun brouillon ne correspond à cette recherche.</td></tr>
+                          <tr><td colSpan={visibleColumns.length + 1} className="tr-empty">Aucun brouillon ne correspond à cette recherche.</td></tr>
                         )}
                       </tbody>
                     </table>

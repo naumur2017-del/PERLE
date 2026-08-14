@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   BadgeCheck, Briefcase, Download, Edit2, Info, Landmark, Plus, Receipt, RefreshCw, Search,
   Smartphone, Trash2, UploadCloud, Wallet, Wallet2,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ComptesCaissesPage.css'
 
 interface Compte {
@@ -46,10 +47,35 @@ const typeClass = (type: Compte['type']) => {
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
+type CompteColumnId = 'numero' | 'nom' | 'type' | 'categorie' | 'reference' | 'solde' | 'derniereMaj' | 'statut'
+
+const COMPTE_COLUMNS: ColumnDef<CompteColumnId>[] = [
+  { id: 'numero', label: 'N°' },
+  { id: 'nom', label: 'Nom du compte' },
+  { id: 'type', label: 'Type de compte' },
+  { id: 'categorie', label: 'Catégorie' },
+  { id: 'reference', label: 'Numéro / Référence' },
+  { id: 'solde', label: 'Solde actuel (FCFA)' },
+  { id: 'derniereMaj', label: 'Dernière mise à jour' },
+  { id: 'statut', label: 'Statut' },
+]
+
+const COMPTE_CELL_DEFS: Record<CompteColumnId, { className?: string; render: (c: Compte) => ReactNode }> = {
+  numero: { render: (c) => c.numero },
+  nom: { className: 'cc-name', render: (c) => <><strong>{c.nom}</strong><small>{c.sousLibelle}</small></> },
+  type: { render: (c) => <span className={`cc-type cc-type-${typeClass(c.type)}`}>{c.type}</span> },
+  categorie: { render: (c) => c.categorie },
+  reference: { className: 'cc-ref', render: (c) => c.reference },
+  solde: { className: 'cc-solde', render: (c) => fmtMontant(c.solde) },
+  derniereMaj: { render: (c) => c.derniereMaj },
+  statut: { render: () => <span className="cc-pill">Actif</span> },
+}
+
 export default function ComptesCaissesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [search, setSearch] = useState('')
   const [compteChoisi, setCompteChoisi] = useState('')
   const [montant, setMontant] = useState('')
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(COMPTE_COLUMNS)
 
   return (
     <section className="cc-page">
@@ -83,6 +109,7 @@ export default function ComptesCaissesPage({ navigateTo }: { navigateTo: (page: 
         </label>
         <label>Type de compte<select defaultValue="Tous"><option>Tous les types</option></select></label>
         <button type="button" className="cc-btn-outline"><RefreshCw size={14} />Actualiser</button>
+        <ColumnsMenu columns={COMPTE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="cc-btn-outline" />
         <button type="button" className="cc-btn-primary"><Download size={14} />Exporter</button>
       </div>
 
@@ -92,21 +119,17 @@ export default function ComptesCaissesPage({ navigateTo }: { navigateTo: (page: 
             <table className="cc-table">
               <thead>
                 <tr>
-                  <th>N°</th><th>Nom du compte</th><th>Type de compte</th><th>Catégorie</th>
-                  <th>Numéro / Référence</th><th>Solde actuel (FCFA)</th><th>Dernière mise à jour</th><th>Statut</th><th>Actions</th>
+                  {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {COMPTES.map((compte) => (
                   <tr key={compte.numero}>
-                    <td>{compte.numero}</td>
-                    <td className="cc-name"><strong>{compte.nom}</strong><small>{compte.sousLibelle}</small></td>
-                    <td><span className={`cc-type cc-type-${typeClass(compte.type)}`}>{compte.type}</span></td>
-                    <td>{compte.categorie}</td>
-                    <td className="cc-ref">{compte.reference}</td>
-                    <td className="cc-solde">{fmtMontant(compte.solde)}</td>
-                    <td>{compte.derniereMaj}</td>
-                    <td><span className="cc-pill">Actif</span></td>
+                    {visibleColumns.map((c) => {
+                      const def = COMPTE_CELL_DEFS[c.id]
+                      return <td key={c.id} className={def.className}>{def.render(compte)}</td>
+                    })}
                     <td>
                       <div className="cc-actions">
                         <button type="button" className="cc-approvisionner"><Plus size={12} />Approvisionner</button>

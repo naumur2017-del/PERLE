@@ -146,7 +146,7 @@
   min-width: 0;
 }
 
-.ge-table-head { padding: 16px 18px; border-bottom: 1px solid #eae7f6; }
+.ge-table-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #eae7f6; }
 .ge-table-head h3 { margin: 0; font-size: 13.5px; font-weight: 700; color: #14123a; }
 
 .ge-table-wrap { overflow-x: auto; }

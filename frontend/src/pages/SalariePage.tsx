@@ -41,6 +41,7 @@ import {
 } from 'lucide-react'
 import passportCover from '../assets/passport.jpg'
 import profilePhoto from '../assets/profile.jpg'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './SalariePage.css'
 
 type Statut = 'Approuvée' | 'En attente' | 'Refusée'
@@ -1296,9 +1297,41 @@ function TacheStatutPill({ statut }: { statut: 'En cours' | 'En retard' }) {
   return <span className={`salarie-pill ${statut === 'En retard' ? 'refusee' : 'attente'}`}>{statut}</span>
 }
 
+type EnCoursColumnId = 'projet' | 'tache' | 'dateDebut' | 'dateEcheance' | 'tempsPasse' | 'ehs' | 'statut'
+
+const EN_COURS_COLUMNS: ColumnDef<EnCoursColumnId>[] = [
+  { id: 'projet', label: 'Projet' },
+  { id: 'tache', label: 'Tâche' },
+  { id: 'dateDebut', label: 'Date de début' },
+  { id: 'dateEcheance', label: 'Date d’échéance' },
+  { id: 'tempsPasse', label: 'Temps passé' },
+  { id: 'ehs', label: 'EHS consommés' },
+  { id: 'statut', label: 'Statut' },
+]
+
+const EN_COURS_LEFT_IDS: EnCoursColumnId[] = ['projet', 'tache', 'dateDebut', 'dateEcheance']
+
+type HistoriqueColumnId = 'projet' | 'tache' | 'dateDebut' | 'dateFin' | 'tempsTotal' | 'ehs' | 'livrable' | 'validePar' | 'dateValidation'
+
+const HISTORIQUE_COLUMNS: ColumnDef<HistoriqueColumnId>[] = [
+  { id: 'projet', label: 'Projet' },
+  { id: 'tache', label: 'Tâche' },
+  { id: 'dateDebut', label: 'Date de début' },
+  { id: 'dateFin', label: 'Date de fin' },
+  { id: 'tempsTotal', label: 'Temps total' },
+  { id: 'ehs', label: 'EHS consommés' },
+  { id: 'livrable', label: 'Livrable' },
+  { id: 'validePar', label: 'Validé par' },
+  { id: 'dateValidation', label: 'Date de validation' },
+]
+
 function ActivitesTab() {
   const [viewEnCours, setViewEnCours] = useState<TacheEnCours | null>(null)
   const [viewHistorique, setViewHistorique] = useState<TacheHistorique | null>(null)
+  const enCoursCols = useColumnVisibility(EN_COURS_COLUMNS)
+  const historiqueCols = useColumnVisibility(HISTORIQUE_COLUMNS)
+  const enCoursLeftCount = enCoursCols.visibleColumns.filter((c) => EN_COURS_LEFT_IDS.includes(c.id)).length
+  const enCoursRightCount = (enCoursCols.visibleColumns.some((c) => c.id === 'statut') ? 1 : 0) + 1
 
   return (
     <div className="salarie-activites">
@@ -1326,33 +1359,41 @@ function ActivitesTab() {
       <section className="salarie-panel">
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><h3>Détail des tâches en cours</h3><span className="salarie-count-badge">{tachesEnCours.length} tâches</span></div>
-          <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
+          <div className="salarie-panel-actions">
+            <ColumnsMenu columns={EN_COURS_COLUMNS} hiddenColumns={enCoursCols.hiddenColumns} onToggle={enCoursCols.toggleColumn} />
+            <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
+          </div>
         </div>
         <div className="salarie-table-wrap">
           <table>
             <thead>
-              <tr><th>Projet</th><th>Tâche</th><th>Date de début</th><th>Date d’échéance</th><th>Temps passé</th><th>EHS consommés</th><th>Statut</th><th>Action</th></tr>
+              <tr>
+                {enCoursCols.visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
               {tachesEnCours.map((tache) => (
                 <tr key={tache.tache}>
-                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
-                  <td>{tache.tache}</td>
-                  <td>{tache.dateDebut}</td>
-                  <td>{tache.dateEcheance}</td>
-                  <td>{tache.tempsPasse}</td>
-                  <td>{frNumber(tache.ehs)}</td>
-                  <td><TacheStatutPill statut={tache.statut} /></td>
+                  {enCoursCols.visibleColumns.map((c) => {
+                    if (c.id === 'projet') return <td key={c.id}><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
+                    if (c.id === 'tache') return <td key={c.id}>{tache.tache}</td>
+                    if (c.id === 'dateDebut') return <td key={c.id}>{tache.dateDebut}</td>
+                    if (c.id === 'dateEcheance') return <td key={c.id}>{tache.dateEcheance}</td>
+                    if (c.id === 'tempsPasse') return <td key={c.id}>{tache.tempsPasse}</td>
+                    if (c.id === 'ehs') return <td key={c.id}>{frNumber(tache.ehs)}</td>
+                    return <td key={c.id}><TacheStatutPill statut={tache.statut} /></td>
+                  })}
                   <td className="salarie-actions"><button aria-label="Voir la tâche" onClick={() => setViewEnCours(tache)}><Eye size={14} strokeWidth={2} /></button></td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="salarie-table-total">
-                <td colSpan={4}>Total</td>
-                <td>{totalTempsPasse}</td>
-                <td>{frNumber(totalEhsEnCours)}</td>
-                <td colSpan={2}></td>
+                {enCoursLeftCount > 0 && <td colSpan={enCoursLeftCount}>Total</td>}
+                {enCoursCols.visibleColumns.some((c) => c.id === 'tempsPasse') && <td>{totalTempsPasse}</td>}
+                {enCoursCols.visibleColumns.some((c) => c.id === 'ehs') && <td>{frNumber(totalEhsEnCours)}</td>}
+                <td colSpan={enCoursRightCount}></td>
               </tr>
             </tfoot>
           </table>
@@ -1364,26 +1405,32 @@ function ActivitesTab() {
           <div className="salarie-panel-title"><h3>Historique des tâches effectuées</h3><span className="salarie-count-badge">12 tâches</span></div>
           <div className="salarie-panel-actions">
             <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+            <ColumnsMenu columns={HISTORIQUE_COLUMNS} hiddenColumns={historiqueCols.hiddenColumns} onToggle={historiqueCols.toggleColumn} />
             <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
           <table>
             <thead>
-              <tr><th>Projet</th><th>Tâche</th><th>Date de début</th><th>Date de fin</th><th>Temps total</th><th>EHS consommés</th><th>Livrable</th><th>Validé par</th><th>Date de validation</th><th>Action</th></tr>
+              <tr>
+                {historiqueCols.visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                <th>Action</th>
+              </tr>
             </thead>
             <tbody>
               {tachesHistorique.map((tache) => (
                 <tr key={tache.tache}>
-                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
-                  <td>{tache.tache}</td>
-                  <td>{tache.dateDebut}</td>
-                  <td>{tache.dateFin}</td>
-                  <td>{tache.tempsTotal}</td>
-                  <td>{frNumber(tache.ehs)}</td>
-                  <td><span className="salarie-livrable-icon"><FileText size={13} strokeWidth={2} /></span></td>
-                  <td>{tache.validePar}</td>
-                  <td>{tache.dateValidation}</td>
+                  {historiqueCols.visibleColumns.map((c) => {
+                    if (c.id === 'projet') return <td key={c.id}><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
+                    if (c.id === 'tache') return <td key={c.id}>{tache.tache}</td>
+                    if (c.id === 'dateDebut') return <td key={c.id}>{tache.dateDebut}</td>
+                    if (c.id === 'dateFin') return <td key={c.id}>{tache.dateFin}</td>
+                    if (c.id === 'tempsTotal') return <td key={c.id}>{tache.tempsTotal}</td>
+                    if (c.id === 'ehs') return <td key={c.id}>{frNumber(tache.ehs)}</td>
+                    if (c.id === 'livrable') return <td key={c.id}><span className="salarie-livrable-icon"><FileText size={13} strokeWidth={2} /></span></td>
+                    if (c.id === 'validePar') return <td key={c.id}>{tache.validePar}</td>
+                    return <td key={c.id}>{tache.dateValidation}</td>
+                  })}
                   <td className="salarie-actions"><button aria-label="Voir la tâche" onClick={() => setViewHistorique(tache)}><Eye size={14} strokeWidth={2} /></button></td>
                 </tr>
               ))}

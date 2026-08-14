@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Eye, Inbox,
   Info, Lock, PlayCircle, Plus, RotateCcw, Search, Settings2, SlidersHorizontal, Unlock, Users, Wallet, X,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './StaffingPage.css'
 
 type Statut = 'a-configurer' | 'prete' | 'staffee'
@@ -81,6 +82,27 @@ function initiales(nom: string) {
   return nom.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
+type NsColumnId = 'wrike' | 'projet' | 'tache' | 'equipe' | 'ligneBudgetaire' | 'ehs' | 'attribueA' | 'echeance' | 'statutStaffing'
+
+const NS_CELL_DEFS: Record<NsColumnId, { className?: string; render: (t: TacheWrike) => ReactNode }> = {
+  wrike: { className: 'ns-code', render: (t) => t.id },
+  projet: { render: (t) => t.projet },
+  tache: { className: 'ns-name', render: (t) => t.tache },
+  equipe: { render: (t) => t.equipe },
+  ligneBudgetaire: { render: (t) => t.ligneBudgetaire ?? <span className="ns-pill-warn">À définir</span> },
+  ehs: { render: (t) => t.ehsPrevu !== null ? `${fmtEhs(t.ehsPrevu)} EHS` : <span className="ns-pill-warn">À définir</span> },
+  attribueA: {
+    render: (t) => (
+      <span className="ns-employee">
+        <span className="ns-employee-dot">{initiales(t.collaborateur ?? '?')}</span>
+        <span><strong>{t.collaborateur}</strong><small>{t.collaborateurProfil}</small></span>
+      </span>
+    ),
+  },
+  echeance: { render: (t) => t.echeance },
+  statutStaffing: { render: (t) => <span className={`ns-statut ns-statut-${STATUT_CLASS[t.statut]}`}>{STATUT_LABEL[t.statut]}</span> },
+}
+
 function CollaborateurSelect({ equipe, value, onChange, disabled, autoFocus }: {
   equipe: string
   value: string
@@ -139,6 +161,21 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
 
   const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
   const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
+
+  const nsColumns = useMemo<ColumnDef<NsColumnId>[]>(() => {
+    const cols: ColumnDef<NsColumnId>[] = [
+      { id: 'wrike', label: 'Wrike' },
+      { id: 'projet', label: 'Projet' },
+      { id: 'tache', label: 'Tâche' },
+      { id: 'equipe', label: 'Équipe' },
+      { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+      { id: 'ehs', label: activeTab === 'staffee' ? 'EHS alloués' : 'EHS prévus tâche' },
+    ]
+    if (activeTab === 'staffee') cols.push({ id: 'attribueA', label: 'Attribué à' })
+    cols.push({ id: 'echeance', label: 'Échéance' }, { id: 'statutStaffing', label: 'Statut staffing' })
+    return cols
+  }, [activeTab])
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(nsColumns)
 
   const selected = taches.find((t) => t.id === selectedId) ?? null
 
@@ -303,6 +340,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
             <div className="ns-table-head">
               <h3>Liste des tâches importées de Wrike <span className="ns-count-badge">{filtered.length}</span></h3>
               <div className="ns-table-head-actions">
+                <ColumnsMenu columns={nsColumns} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
                 <label>Afficher<select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
                 <span>1-{filtered.length} sur {filtered.length}</span>
                 <button type="button" disabled><ChevronLeft size={14} /></button>
@@ -313,33 +351,20 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
               <table className="ns-table">
                 <thead>
                   <tr>
-                    <th>Wrike</th><th>Projet</th><th>Tâche</th><th>Équipe</th><th>Ligne budgétaire</th>
-                    <th>{activeTab === 'staffee' ? 'EHS alloués' : 'EHS prévus tâche'}</th>
-                    {activeTab === 'staffee' && <th>Attribué à</th>}
-                    <th>Échéance</th><th>Statut staffing</th><th>Action</th>
+                    {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                    <tr><td colSpan={visibleColumns.length + 1} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
                   )}
                   {filtered.map((tache) => (
                     <tr key={tache.id} className={selectedId === tache.id ? 'ns-row-selected' : ''} onClick={() => handleSelect(tache)}>
-                      <td className="ns-code">{tache.id}</td>
-                      <td>{tache.projet}</td>
-                      <td className="ns-name">{tache.tache}</td>
-                      <td>{tache.equipe}</td>
-                      <td>{tache.ligneBudgetaire ?? <span className="ns-pill-warn">À définir</span>}</td>
-                      <td>{tache.ehsPrevu !== null ? `${fmtEhs(tache.ehsPrevu)} EHS` : <span className="ns-pill-warn">À définir</span>}</td>
-                      {activeTab === 'staffee' && (
-                        <td>
-                          <span className="ns-employee"><span className="ns-employee-dot">{initiales(tache.collaborateur ?? '?')}</span>
-                            <span><strong>{tache.collaborateur}</strong><small>{tache.collaborateurProfil}</small></span>
-                          </span>
-                        </td>
-                      )}
-                      <td>{tache.echeance}</td>
-                      <td><span className={`ns-statut ns-statut-${STATUT_CLASS[tache.statut]}`}>{STATUT_LABEL[tache.statut]}</span></td>
+                      {visibleColumns.map((c) => {
+                        const def = NS_CELL_DEFS[c.id]
+                        return <td key={c.id} className={def.className}>{def.render(tache)}</td>
+                      })}
                       <td onClick={(e) => e.stopPropagation()}>
                         <button type="button" className="ns-action-btn" onClick={() => handleSelect(tache)}>
                           {tache.statut === 'a-configurer' && 'Configurer'}

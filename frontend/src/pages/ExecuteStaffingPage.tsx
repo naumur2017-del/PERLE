@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
   ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
   RotateCcw, Search, SlidersHorizontal, UserCheck, X,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ExecuteStaffingPage.css'
 
 type StatutStaffing = 'en-attente' | 'accepte' | 'refuse'
@@ -75,6 +76,45 @@ function initiales(nom: string) {
   return nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 }
 
+type StaffColumnId =
+  | 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'ehsAffectes'
+  | 'debut' | 'echeance' | 'statutStaffing' | 'statutExecution'
+
+const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
+  { id: 'projet', label: 'Projet' },
+  { id: 'tache', label: 'Tâche (Réf. Wrike)' },
+  { id: 'attribueePar', label: 'Attribuée par' },
+  { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+  { id: 'ehsAffectes', label: 'EHS affectés' },
+  { id: 'debut', label: 'Début' },
+  { id: 'echeance', label: 'Échéance' },
+  { id: 'statutStaffing', label: 'Statut staffing' },
+  { id: 'statutExecution', label: "Statut d'exécution" },
+]
+
+const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: TacheAssignee, exec: StatutExecution | null) => ReactNode }> = {
+  projet: { render: (t) => <span className="es-projet-cell"><Folder size={13} />{t.projet}</span> },
+  tache: { className: 'es-name', render: (t) => <><strong>{t.tache}</strong><small>{t.id}</small></> },
+  attribueePar: {
+    render: (t) => (
+      <span className="es-employee">
+        <span className="es-employee-dot">{initiales(t.attribueePar)}</span>
+        <span><strong>{t.attribueePar}</strong><small>{t.attribueeParRole}</small></span>
+      </span>
+    ),
+  },
+  ligneBudgetaire: { render: (t) => t.ligneBudgetaire },
+  ehsAffectes: { render: (t) => t.ehsAffectes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+  debut: { render: (t) => t.debut },
+  echeance: { render: (t) => <span className={t.statutStaffing === 'en-attente' ? 'es-echeance' : undefined}>{t.echeance}</span> },
+  statutStaffing: { render: (t) => <span className={`es-pill es-pill-${STATUT_STAFFING_CLASS[t.statutStaffing]}`}>{STATUT_STAFFING_LABEL[t.statutStaffing]}</span> },
+  statutExecution: {
+    render: (_t, exec) => exec
+      ? <span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[exec]}`}>{STATUT_EXECUTION_LABEL[exec]}</span>
+      : <span className="es-no-action">—</span>,
+  },
+}
+
 interface ExecuteStaffingPageProps {
   navigateTo: (page: string) => void
   onStartTimer: (code: string, nom: string) => void
@@ -89,6 +129,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const [activeTab, setActiveTab] = useState<Tab>('a-accepter')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
 
   const selected = taches.find((t) => t.id === selectedId) ?? null
 
@@ -211,37 +252,28 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
               <section className="es-table-panel">
                 <div className="es-table-head">
                   <h3>{TABS.find((t) => t.key === activeTab)?.label} <span className="es-count-badge">{filtered.length}</span></h3>
+                  <ColumnsMenu columns={STAFF_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
                 </div>
                 <div className="es-table-wrap">
                   <table className="es-table">
                     <thead>
                       <tr>
-                        <th>Projet</th><th>Tâche (Réf. Wrike)</th><th>Attribuée par</th><th>Ligne budgétaire</th>
-                        <th>EHS affectés</th><th>Début</th><th>Échéance</th><th>Statut staffing</th>
-                        <th>Statut d'exécution</th><th>Action</th>
+                        {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 && (
-                        <tr><td colSpan={10} className="es-empty">Aucune tâche dans cette section.</td></tr>
+                        <tr><td colSpan={visibleColumns.length + 1} className="es-empty">Aucune tâche dans cette section.</td></tr>
                       )}
                       {filtered.map((tache) => {
                         const exec = statutExecutionEffectif(tache)
                         return (
                           <tr key={tache.id} className={selectedId === tache.id ? 'es-row-selected' : ''} onClick={() => handleSelect(tache)}>
-                            <td><span className="es-projet-cell"><Folder size={13} />{tache.projet}</span></td>
-                            <td className="es-name"><strong>{tache.tache}</strong><small>{tache.id}</small></td>
-                            <td>
-                              <span className="es-employee"><span className="es-employee-dot">{initiales(tache.attribueePar)}</span>
-                                <span><strong>{tache.attribueePar}</strong><small>{tache.attribueeParRole}</small></span>
-                              </span>
-                            </td>
-                            <td>{tache.ligneBudgetaire}</td>
-                            <td>{tache.ehsAffectes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td>{tache.debut}</td>
-                            <td className={tache.statutStaffing === 'en-attente' ? 'es-echeance' : ''}>{tache.echeance}</td>
-                            <td><span className={`es-pill es-pill-${STATUT_STAFFING_CLASS[tache.statutStaffing]}`}>{STATUT_STAFFING_LABEL[tache.statutStaffing]}</span></td>
-                            <td>{exec ? <span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[exec]}`}>{STATUT_EXECUTION_LABEL[exec]}</span> : <span className="es-no-action">—</span>}</td>
+                            {visibleColumns.map((c) => {
+                              const def = STAFF_CELL_DEFS[c.id]
+                              return <td key={c.id} className={def.className}>{def.render(tache, exec)}</td>
+                            })}
                             <td onClick={(e) => e.stopPropagation()}>
                               <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(tache)}>
                                 <MoreVertical size={16} />

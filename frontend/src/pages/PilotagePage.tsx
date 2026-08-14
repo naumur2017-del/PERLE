@@ -69,6 +69,24 @@ const fmtDate = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d
 const fmtInt = (n: number) => Math.round(n).toLocaleString('fr-FR')
 const fmtEhs = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+function parseFrDate(str: string): Date {
+  const [d, m, y] = str.split('/').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+const dureeEnJours = (debut: string, fin: string) => Math.round((parseFrDate(fin).getTime() - parseFrDate(debut).getTime()) / 86400000)
+
+const pctOf = (consomme: number, prevu: number) => prevu ? Math.round((consomme / prevu) * 100) : 0
+
+type RiskLetter = 'A' | 'B' | 'C' | 'D'
+
+function classifyRisk(pct: number): { letter: RiskLetter; label: string } {
+  if (pct <= 25) return { letter: 'A', label: 'Faible' }
+  if (pct <= 50) return { letter: 'B', label: 'Modérée' }
+  if (pct <= 75) return { letter: 'C', label: 'Élevée' }
+  return { letter: 'D', label: 'Critique' }
+}
+
 function statutFromProgress(dureeEcoulee: number, dureePrevue: number, avancementGlobal: number): Project['statut'] {
   if (avancementGlobal >= 98) return 'Terminé'
   if (dureeEcoulee >= dureePrevue) return 'En retard'
@@ -153,7 +171,6 @@ const CHEF_OPTIONS = Array.from(new Set(ALL_PROJECTS.map((p) => p.chef))).sort()
 const CLIENT_OPTIONS = Array.from(new Set(ALL_PROJECTS.map((p) => p.client))).sort()
 const STATUT_OPTIONS: Project['statut'][] = ['En cours', 'Terminé', 'En retard']
 
-const statutClass = (s: Project['statut']) => s === 'En cours' ? 'cours' : s === 'Terminé' ? 'termine' : 'retard'
 const statutGlobalClass = (s: Project['statutGlobal']) => s === 'En bonne voie' ? 'bonne-voie' : s === 'À surveiller' ? 'surveiller' : s === 'Terminé' ? 'termine' : 'retard'
 
 function getPageList(current: number, total: number): (number | '...')[] {
@@ -233,13 +250,30 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   )
 }
 
+const RISK_LABELS: Record<RiskLetter, string> = { A: 'Faible', B: 'Modérée', C: 'Élevée', D: 'Critique' }
+
+function RiskBadge({ letter }: { letter: RiskLetter }) {
+  return <span className={`pil-classify-badge pil-classify-${letter.toLowerCase()}`} title={RISK_LABELS[letter]}>{letter}</span>
+}
+
+function PctCell({ consomme, prevu }: { consomme: number; prevu: number }) {
+  const pct = pctOf(consomme, prevu)
+  const { letter } = classifyRisk(pct)
+  return (
+    <div className="pil-pct-cell">
+      <span className="pil-pct-value">{pct}%</span>
+      <RiskBadge letter={letter} />
+    </div>
+  )
+}
+
 type ColumnId =
-  | 'code' | 'name' | 'client' | 'chef' | 'equipe' | 'debut' | 'fin' | 'statut'
-  | 'ehsPrevu' | 'ehsConsomme' | 'ehsRestant'
-  | 'budgetPrevu' | 'budgetConsomme' | 'budgetRestant'
-  | 'eqEhsPrevu' | 'eqEhsConsomme' | 'eqEhsRestant'
+  | 'code' | 'name' | 'client' | 'chef' | 'equipe' | 'debut' | 'fin' | 'duree'
+  | 'ehsPrevu' | 'ehsConsomme' | 'ehsRestant' | 'ehsPct'
+  | 'budgetPrevu' | 'budgetConsomme' | 'budgetRestant' | 'budgetPct'
+  | 'eqEhsPrevu' | 'eqEhsConsomme' | 'eqEhsRestant' | 'eqEhsPct'
   | 'progTemporelle' | 'progEhs' | 'progOperationnelle'
-  | 'statutGlobal'
+  | 'statutRisque' | 'statutGlobal'
 
 const COLUMNS: { id: ColumnId; label: string; group?: string }[] = [
   { id: 'code', label: 'Code projet' },
@@ -249,19 +283,23 @@ const COLUMNS: { id: ColumnId; label: string; group?: string }[] = [
   { id: 'equipe', label: 'Équipe' },
   { id: 'debut', label: 'Début' },
   { id: 'fin', label: 'Fin' },
-  { id: 'statut', label: 'Statut' },
+  { id: 'duree', label: 'Durée' },
   { id: 'ehsPrevu', label: 'Prévu', group: 'Total EHS' },
   { id: 'ehsConsomme', label: 'Consommé', group: 'Total EHS' },
   { id: 'ehsRestant', label: 'Restant', group: 'Total EHS' },
+  { id: 'ehsPct', label: '%', group: 'Total EHS' },
   { id: 'budgetPrevu', label: 'Prévu', group: 'Total Monétaire (FCFA)' },
   { id: 'budgetConsomme', label: 'Consommé', group: 'Total Monétaire (FCFA)' },
   { id: 'budgetRestant', label: 'Restant', group: 'Total Monétaire (FCFA)' },
+  { id: 'budgetPct', label: '%', group: 'Total Monétaire (FCFA)' },
   { id: 'eqEhsPrevu', label: 'Prévu', group: 'Équivalent EHS' },
   { id: 'eqEhsConsomme', label: 'Consommé', group: 'Équivalent EHS' },
   { id: 'eqEhsRestant', label: 'Restant', group: 'Équivalent EHS' },
+  { id: 'eqEhsPct', label: '%', group: 'Équivalent EHS' },
   { id: 'progTemporelle', label: 'Temporelle', group: 'Progression' },
   { id: 'progEhs', label: 'Équivalent EHS', group: 'Progression' },
   { id: 'progOperationnelle', label: 'Opérationnelle', group: 'Progression' },
+  { id: 'statutRisque', label: 'Statut' },
   { id: 'statutGlobal', label: 'Statut global' },
 ]
 
@@ -280,19 +318,31 @@ const CELL_DEFS: Record<ColumnId, { className?: string; render: (p: Project) => 
   equipe: { render: (p) => p.equipe },
   debut: { render: (p) => p.debut },
   fin: { render: (p) => p.fin },
-  statut: { render: (p) => <span className={`pil-pill pil-pill-${statutClass(p.statut)}`}>{p.statut}</span> },
+  duree: { render: (p) => `${dureeEnJours(p.debut, p.fin)} jours` },
   ehsPrevu: { render: (p) => fmtEhs(p.ehsPrevu) },
   ehsConsomme: { render: (p) => fmtEhs(p.ehsConsomme) },
   ehsRestant: { render: (p) => fmtEhs(p.ehsRestant) },
+  ehsPct: { render: (p) => <PctCell consomme={p.ehsConsomme} prevu={p.ehsPrevu} /> },
   budgetPrevu: { render: (p) => fmtInt(p.budgetPrevu) },
   budgetConsomme: { render: (p) => fmtInt(p.budgetConsomme) },
   budgetRestant: { render: (p) => fmtInt(p.budgetRestant) },
+  budgetPct: { render: (p) => <PctCell consomme={p.budgetConsomme} prevu={p.budgetPrevu} /> },
   eqEhsPrevu: { render: (p) => fmtEhs(p.ehsPrevu) },
   eqEhsConsomme: { render: (p) => fmtEhs(p.ehsConsomme) },
   eqEhsRestant: { render: (p) => fmtEhs(p.ehsRestant) },
+  eqEhsPct: { render: (p) => <PctCell consomme={p.ehsConsomme} prevu={p.ehsPrevu} /> },
   progTemporelle: { render: (p) => <ProgressBar value={p.progTemporelle} color="#3b82f6" /> },
   progEhs: { render: (p) => <ProgressBar value={p.progEhs} color="#16a34a" /> },
   progOperationnelle: { render: (p) => <ProgressBar value={p.progOperationnelle} color="#6b46c1" /> },
+  statutRisque: {
+    render: (p) => (
+      <div className="pil-risk-cell">
+        <RiskBadge letter={classifyRisk(pctOf(p.ehsConsomme, p.ehsPrevu)).letter} />
+        <RiskBadge letter={classifyRisk(pctOf(p.budgetConsomme, p.budgetPrevu)).letter} />
+        <RiskBadge letter={classifyRisk(pctOf(p.ehsConsomme, p.ehsPrevu)).letter} />
+      </div>
+    ),
+  },
   statutGlobal: {
     render: (p) => (
       <span className={`pil-status-global pil-status-${statutGlobalClass(p.statutGlobal)}`}><i />{p.statutGlobal}</span>
@@ -578,6 +628,15 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="pil-table-note">
+          <Info size={14} />
+          <p>
+            <strong>Logique de calcul du Statut :</strong> pour les colonnes Total EHS, Total Monétaire (FCFA) et Équivalent EHS, le taux <b>Consommé / Prévu</b> détermine un niveau de risque —
+            {' '}<b>0 à 25 % = Faible (A)</b>, <b>26 à 50 % = Modérée (B)</b>, <b>51 à 75 % = Élevée (C)</b>, <b>76 % et plus = Critique (D)</b>.
+            {' '}La colonne <b>Statut</b> reprend ces trois lettres, dans l'ordre EHS, Monétaire puis Équivalent EHS, pour donner une vue synthétique du niveau de risque du projet.
+          </p>
         </div>
 
         <div className="pil-table-foot">

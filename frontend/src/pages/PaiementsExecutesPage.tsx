@@ -1,8 +1,9 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
   BadgeCheck, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   CircleDot, FileText, Info, MoreVertical, Paperclip, Receipt, Search, Upload, Wallet, X,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './PaiementsExecutesPage.css'
 
 interface PaiementAExecuter {
@@ -55,6 +56,47 @@ const statutClass = (statut: string) => {
   if (statut === 'Refusé') return 'refuse'
   if (statut.startsWith('Exécuté')) return 'execute'
   return 'attente'
+}
+
+type PaiementColumnId =
+  | 'numero' | 'echeance' | 'demandeCode' | 'projet' | 'ligneBudgetaire' | 'fournisseur'
+  | 'mercurial' | 'montant' | 'devise' | 'modePaiement' | 'justificatif' | 'statut'
+
+const PAIEMENT_COLUMNS: ColumnDef<PaiementColumnId>[] = [
+  { id: 'numero', label: 'N° paiement' },
+  { id: 'echeance', label: 'Date d’échéance' },
+  { id: 'demandeCode', label: 'Demande de paiement' },
+  { id: 'projet', label: 'Projet' },
+  { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+  { id: 'fournisseur', label: 'Fournisseur / Bénéficiaire' },
+  { id: 'mercurial', label: 'Mercurial' },
+  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'devise', label: 'Devise' },
+  { id: 'modePaiement', label: 'Mode de paiement' },
+  { id: 'justificatif', label: 'Justificatif' },
+  { id: 'statut', label: 'Statut' },
+]
+
+const PAIEMENT_CELL_DEFS: Record<PaiementColumnId, { className?: string; render: (p: PaiementAExecuter) => ReactNode }> = {
+  numero: { className: 'pe-code', render: (p) => p.numero },
+  echeance: { className: 'pe-echeance', render: (p) => p.echeance },
+  demandeCode: { className: 'pe-code', render: (p) => p.demandeCode },
+  projet: { render: (p) => p.projet },
+  ligneBudgetaire: { className: 'pe-name', render: (p) => p.ligneBudgetaire },
+  fournisseur: { render: (p) => p.fournisseur },
+  mercurial: { render: (p) => p.mercurial },
+  montant: { className: 'pe-montant', render: (p) => fmtMontant(p.montant) },
+  devise: { render: (p) => p.devise },
+  modePaiement: { render: (p) => p.modePaiement },
+  justificatif: {
+    render: (p) => (
+      <span className="pe-justificatif">
+        <FileText size={14} />
+        <span><strong>{p.justificatifNom}</strong><small>{p.justificatifTaille}</small></span>
+      </span>
+    ),
+  },
+  statut: { render: (p) => <span className={`pe-pill pe-pill-${statutClass(p.statut)}`}>{p.statut}</span> },
 }
 
 function JustificatifModal({ paiement, onClose, onDecision }: {
@@ -111,6 +153,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
   const [paiements, setPaiements] = useState<PaiementAExecuter[]>(PAIEMENTS_A_EXECUTER_INITIAL)
   const [search, setSearch] = useState('')
   const [activeNumero, setActiveNumero] = useState<string | null>(null)
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(PAIEMENT_COLUMNS)
 
   const activePaiement = paiements.find((paiement) => paiement.numero === activeNumero) ?? null
 
@@ -167,6 +210,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
               <Search size={14} />
               <input placeholder="Rechercher un paiement..." value={search} onChange={(event) => setSearch(event.target.value)} />
             </label>
+            <ColumnsMenu columns={PAIEMENT_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
           </div>
 
           <div className="pe-table-panel">
@@ -174,31 +218,17 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
               <table className="pe-table">
                 <thead>
                   <tr>
-                    <th>N° paiement</th><th>Date d’échéance</th><th>Demande de paiement</th><th>Projet</th>
-                    <th>Ligne budgétaire</th><th>Fournisseur / Bénéficiaire</th><th>Mercurial</th><th>Montant (FCFA)</th>
-                    <th>Devise</th><th>Mode de paiement</th><th>Justificatif</th><th>Statut</th><th>Actions</th>
+                    {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((paiement) => (
                     <tr key={paiement.numero}>
-                      <td className="pe-code">{paiement.numero}</td>
-                      <td className="pe-echeance">{paiement.echeance}</td>
-                      <td className="pe-code">{paiement.demandeCode}</td>
-                      <td>{paiement.projet}</td>
-                      <td className="pe-name">{paiement.ligneBudgetaire}</td>
-                      <td>{paiement.fournisseur}</td>
-                      <td>{paiement.mercurial}</td>
-                      <td className="pe-montant">{fmtMontant(paiement.montant)}</td>
-                      <td>{paiement.devise}</td>
-                      <td>{paiement.modePaiement}</td>
-                      <td>
-                        <span className="pe-justificatif">
-                          <FileText size={14} />
-                          <span><strong>{paiement.justificatifNom}</strong><small>{paiement.justificatifTaille}</small></span>
-                        </span>
-                      </td>
-                      <td><span className={`pe-pill pe-pill-${statutClass(paiement.statut)}`}>{paiement.statut}</span></td>
+                      {visibleColumns.map((c) => {
+                        const def = PAIEMENT_CELL_DEFS[c.id]
+                        return <td key={c.id} className={def.className}>{def.render(paiement)}</td>
+                      })}
                       <td>
                         <button type="button" className="pe-row-action" aria-label="Actions" onClick={() => setActiveNumero(paiement.numero)}>
                           <MoreVertical size={14} />
@@ -207,7 +237,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={13} className="pe-empty">Aucun paiement ne correspond à cette recherche.</td></tr>
+                    <tr><td colSpan={visibleColumns.length + 1} className="pe-empty">Aucun paiement ne correspond à cette recherche.</td></tr>
                   )}
                 </tbody>
               </table>

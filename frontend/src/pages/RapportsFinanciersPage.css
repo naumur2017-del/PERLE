@@ -63,6 +63,7 @@
 .rf-list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #eae7f6; }
 .rf-list-head h3 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; color: #14123a; }
 .rf-list-head p { margin: 0; font-size: 11.5px; color: #6c6c85; }
+.rf-list-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* =============== OPERATION FILTERS =============== */
 .rf-op-filters { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #eae7f6; background: #fbfaff; }

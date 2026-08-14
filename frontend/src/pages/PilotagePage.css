@@ -351,7 +351,7 @@
 
 .pil-table {
   width: 100%;
-  min-width: 1780px;
+  min-width: 2180px;
   border-collapse: collapse;
   font-size: 11px;
 }
@@ -447,6 +447,61 @@
   color: #14123a;
   white-space: nowrap;
 }
+
+.pil-pct-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pil-pct-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: #14123a;
+}
+
+.pil-classify-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 800;
+  cursor: default;
+}
+
+.pil-classify-a { background: #dcfce7; color: #15803d; }
+.pil-classify-b { background: #fef9c3; color: #a16207; }
+.pil-classify-c { background: #ffedd5; color: #c2410c; }
+.pil-classify-d { background: #fee2e2; color: #b91c1c; }
+
+.pil-risk-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pil-table-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 18px;
+  padding: 12px 14px;
+  border-top: 1px solid #eae7f6;
+  background: #faf9fe;
+  color: #6c6c85;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pil-table-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #6b46c1;
+}
+
+.pil-table-note b { color: #35335c; }
 
 .pil-pill {
   display: inline-block;

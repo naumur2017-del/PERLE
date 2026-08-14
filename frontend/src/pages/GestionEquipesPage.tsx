@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   BarChart3, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
   Info, Network, Pencil, Plus, RotateCcw, Search, Star, StickyNote, UserCheck, UserPlus, UserX,
   Users, Users2, X, MoreVertical,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './GestionEquipesPage.css'
 
 type StatutEmploye = 'Actif' | 'Inactif' | 'En congé'
@@ -177,6 +178,51 @@ const statutClass = (statut: StatutEmploye) => {
   return 'inactif'
 }
 
+type EmployeColumnId = 'id' | 'employe' | 'statut' | 'departement' | 'gradePrincipal' | 'equipesGrades' | 'derniereMaj'
+
+const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
+  { id: 'id', label: 'ID Employé' },
+  { id: 'employe', label: 'Employé' },
+  { id: 'statut', label: 'Statut' },
+  { id: 'departement', label: 'Département' },
+  { id: 'gradePrincipal', label: 'Grade principal' },
+  { id: 'equipesGrades', label: 'Équipes & grades actifs' },
+  { id: 'derniereMaj', label: 'Dernière mise à jour' },
+]
+
+const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (e: Employe) => ReactNode }> = {
+  id: { className: 'ge-code', render: (e) => e.id },
+  employe: {
+    render: (e) => (
+      <div className="ge-employe-cell">
+        <span className="ge-avatar" style={{ background: e.couleur }}>{e.initiales}</span>
+        <div>
+          <strong>{e.nom}</strong>
+          <small>{e.email}</small>
+        </div>
+      </div>
+    ),
+  },
+  statut: { render: (e) => <span className={`ge-pill ge-pill-${statutClass(e.statut)}`}>{e.statut}</span> },
+  departement: { render: (e) => e.departement },
+  gradePrincipal: { render: (e) => <span className="ge-grade-pill">{e.affectations[0]?.grade ?? '—'}</span> },
+  equipesGrades: {
+    render: (e) => {
+      const badgesVisibles = e.affectations.slice(0, 3)
+      const reste = e.affectations.length - badgesVisibles.length
+      return (
+        <div className="ge-team-badges">
+          {badgesVisibles.map((affectation) => (
+            <span key={affectation.equipeCode} className="ge-team-badge">{affectation.equipeCode} ({affectation.grade})</span>
+          ))}
+          {reste > 0 && <span className="ge-team-badge ge-team-badge-more">+{reste}</span>}
+        </div>
+      )
+    },
+  },
+  derniereMaj: { render: (e) => <><strong>{e.derniereMajDate}</strong><small className="ge-sub">Par {e.derniereMajPar}</small></> },
+}
+
 function InfosGeneralesTab({ employe }: { employe: Employe }) {
   const rows: [string, string][] = [
     ['Fonction', employe.fonction],
@@ -346,6 +392,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
   const [equipeFiltre, setEquipeFiltre] = useState('Tous')
   const [gradeFiltre, setGradeFiltre] = useState('Tous')
   const [selectedId, setSelectedId] = useState<string | null>(EMPLOYES[0].id)
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EMPLOYE_COLUMNS)
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -439,58 +486,36 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
 
       <div className={`ge-main ${selected ? '' : 'ge-main-full'}`}>
         <div className="ge-table-panel">
-          <div className="ge-table-head"><h3>Liste des employés ({isFiltered ? filtered.length : EMPLOYES.length})</h3></div>
+          <div className="ge-table-head">
+            <h3>Liste des employés ({isFiltered ? filtered.length : EMPLOYES.length})</h3>
+            <ColumnsMenu columns={EMPLOYE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+          </div>
           <div className="ge-table-wrap">
             <table className="ge-table">
               <thead>
                 <tr>
-                  <th>ID Employé</th><th>Employé</th><th>Statut</th><th>Département</th><th>Grade principal</th>
-                  <th>Équipes & grades actifs</th><th>Dernière mise à jour</th><th>Action</th>
+                  {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((employe) => {
-                  const badgesVisibles = employe.affectations.slice(0, 3)
-                  const reste = employe.affectations.length - badgesVisibles.length
-                  return (
-                    <tr key={employe.id} className={employe.id === selectedId ? 'is-selected' : ''}>
-                      <td className="ge-code">{employe.id}</td>
-                      <td>
-                        <div className="ge-employe-cell">
-                          <span className="ge-avatar" style={{ background: employe.couleur }}>{employe.initiales}</span>
-                          <div>
-                            <strong>{employe.nom}</strong>
-                            <small>{employe.email}</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className={`ge-pill ge-pill-${statutClass(employe.statut)}`}>{employe.statut}</span></td>
-                      <td>{employe.departement}</td>
-                      <td><span className="ge-grade-pill">{employe.affectations[0]?.grade ?? '—'}</span></td>
-                      <td>
-                        <div className="ge-team-badges">
-                          {badgesVisibles.map((affectation) => (
-                            <span key={affectation.equipeCode} className="ge-team-badge">{affectation.equipeCode} ({affectation.grade})</span>
-                          ))}
-                          {reste > 0 && <span className="ge-team-badge ge-team-badge-more">+{reste}</span>}
-                        </div>
-                      </td>
-                      <td>
-                        <strong>{employe.derniereMajDate}</strong>
-                        <small className="ge-sub">Par {employe.derniereMajPar}</small>
-                      </td>
-                      <td>
-                        <div className="ge-actions">
-                          <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
-                          <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
-                          <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions"><MoreVertical size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {filtered.map((employe) => (
+                  <tr key={employe.id} className={employe.id === selectedId ? 'is-selected' : ''}>
+                    {visibleColumns.map((c) => {
+                      const def = EMPLOYE_CELL_DEFS[c.id]
+                      return <td key={c.id} className={def.className}>{def.render(employe)}</td>
+                    })}
+                    <td>
+                      <div className="ge-actions">
+                        <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
+                        <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
+                        <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions"><MoreVertical size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="ge-detail-empty">Aucun employé ne correspond à votre recherche.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="ge-detail-empty">Aucun employé ne correspond à votre recherche.</td></tr>
                 )}
               </tbody>
             </table>

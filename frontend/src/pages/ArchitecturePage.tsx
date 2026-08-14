@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Building2, CalendarClock, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Download,
   File, Folder, FolderKanban, FolderOpen, ListChecks, Pencil, Plus, Search, SlidersHorizontal,
   Trash2, Upload, UserCheck, Users,
 } from 'lucide-react'
+import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ArchitecturePage.css'
 
 interface CelluleNode {
@@ -83,6 +84,28 @@ const MODULES_LIES = [
   { icon: UserCheck, label: 'Staffing' },
 ]
 
+type TacheColumnId = 'code' | 'nom' | 'cellule' | 'equipe' | 'activite' | 'niveau' | 'details'
+
+const TACHE_COLUMNS: ColumnDef<TacheColumnId>[] = [
+  { id: 'code', label: 'Code' },
+  { id: 'nom', label: 'Nom de la tâche' },
+  { id: 'cellule', label: 'Cellule / Division' },
+  { id: 'equipe', label: 'Équipe' },
+  { id: 'activite', label: 'Activité' },
+  { id: 'niveau', label: 'Niveau' },
+  { id: 'details', label: 'Détails de la tâche' },
+]
+
+const TACHE_CELL_DEFS: Record<TacheColumnId, { className?: string; render: (t: Tache) => ReactNode }> = {
+  code: { className: 'arch-code', render: (t) => t.code },
+  nom: { className: 'arch-name', render: (t) => t.nom },
+  cellule: { render: () => SELECTED_CELLULE },
+  equipe: { render: () => SELECTED_EQUIPE },
+  activite: { render: () => SELECTED_ACTIVITE },
+  niveau: { render: () => SELECTED_NIVEAU },
+  details: { className: 'arch-details', render: (t) => t.details },
+}
+
 function findNode(nodes: CelluleNode[], code: string): CelluleNode | undefined {
   for (const node of nodes) {
     if (node.code === code) return node
@@ -146,6 +169,7 @@ export default function ArchitecturePage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['PI', 'PIB', 'PIB2']))
   const [selected, setSelected] = useState('PIB22')
   const [search, setSearch] = useState('')
+  const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(TACHE_COLUMNS)
 
   const toggleNode = (code: string) => {
     setExpanded((prev) => {
@@ -219,6 +243,7 @@ export default function ArchitecturePage() {
             <button type="button" className="arch-btn-primary"><Plus size={14} />Nouvelle tâche</button>
             <button type="button" className="arch-btn-outline"><Upload size={14} />Importer l’architecture</button>
             <button type="button" className="arch-btn-outline"><Download size={14} />Exporter l’architecture</button>
+            <ColumnsMenu columns={TACHE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="arch-btn-outline" />
           </div>
 
           <div className="arch-table-panel">
@@ -226,20 +251,17 @@ export default function ArchitecturePage() {
               <table className="arch-table">
                 <thead>
                   <tr>
-                    <th>Code</th><th>Nom de la tâche</th><th>Cellule / Division</th><th>Équipe</th>
-                    <th>Activité</th><th>Niveau</th><th>Détails de la tâche</th><th>Actions</th>
+                    {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {TACHES.map((tache) => (
                     <tr key={tache.code}>
-                      <td className="arch-code">{tache.code}</td>
-                      <td className="arch-name">{tache.nom}</td>
-                      <td>{SELECTED_CELLULE}</td>
-                      <td>{SELECTED_EQUIPE}</td>
-                      <td>{SELECTED_ACTIVITE}</td>
-                      <td>{SELECTED_NIVEAU}</td>
-                      <td className="arch-details">{tache.details}</td>
+                      {visibleColumns.map((c) => {
+                        const def = TACHE_CELL_DEFS[c.id]
+                        return <td key={c.id} className={def.className}>{def.render(tache)}</td>
+                      })}
                       <td>
                         <div className="arch-actions">
                           <button type="button" className="arch-row-action" aria-label="Modifier"><Pencil size={13} /></button>
