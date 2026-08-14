@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList,
-  Gauge, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
+  ExternalLink, Gauge, Lock, MoreVertical, PauseCircle, PlayCircle, RotateCcw, Search,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import './ControleTachesPage.css'
@@ -25,13 +25,15 @@ interface Tache {
   priorite: 'Élevée' | 'Moyenne' | 'Faible'
 }
 
+const EQUIPES = ['BO – Back Office', 'MO – Maîtrise d’œuvre', 'FO – Fonctions support', 'OP – Opérations', 'PI – Pilotage et amélioration', 'IT – Systèmes d’information', 'RES – Ressources']
+
 const TACHES: Tache[] = [
-  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-PADESCE-04', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, statut: 'En cours', priorite: 'Élevée' },
-  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'Gestion de projet', ligneBudgetaire: 'LB-CGP-02', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, statut: 'En pause', priorite: 'Moyenne' },
-  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'Finance & Budget', ligneBudgetaire: 'LB-PILOTAGE-01', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, statut: 'Terminée', priorite: 'Élevée' },
-  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'Suivi & Évaluation', ligneBudgetaire: 'LB-MIDER-03', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, statut: 'En retard', priorite: 'Élevée' },
-  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'Communication', ligneBudgetaire: 'LB-DIEGO-05', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, statut: 'En cours', priorite: 'Moyenne' },
-  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, statut: 'En cours', priorite: 'Faible' },
+  { code: 'T-2025-002', projet: 'PADESCE', nom: 'Collecte des données cohorte B', division: 'PI – Pilotage et amélioration', ligneBudgetaire: 'LB-PADESCE-04', attribuePar: 'Ajara LAMARE', attribueA: 'Herman Tsaffock', dateDebut: '05/05/2025', dateFin: '20/05/2025', echeance: '20/05/2025', dureePrevue: 15, dureeConsommee: 9, dureeRestante: 6, progTemporelle: 60, statut: 'En cours', priorite: 'Élevée' },
+  { code: 'T-2025-013', projet: 'CGP', nom: 'Rédaction du rapport de projet', division: 'MO – Maîtrise d’œuvre', ligneBudgetaire: 'LB-CGP-02', attribuePar: 'Pamella Guebediang', attribueA: 'Diego Ngounou', dateDebut: '12/05/2025', dateFin: '26/05/2025', echeance: '26/05/2025', dureePrevue: 14, dureeConsommee: 4, dureeRestante: 10, progTemporelle: 40, statut: 'En pause', priorite: 'Moyenne' },
+  { code: 'T-2025-004', projet: 'PILOTAGE', nom: 'Suivi budgétaire mensuel', division: 'BO – Back Office', ligneBudgetaire: 'LB-PILOTAGE-01', attribuePar: 'Théodore Bessala', attribueA: 'Harmann Patrice', dateDebut: '10/05/2025', dateFin: '18/05/2025', echeance: '18/05/2025', dureePrevue: 8, dureeConsommee: 8, dureeRestante: 0, progTemporelle: 100, statut: 'Terminée', priorite: 'Élevée' },
+  { code: 'T-2025-005', projet: 'MIDER', nom: 'Analyse des données terrain', division: 'PI – Pilotage et amélioration', ligneBudgetaire: 'LB-MIDER-03', attribuePar: 'Ajara Lamare', attribueA: 'Herman Tsaffock', dateDebut: '08/05/2025', dateFin: '18/05/2025', echeance: '15/05/2025', dureePrevue: 10, dureeConsommee: 9, dureeRestante: 1, progTemporelle: 90, statut: 'En retard', priorite: 'Élevée' },
+  { code: 'T-2025-006', projet: 'DIEGO', nom: 'Préparation atelier de restitution', division: 'FO – Fonctions support', ligneBudgetaire: 'LB-DIEGO-05', attribuePar: 'Pamella Guebediang', attribueA: 'Zainabou Patrice', dateDebut: '19/05/2025', dateFin: '30/05/2025', echeance: '30/05/2025', dureePrevue: 11, dureeConsommee: 4, dureeRestante: 7, progTemporelle: 36, statut: 'En cours', priorite: 'Moyenne' },
+  { code: 'T-2025-007', projet: 'BAC OFFICE', nom: 'Vérification des pièces justificatives', division: 'BO – Back Office', ligneBudgetaire: 'LB-BACKOFFICE-02', attribuePar: 'Théodore Bessala', attribueA: 'Julienne Ekouma', dateDebut: '16/05/2025', dateFin: '22/05/2025', echeance: '22/05/2025', dureePrevue: 6, dureeConsommee: 4, dureeRestante: 2, progTemporelle: 32, statut: 'En cours', priorite: 'Faible' },
 ]
 
 const KPIS = [
@@ -116,7 +118,20 @@ const TACHE_COLUMNS: ColumnDef<TacheColumnId>[] = [
 ]
 
 const TACHE_CELL_DEFS: Record<TacheColumnId, { className?: string; render: (t: Tache) => ReactNode }> = {
-  code: { className: 'ct-code', render: (t) => t.code },
+  code: {
+    className: 'ct-code',
+    render: (t) => (
+      <a
+        className="ct-code-link"
+        href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(t.code)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Ouvrir dans Wrike"
+      >
+        {t.code}<ExternalLink size={11} />
+      </a>
+    ),
+  },
   projet: { render: (t) => t.projet },
   ligneBudgetaire: { render: (t) => t.ligneBudgetaire },
   nom: { className: 'ct-name', render: (t) => t.nom },
@@ -181,7 +196,7 @@ export default function ControleTachesPage({ navigateTo }: { navigateTo: (page: 
 
   const projets = useMemo(() => Array.from(new Set(TACHES.map((t) => t.projet))), [])
   const lignesBudgetaires = useMemo(() => Array.from(new Set(TACHES.map((t) => t.ligneBudgetaire))), [])
-  const equipes = useMemo(() => Array.from(new Set(TACHES.map((t) => t.division))), [])
+  const equipes = EQUIPES
 
   const resetFiltres = () => {
     setSearch(''); setFilterProjet('Tous'); setFilterLigne('Toutes'); setFilterEquipe('Toutes')

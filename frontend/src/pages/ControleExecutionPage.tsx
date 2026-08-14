@@ -19,18 +19,20 @@ interface Evaluation {
 }
 
 const EVALUATIONS: Evaluation[] = [
-  { projet: 'ERP Academy', tache: 'Analyse fonctionnelle', employe: 'Ibrahim M.', equipe: 'MO1', manager: 'Ajara Lamare', statut: 'Terminée', note: 4, derniereEvaluation: '20/05/2025 14:30' },
-  { projet: 'ERP Academy', tache: 'Développement module', employe: 'Herman T.', equipe: 'IT', manager: 'Ajara Lamare', statut: 'Terminée', note: 5, derniereEvaluation: '20/05/2025 11:15' },
-  { projet: 'Mission Audit Interne', tache: 'Collecte des données', employe: 'Pamella G.', equipe: 'MO2', manager: 'Ajara Lamare', statut: 'Terminée', note: 3, derniereEvaluation: '19/05/2025 16:45' },
-  { projet: 'Digitalisation RH', tache: 'Spécifications détaillées', employe: 'Belomo E.', equipe: 'BO1', manager: 'Ajara Lamare', statut: 'En cours', note: 4, derniereEvaluation: '20/05/2025 09:20' },
-  { projet: 'Refonte SI Comptable', tache: 'Tests d’intégration', employe: 'Erine E.', equipe: 'IT', manager: 'Ajara Lamare', statut: 'Terminée', note: 5, derniereEvaluation: '18/05/2025 17:05' },
-  { projet: 'Formation 200 Agents', tache: 'Préparation supports', employe: 'Thibaut M.', equipe: 'FO', manager: 'Ajara Lamare', statut: 'En cours', note: 3, derniereEvaluation: '20/05/2025 10:10' },
-  { projet: 'Implémentation CRM', tache: 'Paramétrage', employe: 'Théodore B.', equipe: 'IT', manager: 'Ajara Lamare', statut: 'Terminée', note: 4, derniereEvaluation: '19/05/2025 15:00' },
-  { projet: 'Étude marché RDC', tache: 'Analyse des résultats', employe: 'Brayan E.', equipe: 'MO2', manager: 'Ajara Lamare', statut: 'En retard', note: 2, derniereEvaluation: '18/05/2025 12:40' },
+  { projet: 'ERP Academy', tache: 'Analyse fonctionnelle', employe: 'Ibrahim M.', equipe: 'MO – Maîtrise d’œuvre', manager: 'Ajara Lamare', statut: 'Terminée', note: 4, derniereEvaluation: '20/05/2025 14:30' },
+  { projet: 'ERP Academy', tache: 'Développement module', employe: 'Herman T.', equipe: 'IT – Systèmes d’information', manager: 'Ajara Lamare', statut: 'Terminée', note: 5, derniereEvaluation: '20/05/2025 11:15' },
+  { projet: 'Mission Audit Interne', tache: 'Collecte des données', employe: 'Pamella G.', equipe: 'MO – Maîtrise d’œuvre', manager: 'Ajara Lamare', statut: 'Terminée', note: 3, derniereEvaluation: '19/05/2025 16:45' },
+  { projet: 'Digitalisation RH', tache: 'Spécifications détaillées', employe: 'Belomo E.', equipe: 'BO – Back Office', manager: 'Ajara Lamare', statut: 'En cours', note: 4, derniereEvaluation: '20/05/2025 09:20' },
+  { projet: 'Refonte SI Comptable', tache: 'Tests d’intégration', employe: 'Erine E.', equipe: 'IT – Systèmes d’information', manager: 'Ajara Lamare', statut: 'Terminée', note: 5, derniereEvaluation: '18/05/2025 17:05' },
+  { projet: 'Formation 200 Agents', tache: 'Préparation supports', employe: 'Thibaut M.', equipe: 'FO – Fonctions support', manager: 'Ajara Lamare', statut: 'En cours', note: 3, derniereEvaluation: '20/05/2025 10:10' },
+  { projet: 'Implémentation CRM', tache: 'Paramétrage', employe: 'Théodore B.', equipe: 'IT – Systèmes d’information', manager: 'Ajara Lamare', statut: 'Terminée', note: 4, derniereEvaluation: '19/05/2025 15:00' },
+  { projet: 'Étude marché RDC', tache: 'Analyse des résultats', employe: 'Brayan E.', equipe: 'MO – Maîtrise d’œuvre', manager: 'Ajara Lamare', statut: 'En retard', note: 2, derniereEvaluation: '18/05/2025 12:40' },
 ]
 
+const EQUIPES = ['BO – Back Office', 'MO – Maîtrise d’œuvre', 'FO – Fonctions support', 'OP – Opérations', 'PI – Pilotage et amélioration', 'IT – Systèmes d’information', 'RES – Ressources']
+
 const PROJET_OPTIONS = Array.from(new Set(EVALUATIONS.map((e) => e.projet))).sort()
-const EQUIPE_OPTIONS = Array.from(new Set(EVALUATIONS.map((e) => e.equipe))).sort()
+const EQUIPE_OPTIONS = EQUIPES
 const MANAGER_OPTIONS = Array.from(new Set(EVALUATIONS.map((e) => e.manager))).sort()
 const EMPLOYE_OPTIONS = Array.from(new Set(EVALUATIONS.map((e) => e.employe))).sort()
 

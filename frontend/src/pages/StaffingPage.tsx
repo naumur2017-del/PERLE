@@ -24,6 +24,8 @@ interface TacheWrike {
   staffeLe: string | null
 }
 
+const EQUIPES = ['BO – Back Office', 'MO – Maîtrise d’œuvre', 'FO – Fonctions support', 'OP – Opérations', 'PI – Pilotage et amélioration', 'IT – Systèmes d’information', 'RES – Ressources']
+
 const LIGNES_BUDGET_INITIAL = [
   { nom: 'Déplacement terrain', disponible: 42.0 },
   { nom: 'Consultation externe', disponible: 27.5 },
@@ -33,37 +35,37 @@ const LIGNES_BUDGET_INITIAL = [
 ]
 
 const COLLABORATEURS = [
-  { nom: 'Ibrahim Mbouombouo', profil: 'Comptable Senior', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Belomo Edwige', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Essogo Erine', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Pamella Guebediang', profil: 'Contrôleur de gestion', equipe: 'MO1 - Middle Office 1' },
-  { nom: 'Herman Tsaffock', profil: 'Analyste Financier', equipe: 'MO1 - Middle Office 1' },
-  { nom: 'Mbarga Thibaut', profil: 'Opérateur ERP', equipe: 'OP1 - Opérations 1' },
-  { nom: 'Théodore Bessala', profil: 'Chef de projet', equipe: 'PI1 - Pilotage 1' },
-  { nom: 'Brayan Ebongue', profil: 'Développeur Senior', equipe: 'IT1 - Développement 1' },
+  { nom: 'Ibrahim Mbouombouo', profil: 'Comptable Senior', equipe: 'BO – Back Office' },
+  { nom: 'Belomo Edwige', profil: 'Analyste Financier', equipe: 'BO – Back Office' },
+  { nom: 'Essogo Erine', profil: 'Analyste Financier', equipe: 'BO – Back Office' },
+  { nom: 'Pamella Guebediang', profil: 'Contrôleur de gestion', equipe: 'MO – Maîtrise d’œuvre' },
+  { nom: 'Herman Tsaffock', profil: 'Analyste Financier', equipe: 'MO – Maîtrise d’œuvre' },
+  { nom: 'Mbarga Thibaut', profil: 'Opérateur ERP', equipe: 'OP – Opérations' },
+  { nom: 'Théodore Bessala', profil: 'Chef de projet', equipe: 'PI – Pilotage et amélioration' },
+  { nom: 'Brayan Ebongue', profil: 'Développeur Senior', equipe: 'IT – Systèmes d’information' },
 ]
 
 const TACHES_INITIAL: TacheWrike[] = [
-  { id: 'WRK-1456', projet: 'ERP Academy', tache: 'Analyse des besoins utilisateurs', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '15/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1457', projet: 'ERP Academy', tache: 'Mission de collecte des données', equipe: 'MO1 - Middle Office 1', priorite: 'Haute', creeLe: '07/05/2025', echeance: '20/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1458', projet: 'ERP Academy', tache: 'Rédaction rapport préliminaire', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '25/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1459', projet: 'ERP Academy', tache: 'Atelier de restitution intermédiaire', equipe: 'MO1 - Middle Office 1', priorite: 'Basse', creeLe: '07/05/2025', echeance: '30/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1460', projet: 'ERP Academy', tache: 'Validation rapport final', equipe: 'MO1 - Middle Office 1', priorite: 'Haute', creeLe: '07/05/2025', echeance: '05/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1461', projet: 'ERP Academy', tache: 'Archivage des documents', equipe: 'MO1 - Middle Office 1', priorite: 'Basse', creeLe: '07/05/2025', echeance: '07/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1456', projet: 'ERP Academy', tache: 'Analyse des besoins utilisateurs', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '15/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1457', projet: 'ERP Academy', tache: 'Mission de collecte des données', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Haute', creeLe: '07/05/2025', echeance: '20/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1458', projet: 'ERP Academy', tache: 'Rédaction rapport préliminaire', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', creeLe: '07/05/2025', echeance: '25/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1459', projet: 'ERP Academy', tache: 'Atelier de restitution intermédiaire', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Basse', creeLe: '07/05/2025', echeance: '30/05/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1460', projet: 'ERP Academy', tache: 'Validation rapport final', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Haute', creeLe: '07/05/2025', echeance: '05/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1461', projet: 'ERP Academy', tache: 'Archivage des documents', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Basse', creeLe: '07/05/2025', echeance: '07/06/2025', ligneBudgetaire: null, ehsPrevu: null, statut: 'a-configurer', collaborateur: null, collaborateurProfil: null, staffeLe: null },
 
-  { id: 'WRK-1442', projet: 'ERP Academy', tache: 'Cartographie des processus', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '02/05/2025', echeance: '18/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 12, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1443', projet: 'Mission Audit Interne', tache: 'Revue des contrôles internes', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '03/05/2025', echeance: '22/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1444', projet: 'Digitalisation RH', tache: 'Paramétrage du SIRH', equipe: 'IT1 - Développement 1', priorite: 'Basse', creeLe: '04/05/2025', echeance: '28/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 8, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1445', projet: 'Étude de faisabilité usine', tache: 'Analyse des coûts', equipe: 'PI1 - Pilotage 1', priorite: 'Moyenne', creeLe: '05/05/2025', echeance: '02/06/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 15, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
-  { id: 'WRK-1446', projet: 'ERP Academy', tache: "Tests d'intégration module RH", equipe: 'IT1 - Développement 1', priorite: 'Haute', creeLe: '06/05/2025', echeance: '10/06/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 10, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1442', projet: 'ERP Academy', tache: 'Cartographie des processus', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', creeLe: '02/05/2025', echeance: '18/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 12, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1443', projet: 'Mission Audit Interne', tache: 'Revue des contrôles internes', equipe: 'BO – Back Office', priorite: 'Haute', creeLe: '03/05/2025', echeance: '22/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1444', projet: 'Digitalisation RH', tache: 'Paramétrage du SIRH', equipe: 'IT – Systèmes d’information', priorite: 'Basse', creeLe: '04/05/2025', echeance: '28/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 8, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1445', projet: 'Étude de faisabilité usine', tache: 'Analyse des coûts', equipe: 'PI – Pilotage et amélioration', priorite: 'Moyenne', creeLe: '05/05/2025', echeance: '02/06/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 15, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
+  { id: 'WRK-1446', projet: 'ERP Academy', tache: "Tests d'intégration module RH", equipe: 'IT – Systèmes d’information', priorite: 'Haute', creeLe: '06/05/2025', echeance: '10/06/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 10, statut: 'prete', collaborateur: null, collaborateurProfil: null, staffeLe: null },
 
-  { id: 'WRK-1401', projet: 'ERP Academy', tache: 'Saisie des écritures comptables', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 15, statut: 'staffee', collaborateur: 'Ibrahim Mbouombouo', collaborateurProfil: 'Comptable Senior', staffeLe: '30/04/2025' },
-  { id: 'WRK-1402', projet: 'ERP Academy', tache: 'Rapprochement bancaire', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'staffee', collaborateur: 'Belomo Edwige', collaborateurProfil: 'Analyste Financier', staffeLe: '30/04/2025' },
-  { id: 'WRK-1403', projet: 'Mission Audit Interne', tache: 'Établissement des déclarations fiscales', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '29/04/2025', echeance: '13/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 30, statut: 'staffee', collaborateur: 'Essogo Erine', collaborateurProfil: 'Analyste Financier', staffeLe: '01/05/2025' },
-  { id: 'WRK-1404', projet: 'ERP Academy', tache: 'Analyse financière', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '29/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 25, statut: 'staffee', collaborateur: 'Pamella Guebediang', collaborateurProfil: 'Contrôleur de gestion', staffeLe: '02/05/2025' },
-  { id: 'WRK-1405', projet: 'Digitalisation RH', tache: 'Préparation du budget', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 18, statut: 'staffee', collaborateur: 'Herman Tsaffock', collaborateurProfil: 'Analyste Financier', staffeLe: '02/05/2025' },
-  { id: 'WRK-1406', projet: 'Étude de faisabilité usine', tache: 'Suivi des opérations', equipe: 'OP1 - Opérations 1', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '15/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 22, statut: 'staffee', collaborateur: 'Mbarga Thibaut', collaborateurProfil: 'Opérateur ERP', staffeLe: '03/05/2025' },
-  { id: 'WRK-1407', projet: 'ERP Academy', tache: 'Planification stratégique', equipe: 'PI1 - Pilotage 1', priorite: 'Moyenne', creeLe: '01/05/2025', echeance: '15/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 16, statut: 'staffee', collaborateur: 'Théodore Bessala', collaborateurProfil: 'Chef de projet', staffeLe: '03/05/2025' },
+  { id: 'WRK-1401', projet: 'ERP Academy', tache: 'Saisie des écritures comptables', equipe: 'BO – Back Office', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 15, statut: 'staffee', collaborateur: 'Ibrahim Mbouombouo', collaborateurProfil: 'Comptable Senior', staffeLe: '30/04/2025' },
+  { id: 'WRK-1402', projet: 'ERP Academy', tache: 'Rapprochement bancaire', equipe: 'BO – Back Office', priorite: 'Haute', creeLe: '28/04/2025', echeance: '12/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, statut: 'staffee', collaborateur: 'Belomo Edwige', collaborateurProfil: 'Analyste Financier', staffeLe: '30/04/2025' },
+  { id: 'WRK-1403', projet: 'Mission Audit Interne', tache: 'Établissement des déclarations fiscales', equipe: 'BO – Back Office', priorite: 'Haute', creeLe: '29/04/2025', echeance: '13/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 30, statut: 'staffee', collaborateur: 'Essogo Erine', collaborateurProfil: 'Analyste Financier', staffeLe: '01/05/2025' },
+  { id: 'WRK-1404', projet: 'ERP Academy', tache: 'Analyse financière', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', creeLe: '29/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 25, statut: 'staffee', collaborateur: 'Pamella Guebediang', collaborateurProfil: 'Contrôleur de gestion', staffeLe: '02/05/2025' },
+  { id: 'WRK-1405', projet: 'Digitalisation RH', tache: 'Préparation du budget', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '14/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 18, statut: 'staffee', collaborateur: 'Herman Tsaffock', collaborateurProfil: 'Analyste Financier', staffeLe: '02/05/2025' },
+  { id: 'WRK-1406', projet: 'Étude de faisabilité usine', tache: 'Suivi des opérations', equipe: 'OP – Opérations', priorite: 'Moyenne', creeLe: '30/04/2025', echeance: '15/05/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 22, statut: 'staffee', collaborateur: 'Mbarga Thibaut', collaborateurProfil: 'Opérateur ERP', staffeLe: '03/05/2025' },
+  { id: 'WRK-1407', projet: 'ERP Academy', tache: 'Planification stratégique', equipe: 'PI – Pilotage et amélioration', priorite: 'Moyenne', creeLe: '01/05/2025', echeance: '15/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 16, statut: 'staffee', collaborateur: 'Théodore Bessala', collaborateurProfil: 'Chef de projet', staffeLe: '03/05/2025' },
 ]
 
 const STATUT_LABEL: Record<Statut, string> = { 'a-configurer': 'À configurer', prete: 'Prêt à staffer', staffee: 'Déjà staffée' }
@@ -160,7 +162,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
   const [formCollaborateur, setFormCollaborateur] = useState('')
 
   const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
-  const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
+  const equipes = EQUIPES
 
   const nsColumns = useMemo<ColumnDef<NsColumnId>[]>(() => {
     const cols: ColumnDef<NsColumnId>[] = [

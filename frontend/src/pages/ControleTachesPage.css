@@ -168,6 +168,10 @@
 .ct-code { color: #6b46c1; font-weight: 700; }
 .ct-name { color: #14123a; font-weight: 600; white-space: normal; min-width: 160px; }
 
+.ct-code-link { display: inline-flex; align-items: center; gap: 5px; color: #6b46c1; font-weight: 700; text-decoration: none; }
+.ct-code-link:hover { text-decoration: underline; }
+.ct-code-link svg { color: #a8a8bd; flex-shrink: 0; }
+
 .ct-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .ct-pill-attente { background: #eef0f3; color: #4b5563; }
 .ct-pill-cours { background: #dbeafe; color: #1d4ed8; }
