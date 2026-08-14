@@ -211,6 +211,51 @@ export default function ControleExecutionPage({ navigateTo }: { navigateTo: (pag
         ))}
       </div>
 
+      <div className="ce-side-panels">
+        <div className="ce-panel">
+          <h3>Situation du staffing (collaborateurs)<Info size={13} /></h3>
+          <div className="ce-staffing-grid">
+            {STAFFING_LEVELS.map((level) => (
+              <div key={level.key} className={`ce-staffing-card tone-${level.tone}`}>
+                <span className="ce-staffing-icon"><level.icon size={15} /></span>
+                <span className="ce-staffing-label">{level.label}</span>
+                <strong>{level.value}</strong>
+                <small>{level.pct}</small>
+                <button type="button" className="ce-staffing-link">Voir la liste</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="ce-panel">
+          <h3>Résumé par vue<Info size={13} /></h3>
+          <div className="ce-resume-tabs">
+            <button type="button" className={resumeVue === 'projet' ? 'active' : ''} onClick={() => setResumeVue('projet')}>Par projet</button>
+            <button type="button" className={resumeVue === 'equipe' ? 'active' : ''} onClick={() => setResumeVue('equipe')}>Par équipe</button>
+            <button type="button" className={resumeVue === 'employe' ? 'active' : ''} onClick={() => setResumeVue('employe')}>Par employé</button>
+          </div>
+          <table className="ce-resume-table">
+            <thead>
+              <tr>
+                <th>{resume.label}</th><th>Note /5</th><th>Tâches éval.</th><th>Équiv. EHS</th><th>Staffing moyen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resume.rows.map((row) => (
+                <tr key={row.nom}>
+                  <td className="ce-name">{row.nom}</td>
+                  <td>{row.note.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                  <td>{row.taches}</td>
+                  <td>{row.ehs.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td><span className={`ce-staffing-dot ${staffingDotClass(row.tone)}`} />{row.staffing}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button type="button" className="ce-see-all">Voir tous les {resume.label.toLowerCase()}s</button>
+        </div>
+      </div>
+
       <div className="ce-filters">
         <label>Projet
           <select defaultValue="Tous">
@@ -251,104 +296,57 @@ export default function ControleExecutionPage({ navigateTo }: { navigateTo: (pag
         <button type="button" className="ce-reset"><RotateCcw size={14} />Réinitialiser les filtres</button>
       </div>
 
-      <div className="ce-main">
-        <div className="ce-table-panel">
-          <div className="ce-table-head">
-            <h3>Performance des tâches<Info size={13} /></h3>
-            <ColumnsMenu columns={EVAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
-          </div>
-          <div className="ce-table-wrap">
-            <table className="ce-table">
-              <thead>
-                <tr>
-                  {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
-                  <th></th>
+      <div className="ce-table-panel">
+        <div className="ce-table-head">
+          <h3>Performance des tâches<Info size={13} /></h3>
+          <ColumnsMenu columns={EVAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+        </div>
+        <div className="ce-table-wrap">
+          <table className="ce-table">
+            <thead>
+              <tr>
+                {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {EVALUATIONS.map((e, index) => (
+                <tr key={`${e.projet}-${index}`}>
+                  {visibleColumns.map((c) => {
+                    const def = EVAL_CELL_DEFS[c.id]
+                    return <td key={c.id} className={def.className}>{def.render(e)}</td>
+                  })}
+                  <td><button type="button" className="ce-row-action" aria-label="Voir le détail"><ChevronRight size={14} /></button></td>
                 </tr>
-              </thead>
-              <tbody>
-                {EVALUATIONS.map((e, index) => (
-                  <tr key={`${e.projet}-${index}`}>
-                    {visibleColumns.map((c) => {
-                      const def = EVAL_CELL_DEFS[c.id]
-                      return <td key={c.id} className={def.className}>{def.render(e)}</td>
-                    })}
-                    <td><button type="button" className="ce-row-action" aria-label="Voir le détail"><ChevronRight size={14} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="ce-table-foot">
-            <span>Affichage de 1 à {EVALUATIONS.length} sur 452 tâches</span>
-            <div className="ce-table-foot-right">
-              <label className="ce-page-size">Lignes par page
-                <select defaultValue={10}>
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </label>
-              <nav className="ce-pagination" aria-label="Pagination">
-                <button type="button" disabled><ChevronsLeft size={14} /></button>
-                <button type="button" disabled><ChevronLeft size={14} /></button>
-                <button type="button" className="is-active">1</button>
-                <button type="button">2</button>
-                <button type="button">3</button>
-                <button type="button">4</button>
-                <button type="button">5</button>
-                <span className="ce-page-ellipsis">…</span>
-                <button type="button">46</button>
-                <button type="button"><ChevronRight size={14} /></button>
-                <button type="button"><ChevronsRight size={14} /></button>
-              </nav>
-            </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="ce-table-foot">
+          <span>Affichage de 1 à {EVALUATIONS.length} sur 452 tâches</span>
+          <div className="ce-table-foot-right">
+            <label className="ce-page-size">Lignes par page
+              <select defaultValue={10}>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
+            <nav className="ce-pagination" aria-label="Pagination">
+              <button type="button" disabled><ChevronsLeft size={14} /></button>
+              <button type="button" disabled><ChevronLeft size={14} /></button>
+              <button type="button" className="is-active">1</button>
+              <button type="button">2</button>
+              <button type="button">3</button>
+              <button type="button">4</button>
+              <button type="button">5</button>
+              <span className="ce-page-ellipsis">…</span>
+              <button type="button">46</button>
+              <button type="button"><ChevronRight size={14} /></button>
+              <button type="button"><ChevronsRight size={14} /></button>
+            </nav>
           </div>
         </div>
-
-        <aside className="ce-side">
-          <div className="ce-panel">
-            <h3>Situation du staffing (collaborateurs)<Info size={13} /></h3>
-            <div className="ce-staffing-grid">
-              {STAFFING_LEVELS.map((level) => (
-                <div key={level.key} className={`ce-staffing-card tone-${level.tone}`}>
-                  <span className="ce-staffing-icon"><level.icon size={15} /></span>
-                  <span className="ce-staffing-label">{level.label}</span>
-                  <strong>{level.value}</strong>
-                  <small>{level.pct}</small>
-                  <button type="button" className="ce-staffing-link">Voir la liste</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="ce-panel">
-            <h3>Résumé par vue<Info size={13} /></h3>
-            <div className="ce-resume-tabs">
-              <button type="button" className={resumeVue === 'projet' ? 'active' : ''} onClick={() => setResumeVue('projet')}>Par projet</button>
-              <button type="button" className={resumeVue === 'equipe' ? 'active' : ''} onClick={() => setResumeVue('equipe')}>Par équipe</button>
-              <button type="button" className={resumeVue === 'employe' ? 'active' : ''} onClick={() => setResumeVue('employe')}>Par employé</button>
-            </div>
-            <table className="ce-resume-table">
-              <thead>
-                <tr>
-                  <th>{resume.label}</th><th>Note /5</th><th>Tâches éval.</th><th>Équiv. EHS</th><th>Staffing moyen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resume.rows.map((row) => (
-                  <tr key={row.nom}>
-                    <td className="ce-name">{row.nom}</td>
-                    <td>{row.note.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
-                    <td>{row.taches}</td>
-                    <td>{row.ehs.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td><span className={`ce-staffing-dot ${staffingDotClass(row.tone)}`} />{row.staffing}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <button type="button" className="ce-see-all">Voir tous les {resume.label.toLowerCase()}s</button>
-          </div>
-        </aside>
       </div>
 
       <div className="ce-footbar">

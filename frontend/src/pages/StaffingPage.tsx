@@ -340,7 +340,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
             <div className="ns-table-head">
               <h3>Liste des tâches importées de Wrike <span className="ns-count-badge">{filtered.length}</span></h3>
               <div className="ns-table-head-actions">
-                <ColumnsMenu columns={nsColumns} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+                <ColumnsMenu columns={nsColumns} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="ns-cols-btn" />
                 <label>Afficher<select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
                 <span>1-{filtered.length} sur {filtered.length}</span>
                 <button type="button" disabled><ChevronLeft size={14} /></button>
