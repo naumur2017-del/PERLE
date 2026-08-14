@@ -1,8 +1,8 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import {
   Boxes, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Clock, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
-  RotateCcw, Search, SlidersHorizontal, Users,
+  ClipboardList, Columns3, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
+  RotateCcw, Search, SlidersHorizontal, Users, Wallet,
 } from 'lucide-react'
 import './PilotagePage.css'
 
@@ -11,7 +11,7 @@ interface Project {
   name: string
   client: string
   chef: string
-  division: string
+  equipe: string
   priorite: string
   debut: string
   fin: string
@@ -34,7 +34,7 @@ interface Project {
 
 const CLIENTS = ['Cabinet Conseil X', 'Société ABC', 'Industries SA', 'Groupe ZETA', 'Holding MBDA', 'Ministère Y', 'Entreprise DEF', 'Client International', 'Banque Centrale', 'Groupe Atlantique', 'SARL Nova', 'Fondation Koré']
 const CHEFS = ['Ajara Lamare', 'Herman Tsaffock', 'Pamela G.', 'Belomo Edwige', 'Ibrahim M.', 'Essogo Erine', 'Théodore Bessala', 'Brayan Ebongue', 'Nadine Fokou', 'Serge Amougou']
-const DIVISIONS = ['Digital', 'Finance', 'Industrie', 'RH', 'Santé', 'Énergie']
+const EQUIPES = ['BO – Back Office', 'MO – Maîtrise d’œuvre', 'FO – Fonctions support', 'OP – Opérations', 'PI – Pilotage et amélioration', 'IT – Systèmes d’information', 'RES – Ressources']
 const PRIORITES = ['Haute', 'Moyenne', 'Basse']
 const NAME_BASES = [
   'ERP Academy', 'Mission Audit Interne', 'Étude de faisabilité usine', 'Digitalisation RH', 'Refonte SI Comptable',
@@ -88,7 +88,7 @@ function buildProject(index: number, rnd: () => number): Project {
   const name = `${NAME_BASES[(index - 1) % NAME_BASES.length]}${lot > 0 ? ` — Lot ${lot + 1}` : ''}`
   const client = CLIENTS[Math.floor(rnd() * CLIENTS.length)]
   const chef = CHEFS[Math.floor(rnd() * CHEFS.length)]
-  const division = DIVISIONS[Math.floor(rnd() * DIVISIONS.length)]
+  const equipe = EQUIPES[Math.floor(rnd() * EQUIPES.length)]
   const priorite = PRIORITES[Math.floor(rnd() * PRIORITES.length)]
 
   const dureePrevue = Math.round(90 + rnd() * 210)
@@ -119,7 +119,7 @@ function buildProject(index: number, rnd: () => number): Project {
   const finDate = addDays(debutDate, dureePrevue)
 
   return {
-    code, name, client, chef, division, priorite,
+    code, name, client, chef, equipe, priorite,
     debut: fmtDate(debutDate), fin: fmtDate(finDate),
     statut, ehsPrevu, ehsConsomme, ehsRestant,
     budgetPrevu, budgetConsomme, budgetRestant,
@@ -129,14 +129,14 @@ function buildProject(index: number, rnd: () => number): Project {
 }
 
 const FIXED_PROJECTS: Project[] = [
-  { code: 'PRJ.001', name: 'ERP Academy', client: 'Cabinet Conseil X', chef: 'Ajara Lamare', division: 'Digital', priorite: 'Haute', debut: '01/05/2025', fin: '31/12/2025', statut: 'En cours', ehsPrevu: 256, ehsConsomme: 174.5, ehsRestant: 81.5, budgetPrevu: 125000000, budgetConsomme: 85430000, budgetRestant: 39570000, dureePrevue: 245, dureeEcoulee: 165, dureeRestante: 80, progTemporelle: 67, progEhs: 68, progOperationnelle: 62, avancementGlobal: 68, statutGlobal: 'En bonne voie' },
-  { code: 'PRJ.002', name: 'Mission Audit Interne', client: 'Société ABC', chef: 'Herman Tsaffock', division: 'Finance', priorite: 'Moyenne', debut: '15/03/2025', fin: '15/07/2025', statut: 'En cours', ehsPrevu: 110, ehsConsomme: 72.4, ehsRestant: 37.6, budgetPrevu: 55000000, budgetConsomme: 36100000, budgetRestant: 18900000, dureePrevue: 123, dureeEcoulee: 88, dureeRestante: 35, progTemporelle: 72, progEhs: 66, progOperationnelle: 58, avancementGlobal: 67, statutGlobal: 'À surveiller' },
-  { code: 'PRJ.003', name: 'Étude de faisabilité usine', client: 'Industries SA', chef: 'Pamela G.', division: 'Industrie', priorite: 'Haute', debut: '10/04/2025', fin: '10/08/2025', statut: 'En cours', ehsPrevu: 95, ehsConsomme: 60, ehsRestant: 35, budgetPrevu: 40000000, budgetConsomme: 22800000, budgetRestant: 17200000, dureePrevue: 123, dureeEcoulee: 67, dureeRestante: 56, progTemporelle: 49, progEhs: 57, progOperationnelle: 45, avancementGlobal: 54, statutGlobal: 'À surveiller' },
-  { code: 'PRJ.004', name: 'Digitalisation RH', client: 'Groupe ZETA', chef: 'Belomo Edwige', division: 'RH', priorite: 'Moyenne', debut: '05/02/2025', fin: '05/06/2025', statut: 'Terminé', ehsPrevu: 80, ehsConsomme: 76, ehsRestant: 4, budgetPrevu: 58700000, budgetConsomme: 58700000, budgetRestant: 1300000, dureePrevue: 120, dureeEcoulee: 120, dureeRestante: 0, progTemporelle: 100, progEhs: 95, progOperationnelle: 100, avancementGlobal: 99, statutGlobal: 'Terminé' },
-  { code: 'PRJ.005', name: 'Refonte SI Comptable', client: 'Holding MBDA', chef: 'Ibrahim M.', division: 'Finance', priorite: 'Haute', debut: '20/03/2025', fin: '20/09/2025', statut: 'En cours', ehsPrevu: 160, ehsConsomme: 89.1, ehsRestant: 70.9, budgetPrevu: 90000000, budgetConsomme: 42600000, budgetRestant: 47400000, dureePrevue: 185, dureeEcoulee: 95, dureeRestante: 90, progTemporelle: 51, progEhs: 47, progOperationnelle: 40, avancementGlobal: 48, statutGlobal: 'À surveiller' },
-  { code: 'PRJ.006', name: 'Formation 200 Agents', client: 'Ministère Y', chef: 'Essogo Erine', division: 'RH', priorite: 'Basse', debut: '01/05/2025', fin: '30/11/2025', statut: 'En cours', ehsPrevu: 130, ehsConsomme: 46.8, ehsRestant: 63.2, budgetPrevu: 40000000, budgetConsomme: 18400000, budgetRestant: 21600000, dureePrevue: 214, dureeEcoulee: 61, dureeRestante: 153, progTemporelle: 28, progEhs: 36, progOperationnelle: 30, avancementGlobal: 40, statutGlobal: 'En retard' },
-  { code: 'PRJ.007', name: 'Implémentation CRM', client: 'Entreprise DEF', chef: 'Théodore Bessala', division: 'Digital', priorite: 'Moyenne', debut: '18/01/2025', fin: '18/05/2025', statut: 'Terminé', ehsPrevu: 60, ehsConsomme: 60, ehsRestant: 0, budgetPrevu: 35000000, budgetConsomme: 34200000, budgetRestant: 800000, dureePrevue: 120, dureeEcoulee: 120, dureeRestante: 0, progTemporelle: 100, progEhs: 100, progOperationnelle: 98, avancementGlobal: 100, statutGlobal: 'Terminé' },
-  { code: 'PRJ.008', name: 'Étude marché RDC', client: 'Client International', chef: 'Brayan Ebongue', division: 'Industrie', priorite: 'Basse', debut: '12/05/2025', fin: '12/10/2025', statut: 'En retard', ehsPrevu: 50, ehsConsomme: 11, ehsRestant: 39, budgetPrevu: 18000000, budgetConsomme: 6400000, budgetRestant: 11600000, dureePrevue: 155, dureeEcoulee: 23, dureeRestante: 132, progTemporelle: 15, progEhs: 36, progOperationnelle: 22, avancementGlobal: 29, statutGlobal: 'En retard' },
+  { code: 'PRJ.001', name: 'ERP Academy', client: 'Cabinet Conseil X', chef: 'Ajara Lamare', equipe: 'IT – Systèmes d’information', priorite: 'Haute', debut: '01/05/2025', fin: '31/12/2025', statut: 'En cours', ehsPrevu: 256, ehsConsomme: 174.5, ehsRestant: 81.5, budgetPrevu: 125000000, budgetConsomme: 85430000, budgetRestant: 39570000, dureePrevue: 245, dureeEcoulee: 165, dureeRestante: 80, progTemporelle: 67, progEhs: 68, progOperationnelle: 62, avancementGlobal: 68, statutGlobal: 'En bonne voie' },
+  { code: 'PRJ.002', name: 'Mission Audit Interne', client: 'Société ABC', chef: 'Herman Tsaffock', equipe: 'PI – Pilotage et amélioration', priorite: 'Moyenne', debut: '15/03/2025', fin: '15/07/2025', statut: 'En cours', ehsPrevu: 110, ehsConsomme: 72.4, ehsRestant: 37.6, budgetPrevu: 55000000, budgetConsomme: 36100000, budgetRestant: 18900000, dureePrevue: 123, dureeEcoulee: 88, dureeRestante: 35, progTemporelle: 72, progEhs: 66, progOperationnelle: 58, avancementGlobal: 67, statutGlobal: 'À surveiller' },
+  { code: 'PRJ.003', name: 'Étude de faisabilité usine', client: 'Industries SA', chef: 'Pamela G.', equipe: 'OP – Opérations', priorite: 'Haute', debut: '10/04/2025', fin: '10/08/2025', statut: 'En cours', ehsPrevu: 95, ehsConsomme: 60, ehsRestant: 35, budgetPrevu: 40000000, budgetConsomme: 22800000, budgetRestant: 17200000, dureePrevue: 123, dureeEcoulee: 67, dureeRestante: 56, progTemporelle: 49, progEhs: 57, progOperationnelle: 45, avancementGlobal: 54, statutGlobal: 'À surveiller' },
+  { code: 'PRJ.004', name: 'Digitalisation RH', client: 'Groupe ZETA', chef: 'Belomo Edwige', equipe: 'FO – Fonctions support', priorite: 'Moyenne', debut: '05/02/2025', fin: '05/06/2025', statut: 'Terminé', ehsPrevu: 80, ehsConsomme: 76, ehsRestant: 4, budgetPrevu: 58700000, budgetConsomme: 58700000, budgetRestant: 1300000, dureePrevue: 120, dureeEcoulee: 120, dureeRestante: 0, progTemporelle: 100, progEhs: 95, progOperationnelle: 100, avancementGlobal: 99, statutGlobal: 'Terminé' },
+  { code: 'PRJ.005', name: 'Refonte SI Comptable', client: 'Holding MBDA', chef: 'Ibrahim M.', equipe: 'BO – Back Office', priorite: 'Haute', debut: '20/03/2025', fin: '20/09/2025', statut: 'En cours', ehsPrevu: 160, ehsConsomme: 89.1, ehsRestant: 70.9, budgetPrevu: 90000000, budgetConsomme: 42600000, budgetRestant: 47400000, dureePrevue: 185, dureeEcoulee: 95, dureeRestante: 90, progTemporelle: 51, progEhs: 47, progOperationnelle: 40, avancementGlobal: 48, statutGlobal: 'À surveiller' },
+  { code: 'PRJ.006', name: 'Formation 200 Agents', client: 'Ministère Y', chef: 'Essogo Erine', equipe: 'RES – Ressources', priorite: 'Basse', debut: '01/05/2025', fin: '30/11/2025', statut: 'En cours', ehsPrevu: 130, ehsConsomme: 46.8, ehsRestant: 63.2, budgetPrevu: 40000000, budgetConsomme: 18400000, budgetRestant: 21600000, dureePrevue: 214, dureeEcoulee: 61, dureeRestante: 153, progTemporelle: 28, progEhs: 36, progOperationnelle: 30, avancementGlobal: 40, statutGlobal: 'En retard' },
+  { code: 'PRJ.007', name: 'Implémentation CRM', client: 'Entreprise DEF', chef: 'Théodore Bessala', equipe: 'MO – Maîtrise d’œuvre', priorite: 'Moyenne', debut: '18/01/2025', fin: '18/05/2025', statut: 'Terminé', ehsPrevu: 60, ehsConsomme: 60, ehsRestant: 0, budgetPrevu: 35000000, budgetConsomme: 34200000, budgetRestant: 800000, dureePrevue: 120, dureeEcoulee: 120, dureeRestante: 0, progTemporelle: 100, progEhs: 100, progOperationnelle: 98, avancementGlobal: 100, statutGlobal: 'Terminé' },
+  { code: 'PRJ.008', name: 'Étude marché RDC', client: 'Client International', chef: 'Brayan Ebongue', equipe: 'OP – Opérations', priorite: 'Basse', debut: '12/05/2025', fin: '12/10/2025', statut: 'En retard', ehsPrevu: 50, ehsConsomme: 11, ehsRestant: 39, budgetPrevu: 18000000, budgetConsomme: 6400000, budgetRestant: 11600000, dureePrevue: 155, dureeEcoulee: 23, dureeRestante: 132, progTemporelle: 15, progEhs: 36, progOperationnelle: 22, avancementGlobal: 29, statutGlobal: 'En retard' },
 ]
 
 const TOTAL_PROJECTS = 128
@@ -164,7 +164,9 @@ function getPageList(current: number, total: number): (number | '...')[] {
 }
 
 interface BudgetLine {
+  code: string
   name: string
+  intitule: string
   ehsPrevu: number
   ehsConsomme: number
   ehsRestant: number
@@ -176,7 +178,13 @@ interface BudgetLine {
   progOperationnelle: number
 }
 
-const BUDGET_LINE_NAMES = ['Ressources humaines', 'Déplacements terrain', 'Acquisition matériel', 'Sous-traitance', 'Autres charges']
+const BUDGET_LINE_DEFS = [
+  { code: 'BL-01', name: 'Ressources humaines', intitule: 'Charges de personnel affecté au projet' },
+  { code: 'BL-02', name: 'Déplacements terrain', intitule: 'Frais de mission et déplacements sur site' },
+  { code: 'BL-03', name: 'Acquisition matériel', intitule: "Achat d'équipements et de matériel technique" },
+  { code: 'BL-04', name: 'Sous-traitance', intitule: 'Prestations sous-traitées à des tiers' },
+  { code: 'BL-05', name: 'Autres charges', intitule: 'Charges diverses non affectées' },
+]
 const BUDGET_LINE_WEIGHTS = [0.40, 0.15, 0.12, 0.20, 0.13]
 
 function buildBudgetLines(project: Project): BudgetLine[] {
@@ -186,8 +194,8 @@ function buildBudgetLines(project: Project): BudgetLine[] {
   let ehsAccum = 0
   let budgetAccum = 0
 
-  return BUDGET_LINE_NAMES.map((name, index) => {
-    const isLast = index === BUDGET_LINE_NAMES.length - 1
+  return BUDGET_LINE_DEFS.map(({ code, name, intitule }, index) => {
+    const isLast = index === BUDGET_LINE_DEFS.length - 1
     const weight = BUDGET_LINE_WEIGHTS[index]
 
     const ehsPrevu = isLast
@@ -212,7 +220,7 @@ function buildBudgetLines(project: Project): BudgetLine[] {
     const progEhs = ehsPrevu ? Math.round((ehsConsomme / ehsPrevu) * 100) : 0
     const progOperationnelle = Math.min(100, Math.max(0, Math.round(project.progOperationnelle + (rnd() - 0.5) * 20)))
 
-    return { name, ehsPrevu, ehsConsomme, ehsRestant, budgetPrevu, budgetConsomme, budgetRestant, progTemporelle, progEhs, progOperationnelle }
+    return { code, name, intitule, ehsPrevu, ehsConsomme, ehsRestant, budgetPrevu, budgetConsomme, budgetRestant, progTemporelle, progEhs, progOperationnelle }
   })
 }
 
@@ -225,13 +233,80 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   )
 }
 
+type ColumnId =
+  | 'code' | 'name' | 'client' | 'chef' | 'equipe' | 'debut' | 'fin' | 'statut'
+  | 'ehsPrevu' | 'ehsConsomme' | 'ehsRestant'
+  | 'budgetPrevu' | 'budgetConsomme' | 'budgetRestant'
+  | 'eqEhsPrevu' | 'eqEhsConsomme' | 'eqEhsRestant'
+  | 'progTemporelle' | 'progEhs' | 'progOperationnelle'
+  | 'statutGlobal'
+
+const COLUMNS: { id: ColumnId; label: string; group?: string }[] = [
+  { id: 'code', label: 'Code projet' },
+  { id: 'name', label: 'Nom du projet' },
+  { id: 'client', label: 'Client' },
+  { id: 'chef', label: 'Chef de projet' },
+  { id: 'equipe', label: 'Équipe' },
+  { id: 'debut', label: 'Début' },
+  { id: 'fin', label: 'Fin' },
+  { id: 'statut', label: 'Statut' },
+  { id: 'ehsPrevu', label: 'Prévu', group: 'Total EHS' },
+  { id: 'ehsConsomme', label: 'Consommé', group: 'Total EHS' },
+  { id: 'ehsRestant', label: 'Restant', group: 'Total EHS' },
+  { id: 'budgetPrevu', label: 'Prévu', group: 'Total Monétaire (FCFA)' },
+  { id: 'budgetConsomme', label: 'Consommé', group: 'Total Monétaire (FCFA)' },
+  { id: 'budgetRestant', label: 'Restant', group: 'Total Monétaire (FCFA)' },
+  { id: 'eqEhsPrevu', label: 'Prévu', group: 'Équivalent EHS' },
+  { id: 'eqEhsConsomme', label: 'Consommé', group: 'Équivalent EHS' },
+  { id: 'eqEhsRestant', label: 'Restant', group: 'Équivalent EHS' },
+  { id: 'progTemporelle', label: 'Temporelle', group: 'Progression' },
+  { id: 'progEhs', label: 'Équivalent EHS', group: 'Progression' },
+  { id: 'progOperationnelle', label: 'Opérationnelle', group: 'Progression' },
+  { id: 'statutGlobal', label: 'Statut global' },
+]
+
+const CELL_DEFS: Record<ColumnId, { className?: string; render: (p: Project) => ReactNode }> = {
+  code: { className: 'pil-code', render: (p) => p.code },
+  name: { className: 'pil-name', render: (p) => p.name },
+  client: { render: (p) => p.client },
+  chef: {
+    render: (p) => (
+      <div className="pil-chef-cell">
+        <span className="pil-avatar" style={{ background: avatarColor(p.chef) }}>{initials(p.chef)}</span>
+        {p.chef}
+      </div>
+    ),
+  },
+  equipe: { render: (p) => p.equipe },
+  debut: { render: (p) => p.debut },
+  fin: { render: (p) => p.fin },
+  statut: { render: (p) => <span className={`pil-pill pil-pill-${statutClass(p.statut)}`}>{p.statut}</span> },
+  ehsPrevu: { render: (p) => fmtEhs(p.ehsPrevu) },
+  ehsConsomme: { render: (p) => fmtEhs(p.ehsConsomme) },
+  ehsRestant: { render: (p) => fmtEhs(p.ehsRestant) },
+  budgetPrevu: { render: (p) => fmtInt(p.budgetPrevu) },
+  budgetConsomme: { render: (p) => fmtInt(p.budgetConsomme) },
+  budgetRestant: { render: (p) => fmtInt(p.budgetRestant) },
+  eqEhsPrevu: { render: (p) => fmtEhs(p.ehsPrevu) },
+  eqEhsConsomme: { render: (p) => fmtEhs(p.ehsConsomme) },
+  eqEhsRestant: { render: (p) => fmtEhs(p.ehsRestant) },
+  progTemporelle: { render: (p) => <ProgressBar value={p.progTemporelle} color="#3b82f6" /> },
+  progEhs: { render: (p) => <ProgressBar value={p.progEhs} color="#16a34a" /> },
+  progOperationnelle: { render: (p) => <ProgressBar value={p.progOperationnelle} color="#6b46c1" /> },
+  statutGlobal: {
+    render: (p) => (
+      <span className={`pil-status-global pil-status-${statutGlobalClass(p.statutGlobal)}`}><i />{p.statutGlobal}</span>
+    ),
+  },
+}
+
 const KPIS = [
-  { icon: <Briefcase size={18} />, tone: 'purple', label: 'PROJETS ACTIFS', value: '96', sub: '75,00% du total' },
-  { icon: <Users size={18} />, tone: 'blue', label: 'EHS CONSOMMÉS', value: '1 746,50 EHS', sub: 'Sur 2 560,00 EHS prévus', bar: 68, barColor: '#3b82f6' },
-  { icon: <Clock size={18} />, tone: 'orange', label: 'EHS RESTANTS', value: '813,50 EHS', sub: 'À consommer', bar: 32, barColor: '#f59e0b' },
-  { icon: <Boxes size={18} />, tone: 'teal', label: 'ÉQUIVALENTE EHS CONSOMMÉ', value: '1 324,60 EHS', sub: 'Sur 1 950,00 EHS prévus', bar: 68, barColor: '#0d9488' },
-  { icon: <Hourglass size={18} />, tone: 'slate', label: 'DURÉE RESTANTE', value: '80 jours', sub: 'Sur 245 jours prévus', bar: 33, barColor: '#4c3a8f' },
-  { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: '62%', sub: "Taux global d'avancement", bar: 62, barColor: '#4338ca' },
+  { icon: <Briefcase size={18} />, tone: 'purple', label: 'PROJETS ACTIFS', value: '96', sub: '75,00% du total', pct: 75, bar: 75, barColor: '#6b46c1' },
+  { icon: <Users size={18} />, tone: 'blue', label: 'EHS CONSOMMÉS', value: '1 746,50 EHS', sub: 'Sur 2 560,00 EHS prévus', pct: 68, bar: 68, barColor: '#3b82f6' },
+  { icon: <Boxes size={18} />, tone: 'teal', label: 'ÉQUIVALENCE EHS CONSOMMÉ', value: '1 324,60 EHS', sub: 'Sur 1 950,00 EHS prévus', pct: 68, bar: 68, barColor: '#0d9488' },
+  { icon: <Wallet size={18} />, tone: 'green', label: 'MONTANTS CONSOMMÉS', value: '682 400 000 FCFA', sub: 'Sur 980 000 000 FCFA prévus', pct: 70, bar: 70, barColor: '#16a34a' },
+  { icon: <Hourglass size={18} />, tone: 'slate', label: 'DURÉE CONSOMMÉE', value: '165 jours', sub: 'Sur 245 jours prévus', pct: 67, bar: 67, barColor: '#4c3a8f' },
+  { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: '62%', sub: 'Taux global opérationnel', pct: 62, bar: 62, barColor: '#4338ca' },
 ]
 
 export default function PilotagePage({ navigateTo }: { navigateTo: (page: string) => void }) {
@@ -239,12 +314,14 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
   const [chef, setChef] = useState('Tous')
   const [client, setClient] = useState('Tous')
   const [statut, setStatut] = useState('Tous')
-  const [division, setDivision] = useState('Toutes')
+  const [equipe, setEquipe] = useState('Toutes')
   const [priorite, setPriorite] = useState('Toutes')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
   const [exportOpen, setExportOpen] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnId>>(new Set())
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
 
   const toggleExpand = (code: string) => {
     setExpandedRows((prev) => {
@@ -255,25 +332,59 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
     })
   }
 
+  const toggleColumn = (id: ColumnId) => {
+    setHiddenColumns((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const visibleColumns = useMemo(() => COLUMNS.filter((c) => !hiddenColumns.has(c.id)), [hiddenColumns])
+  const totalColSpan = visibleColumns.length + 2
+
+  const headerCells = useMemo(() => {
+    const cells: { key: string; label: string; colSpan: number; isGroup: boolean }[] = []
+    let i = 0
+    while (i < COLUMNS.length) {
+      const col = COLUMNS[i]
+      if (hiddenColumns.has(col.id)) { i++; continue }
+      if (!col.group) {
+        cells.push({ key: col.id, label: col.label, colSpan: 1, isGroup: false })
+        i++
+        continue
+      }
+      const groupName = col.group
+      let count = 0
+      while (i < COLUMNS.length && COLUMNS[i].group === groupName) {
+        if (!hiddenColumns.has(COLUMNS[i].id)) count++
+        i++
+      }
+      if (count > 0) cells.push({ key: groupName, label: groupName, colSpan: count, isGroup: true })
+    }
+    return cells
+  }, [hiddenColumns])
+
   const filtered = useMemo(() => ALL_PROJECTS.filter((p) => {
     if (chef !== 'Tous' && p.chef !== chef) return false
     if (client !== 'Tous' && p.client !== client) return false
     if (statut !== 'Tous' && p.statut !== statut) return false
-    if (division !== 'Toutes' && p.division !== division) return false
+    if (equipe !== 'Toutes' && p.equipe !== equipe) return false
     if (priorite !== 'Toutes' && p.priorite !== priorite) return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       if (!p.name.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q)) return false
     }
     return true
-  }), [chef, client, statut, division, priorite, search])
+  }), [chef, client, statut, equipe, priorite, search])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, pageCount)
   const paginated = filtered.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
 
   const resetFilters = () => {
-    setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setDivision('Toutes'); setPriorite('Toutes'); setPage(1)
+    setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setEquipe('Toutes'); setPriorite('Toutes'); setPage(1)
   }
 
   return (
@@ -307,6 +418,7 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
             <div className="pil-kpi-head">
               <span className="pil-kpi-icon">{kpi.icon}</span>
               <span>{kpi.label}</span>
+              <span className="pil-kpi-pct">{kpi.pct}%</span>
             </div>
             <strong>{kpi.value}</strong>
             <small>{kpi.sub}</small>
@@ -334,10 +446,10 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
             {STATUT_OPTIONS.map((s) => <option key={s}>{s}</option>)}
           </select>
         </label>
-        <label>Division
-          <select value={division} onChange={(event) => { setDivision(event.target.value); setPage(1) }}>
+        <label>Équipe
+          <select value={equipe} onChange={(event) => { setEquipe(event.target.value); setPage(1) }}>
             <option>Toutes</option>
-            {DIVISIONS.map((d) => <option key={d}>{d}</option>)}
+            {EQUIPES.map((e) => <option key={e}>{e}</option>)}
           </select>
         </label>
         <label>Priorité
@@ -354,31 +466,36 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
       </div>
 
       <div className="pil-table-panel">
-        <div className="pil-table-head"><h3>Liste des projets ({filtered.length})</h3></div>
+        <div className="pil-table-head">
+          <h3>Liste des projets ({filtered.length})</h3>
+          <div className="pil-columns-wrap">
+            <button type="button" className="pil-btn-outline" onClick={() => setColumnsMenuOpen((open) => !open)}>
+              <Columns3 size={14} />Colonnes<ChevronDown size={12} />
+            </button>
+            {columnsMenuOpen && (
+              <div className="pil-columns-menu" onMouseLeave={() => setColumnsMenuOpen(false)}>
+                {COLUMNS.map((c) => (
+                  <label key={c.id} className="pil-columns-menu-item">
+                    <input type="checkbox" checked={!hiddenColumns.has(c.id)} onChange={() => toggleColumn(c.id)} />
+                    {c.group ? `${c.group} — ${c.label}` : c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="pil-table-wrap">
           <table className="pil-table">
             <thead>
               <tr>
                 <th rowSpan={2}></th>
-                <th rowSpan={2}>Code projet</th>
-                <th rowSpan={2}><span className="pil-th-info">Nom du projet<Info size={11} /></span></th>
-                <th rowSpan={2}>Client</th>
-                <th rowSpan={2}>Chef de projet</th>
-                <th rowSpan={2}>Début</th>
-                <th rowSpan={2}>Fin</th>
-                <th rowSpan={2}>Statut</th>
-                <th colSpan={3}>Total EHS</th>
-                <th colSpan={3}>Total Monétaire (FCFA)</th>
-                <th colSpan={3}>Équivalent EHS</th>
-                <th colSpan={3}>Progression</th>
-                <th rowSpan={2}>Statut global</th>
+                {headerCells.map((cell) => cell.isGroup
+                  ? <th key={cell.key} colSpan={cell.colSpan}>{cell.label}</th>
+                  : <th key={cell.key} rowSpan={2}>{cell.key === 'name' ? <span className="pil-th-info">Nom du projet<Info size={11} /></span> : cell.label}</th>)}
                 <th rowSpan={2}></th>
               </tr>
               <tr>
-                <th>Prévu</th><th>Consommé</th><th>Restant</th>
-                <th>Prévu</th><th>Consommé</th><th>Restant</th>
-                <th>Prévu</th><th>Consommé</th><th>Restant</th>
-                <th>Temporelle</th><th>Équivalent EHS</th><th>Opérationnelle</th>
+                {visibleColumns.filter((c) => c.group).map((c) => <th key={c.id}>{c.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -398,41 +515,20 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
                           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
-                      <td className="pil-code">{p.code}</td>
-                      <td className="pil-name">{p.name}</td>
-                      <td>{p.client}</td>
-                      <td>
-                        <div className="pil-chef-cell">
-                          <span className="pil-avatar" style={{ background: avatarColor(p.chef) }}>{initials(p.chef)}</span>
-                          {p.chef}
-                        </div>
-                      </td>
-                      <td>{p.debut}</td>
-                      <td>{p.fin}</td>
-                      <td><span className={`pil-pill pil-pill-${statutClass(p.statut)}`}>{p.statut}</span></td>
-                      <td>{fmtEhs(p.ehsPrevu)}</td>
-                      <td>{fmtEhs(p.ehsConsomme)}</td>
-                      <td>{fmtEhs(p.ehsRestant)}</td>
-                      <td>{fmtInt(p.budgetPrevu)}</td>
-                      <td>{fmtInt(p.budgetConsomme)}</td>
-                      <td>{fmtInt(p.budgetRestant)}</td>
-                      <td>{fmtEhs(p.ehsPrevu)}</td>
-                      <td>{fmtEhs(p.ehsConsomme)}</td>
-                      <td>{fmtEhs(p.ehsRestant)}</td>
-                      <td><ProgressBar value={p.progTemporelle} color="#3b82f6" /></td>
-                      <td><ProgressBar value={p.progEhs} color="#16a34a" /></td>
-                      <td><ProgressBar value={p.progOperationnelle} color="#6b46c1" /></td>
-                      <td><span className={`pil-status-global pil-status-${statutGlobalClass(p.statutGlobal)}`}><i />{p.statutGlobal}</span></td>
+                      {visibleColumns.map((c) => {
+                        const def = CELL_DEFS[c.id]
+                        return <td key={c.id} className={def.className}>{def.render(p)}</td>
+                      })}
                       <td><button type="button" className="pil-row-action" aria-label="Actions"><MoreVertical size={14} /></button></td>
                     </tr>
                     {isExpanded && (
                       <tr className="pil-expand-row">
-                        <td colSpan={22} className="pil-expand-cell">
+                        <td colSpan={totalColSpan} className="pil-expand-cell">
                           <div className="pil-budget-lines">
                             <table className="pil-subtable">
                               <thead>
                                 <tr>
-                                  <th rowSpan={2}>Lignes budgétaires</th>
+                                  <th colSpan={3}>Lignes budgétaires</th>
                                   <th colSpan={3}>Total EHS</th>
                                   <th colSpan={3}>Total Monétaire (FCFA)</th>
                                   <th colSpan={3}>Équivalent EHS</th>
@@ -440,6 +536,7 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
                                   <th rowSpan={2}>Actions</th>
                                 </tr>
                                 <tr>
+                                  <th>Code</th><th>Nom Standard</th><th>Intitulé</th>
                                   <th>Prévu</th><th>Consommé</th><th>Restant</th>
                                   <th>Prévu</th><th>Consommé</th><th>Restant</th>
                                   <th>Prévu</th><th>Consommé</th><th>Restant</th>
@@ -448,8 +545,10 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
                               </thead>
                               <tbody>
                                 {buildBudgetLines(p).map((line) => (
-                                  <tr key={line.name}>
+                                  <tr key={line.code}>
+                                    <td className="pil-line-code">{line.code}</td>
                                     <td className="pil-line-name"><GripVertical size={12} className="pil-drag-handle" />{line.name}</td>
+                                    <td className="pil-line-intitule">{line.intitule}</td>
                                     <td>{fmtEhs(line.ehsPrevu)}</td>
                                     <td>{fmtEhs(line.ehsConsomme)}</td>
                                     <td>{fmtEhs(line.ehsRestant)}</td>
@@ -475,7 +574,7 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
                 )
               })}
               {paginated.length === 0 && (
-                <tr><td colSpan={22} className="pil-empty">Aucun projet ne correspond à ces filtres.</td></tr>
+                <tr><td colSpan={totalColSpan} className="pil-empty">Aucun projet ne correspond à ces filtres.</td></tr>
               )}
             </tbody>
           </table>

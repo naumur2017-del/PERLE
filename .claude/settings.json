@@ -5,7 +5,14 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173)",
       "Bash(grep -rl *)",
       "Bash(node shot13.mjs)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(ln -sf \"C:\\\\Users\\\\EbongueNsame\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\e41f203b7505f1fb\\\\node_modules\" node_modules)",
+      "Bash(node shot14.mjs)",
+      "Bash(rm -rf \"C:/Users/EBONGU~1/AppData/Local/Temp/claude/c--Users-EbongueNsame-Documents-PERLE/7caa9695-b180-4674-9b60-c15a47530836/scratchpad/node_modules\"; echo done)",
+      "Bash(node -e \"const icons=require\\('lucide-react'\\); console.log\\('Columns3' in icons, 'Columns3Icon' in icons\\)\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\EBONGU~1\\AppData\\Local\\Temp\\claude\\c--Users-EbongueNsame-Documents-PERLE\\7caa9695-b180-4674-9b60-c15a47530836\\scratchpad\\node_modules"
     ]
   }
 }
