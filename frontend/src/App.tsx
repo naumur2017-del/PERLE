@@ -5,7 +5,7 @@ import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
 import SplashScreen from './components/SplashScreen'
 import HomePage from './pages/HomePage'
-import PilotagePage from './pages/PilotagePage'
+import PilotagePage, { type PilotageFocusTarget } from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
 import ControleExecutionPage from './pages/ControleExecutionPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
@@ -124,6 +124,7 @@ function App() {
   const [taskTimersCollapsed, setTaskTimersCollapsed] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [pilotageFocus, setPilotageFocus] = useState<PilotageFocusTarget | null>(null)
   const mainContentRef = useRef<HTMLElement>(null)
 
   const addNotification = (message: string) => {
@@ -197,6 +198,11 @@ function App() {
       const path = pageConfig[page].path
       if (window.location.pathname !== path) window.history.pushState({}, '', path)
     }
+  }
+
+  const openLigneBudgetaire = (projetCode: string, ligneCode: string) => {
+    setPilotageFocus({ projetCode, ligneCode })
+    navigateTo('pilotage')
   }
 
   const icons = {
@@ -335,8 +341,8 @@ function App() {
 
   const renderPage = () => {
     switch (activeNav) {
-      case 'pilotage': return <PilotagePage navigateTo={navigateTo} />
-      case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} />
+      case 'pilotage': return <PilotagePage navigateTo={navigateTo} focusTarget={pilotageFocus} onFocusConsumed={() => setPilotageFocus(null)} />
+      case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />

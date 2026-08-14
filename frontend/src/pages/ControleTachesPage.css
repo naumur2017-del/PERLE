@@ -172,6 +172,9 @@
 .ct-code-link:hover { text-decoration: underline; }
 .ct-code-link svg { color: #a8a8bd; flex-shrink: 0; }
 
+.ct-ligne-link { border: none; background: none; padding: 0; color: #6b46c1; font-weight: 600; font-size: inherit; text-align: left; cursor: pointer; text-decoration: none; }
+.ct-ligne-link:hover { text-decoration: underline; }
+
 .ct-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .ct-pill-attente { background: #eef0f3; color: #4b5563; }
 .ct-pill-cours { background: #dbeafe; color: #1d4ed8; }

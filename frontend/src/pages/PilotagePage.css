@@ -611,6 +611,13 @@
 .pil-subtable tbody tr:last-child td { border-bottom: none; }
 .pil-subtable tbody tr:hover { background: #faf9ff; }
 
+.pil-line-highlight td { background: #efe9fd; animation: pil-line-flash 1.3s ease-in-out 2; }
+
+@keyframes pil-line-flash {
+  0%, 100% { background: #efe9fd; }
+  50% { background: #d9cdf7; }
+}
+
 .pil-line-code {
   color: #6b46c1;
   font-weight: 700;

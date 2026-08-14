@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Boxes, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardList, Columns3, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
@@ -359,19 +359,52 @@ const KPIS = [
   { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: '62%', sub: 'Taux global opérationnel', pct: 62, bar: 62, barColor: '#4338ca' },
 ]
 
-export default function PilotagePage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export interface PilotageFocusTarget {
+  projetCode: string
+  ligneCode: string
+}
+
+interface PilotagePageProps {
+  navigateTo: (page: string) => void
+  focusTarget?: PilotageFocusTarget | null
+  onFocusConsumed?: () => void
+}
+
+export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed }: PilotagePageProps) {
   const [search, setSearch] = useState('')
   const [chef, setChef] = useState('Tous')
   const [client, setClient] = useState('Tous')
   const [statut, setStatut] = useState('Tous')
   const [equipe, setEquipe] = useState('Toutes')
-  const [priorite, setPriorite] = useState('Toutes')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
   const [exportOpen, setExportOpen] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnId>>(new Set())
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+  const [highlightedLigne, setHighlightedLigne] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!focusTarget) return
+    const idx = ALL_PROJECTS.findIndex((p) => p.code === focusTarget.projetCode)
+    if (idx === -1) { onFocusConsumed?.(); return }
+
+    setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setEquipe('Toutes')
+    setPage(Math.floor(idx / pageSize) + 1)
+    setExpandedRows((prev) => new Set(prev).add(focusTarget.projetCode))
+    setHighlightedLigne(`${focusTarget.projetCode}:${focusTarget.ligneCode}`)
+
+    const scrollTimer = setTimeout(() => {
+      document.getElementById(`pil-ligne-${focusTarget.projetCode}-${focusTarget.ligneCode}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+    const clearTimer = setTimeout(() => setHighlightedLigne(null), 2600)
+
+    onFocusConsumed?.()
+
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTarget])
 
   const toggleExpand = (code: string) => {
     setExpandedRows((prev) => {
@@ -421,20 +454,19 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
     if (client !== 'Tous' && p.client !== client) return false
     if (statut !== 'Tous' && p.statut !== statut) return false
     if (equipe !== 'Toutes' && p.equipe !== equipe) return false
-    if (priorite !== 'Toutes' && p.priorite !== priorite) return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       if (!p.name.toLowerCase().includes(q) && !p.code.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q)) return false
     }
     return true
-  }), [chef, client, statut, equipe, priorite, search])
+  }), [chef, client, statut, equipe, search])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, pageCount)
   const paginated = filtered.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
 
   const resetFilters = () => {
-    setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setEquipe('Toutes'); setPriorite('Toutes'); setPage(1)
+    setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setEquipe('Toutes'); setPage(1)
   }
 
   return (
@@ -500,12 +532,6 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
           <select value={equipe} onChange={(event) => { setEquipe(event.target.value); setPage(1) }}>
             <option>Toutes</option>
             {EQUIPES.map((e) => <option key={e}>{e}</option>)}
-          </select>
-        </label>
-        <label>Priorité
-          <select value={priorite} onChange={(event) => { setPriorite(event.target.value); setPage(1) }}>
-            <option>Toutes</option>
-            {PRIORITES.map((p) => <option key={p}>{p}</option>)}
           </select>
         </label>
         <label className="pil-search">
@@ -595,7 +621,11 @@ export default function PilotagePage({ navigateTo }: { navigateTo: (page: string
                               </thead>
                               <tbody>
                                 {buildBudgetLines(p).map((line) => (
-                                  <tr key={line.code}>
+                                  <tr
+                                    key={line.code}
+                                    id={`pil-ligne-${p.code}-${line.code}`}
+                                    className={highlightedLigne === `${p.code}:${line.code}` ? 'pil-line-highlight' : undefined}
+                                  >
                                     <td className="pil-line-code">{line.code}</td>
                                     <td className="pil-line-name"><GripVertical size={12} className="pil-drag-handle" />{line.name}</td>
                                     <td className="pil-line-intitule">{line.intitule}</td>
