@@ -182,7 +182,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
       <nav className="pe-subtabs">
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
         <button className="active" onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
-        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
+        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et opérations</button>
         <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Rapports financiers</button>
       </nav>
 

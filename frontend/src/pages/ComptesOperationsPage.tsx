@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
-  ArrowDownCircle, ArrowUpCircle, BadgeCheck, Columns3, EyeOff, FileBarChart, GripVertical,
-  Landmark, Plus, Receipt, RotateCcw, Search, Target, Wallet,
+  ArrowDownCircle, ArrowUpCircle, Calendar, Columns3, EyeOff, GripVertical,
+  Landmark, Plus, RotateCcw, Search, SlidersHorizontal, Wallet,
 } from 'lucide-react'
 import './ComptesOperationsPage.css'
 
@@ -144,28 +144,32 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
 
   return (
     <section className="co-page">
-      <nav className="co-subtabs">
-        <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
-        <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
-        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
-        <button onClick={() => navigateTo('tresorerie-budgets')}><Target size={14} />Budgets</button>
-        <button onClick={() => navigateTo('tresorerie-rapports')}><FileBarChart size={14} />Rapports financiers</button>
-        <button className="active" onClick={() => navigateTo('tresorerie-operations')}><Landmark size={14} />Comptes et opérations</button>
-      </nav>
-
-      <div className="co-top">
-        <div className="co-kpis">
-          {KPIS.map((kpi) => (
-            <article key={kpi.label} className={`co-kpi co-kpi-${kpi.tone}`}>
-              <div>
-                <span>{kpi.label}</span>
-                <strong>{kpi.value}</strong>
-              </div>
-              <span className="co-kpi-icon"><kpi.icon size={18} /></span>
-            </article>
-          ))}
+      <div className="co-title-row">
+        <div>
+          <h1>Comptes et opérations</h1>
+          <p>Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent.</p>
+          <button type="button" className="co-link-btn" onClick={() => navigateTo('tresorerie-rapports')}>Voir les rapports financiers</button>
         </div>
-        <button type="button" className="co-btn-primary" onClick={() => navigateTo('tresorerie-comptes')}><Plus size={14} />Nouveau compte</button>
+        <div className="co-toolbar">
+          <button type="button" className="co-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
+          <button type="button" className="co-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>
+        </div>
+      </div>
+
+      <div className="co-actions-row">
+        <button type="button" className="co-btn-primary"><Plus size={14} />Nouveau compte</button>
+      </div>
+
+      <div className="co-kpis">
+        {KPIS.map((kpi) => (
+          <article key={kpi.label} className={`co-kpi co-kpi-${kpi.tone}`}>
+            <div>
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+            </div>
+            <span className="co-kpi-icon"><kpi.icon size={18} /></span>
+          </article>
+        ))}
       </div>
 
       <div className="co-filters">
@@ -216,7 +220,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
         </div>
       </div>
 
-      <div className="co-toolbar">
+      <div className="co-table-toolbar">
         <label className="co-page-size">Afficher
           <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
             <option value={10}>10</option>

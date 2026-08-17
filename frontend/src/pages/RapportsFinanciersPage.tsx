@@ -153,7 +153,7 @@ export default function RapportsFinanciersPage({ navigateTo }: { navigateTo: (pa
       <nav className="rf-subtabs">
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
         <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
-        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et caisses</button>
+        <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et opérations</button>
         <button className="active" onClick={() => navigateTo('tresorerie-rapports')}><FileBarChart size={14} />Rapports financiers</button>
       </nav>
 

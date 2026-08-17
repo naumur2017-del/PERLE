@@ -10,7 +10,7 @@ import ControleTachesPage from './pages/ControleTachesPage'
 import PerformanceStaffingPage from './pages/PerformanceStaffingPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
-import ComptesCaissesPage from './pages/ComptesCaissesPage'
+import ComptesOperationsPage from './pages/ComptesOperationsPage'
 import RapportsFinanciersPage from './pages/RapportsFinanciersPage'
 import GuidePage from './pages/GuidePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
@@ -48,7 +48,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'gestion-organigramme': { path: '/gestion-equipes/organigramme', title: 'Organigramme', description: 'Visualisez la hiérarchie et les rattachements de l’entreprise.' },
   tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
   'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
-  'tresorerie-comptes': { path: '/tresorerie/comptes-caisses', title: 'Comptes et caisses', description: 'Suivez les soldes et mouvements de vos comptes bancaires, mobile money et caisses.' },
+  'tresorerie-comptes': { path: '/tresorerie/comptes-operations', title: 'Comptes et opérations', description: "Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent." },
   'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
@@ -258,7 +258,7 @@ function App() {
       children: [
         { id: 'tresorerie', label: 'Demandes de paiement' },
         { id: 'tresorerie-paiements', label: 'Paiements exécutés' },
-        { id: 'tresorerie-comptes', label: 'Comptes et caisses' },
+        { id: 'tresorerie-comptes', label: 'Comptes et opérations' },
         { id: 'tresorerie-rapports', label: 'Rapports financiers' },
       ],
     },
@@ -374,7 +374,7 @@ function App() {
       case 'gestion-organigramme': return <ModulePage title={pageConfig['gestion-organigramme'].title} description={pageConfig['gestion-organigramme'].description} icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
-      case 'tresorerie-comptes': return <ComptesCaissesPage navigateTo={navigateTo} />
+      case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />
       case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage />
