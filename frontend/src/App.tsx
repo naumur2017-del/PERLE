@@ -7,7 +7,7 @@ import SplashScreen from './components/SplashScreen'
 import HomePage from './pages/HomePage'
 import PilotagePage, { type PilotageFocusTarget } from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
-import ControleExecutionPage from './pages/ControleExecutionPage'
+import PerformanceStaffingPage from './pages/PerformanceStaffingPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
 import ComptesCaissesPage from './pages/ComptesCaissesPage'
@@ -37,7 +37,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   accueil: { path: '/', title: 'Accueil', description: 'Bienvenue dans PERLE, votre système de pilotage intégré.' },
   pilotage: { path: '/pilotage', title: 'Pilotage des projets et gestion budgétaire', description: 'Vue globale des projets : budget, coûts, EHS, durées et avancement.' },
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
-  'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Vue synthétique de la performance des tâches et de l’utilisation des ressources.' },
+  'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Suivez la performance de vos équipes et la mobilisation des ressources.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
   'staffing-suivi': { path: '/staffing/suivi', title: 'Suivi des staffing', description: "Suivez l'évolution des staffing réalisés et leur statut." },
@@ -52,6 +52,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
+  'architecture-monetaire': { path: '/architecture/monetaire', title: 'Architecture monétaire', description: 'Gérez les référentiels monétaires : types de dépenses, recettes et transferts.' },
   aide: { path: '/aide', title: 'Help / Centre d’assistance', description: 'Nous sommes là pour vous aider à utiliser PERLE efficacement.' },
   'aide-faq': { path: '/aide/faq', title: 'FAQ', description: 'Consultez les questions fréquemment posées et leurs réponses.' },
   'aide-connaissances': { path: '/aide/base-de-connaissances', title: 'Base de connaissances', description: 'Parcourez tous les articles de la base de connaissances PERLE.' },
@@ -262,7 +263,13 @@ function App() {
       ],
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
-    { id: 'architecture', label: 'Architecture des tâches', icon: icons.architecture },
+    {
+      id: 'architecture', label: 'Architecture', icon: icons.architecture,
+      children: [
+        { id: 'architecture', label: 'Architecture des tâches' },
+        { id: 'architecture-monetaire', label: 'Architecture monétaire' },
+      ],
+    },
     {
       id: 'aide', label: 'Help', icon: icons.aide,
       children: [
@@ -348,7 +355,7 @@ function App() {
     switch (activeNav) {
       case 'pilotage': return <PilotagePage navigateTo={navigateTo} focusTarget={pilotageFocus} onFocusConsumed={() => setPilotageFocus(null)} />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
-      case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
+      case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
       case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
@@ -371,6 +378,7 @@ function App() {
       case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage />
+      case 'architecture-monetaire': return <ModulePage title={pageConfig['architecture-monetaire'].title} description={pageConfig['architecture-monetaire'].description} icon={icons.architecture} />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
       case 'aide-connaissances': return <ModulePage title={pageConfig['aide-connaissances'].title} description={pageConfig['aide-connaissances'].description} icon={icons.aide} />
