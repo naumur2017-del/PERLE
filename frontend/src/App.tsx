@@ -16,6 +16,8 @@ import GuidePage from './pages/GuidePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
+import SuiviStaffingPage from './pages/SuiviStaffingPage'
+import { TACHES_INITIAL, type TacheWrike } from './data/staffing'
 import GestionEquipesPage from './pages/GestionEquipesPage'
 import TresoreriePage from './pages/TresoreriePage'
 import SalariePage from './pages/SalariePage'
@@ -38,6 +40,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Vue synthétique de la performance des tâches et de l’utilisation des ressources.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
+  'staffing-suivi': { path: '/staffing/suivi', title: 'Suivi des staffing', description: "Suivez l'évolution des staffing réalisés et leur statut." },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
   gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Suivre et gérer les collaborateurs, leurs grades et leurs affectations.' },
   'gestion-equipes': { path: '/gestion-equipes/equipes', title: 'Équipes', description: 'Consultez et organisez les équipes de l’entreprise.' },
@@ -121,6 +124,7 @@ function App() {
   /* Repliée ou non, la barre latérale garde son état d’une visite à l’autre. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('perle-sidebar-collapsed') === '1')
   const [taskTimers, setTaskTimers] = useState<TaskTimer[]>([])
+  const [staffingTaches, setStaffingTaches] = useState<TacheWrike[]>(TACHES_INITIAL)
   const [taskTimersCollapsed, setTaskTimersCollapsed] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -235,6 +239,7 @@ function App() {
       id: 'staffing', label: 'Staffing', icon: icons.staffing,
       children: [
         { id: 'staffing', label: 'Nouveau staffing' },
+        { id: 'staffing-suivi', label: 'Suivi des staffing' },
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
     },
@@ -345,7 +350,8 @@ function App() {
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <ControleExecutionPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
-      case 'staffing': return <StaffingPage navigateTo={navigateTo} />
+      case 'staffing': return <StaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
+      case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
       case 'staffing-execute': return (
         <ExecuteStaffingPage
           navigateTo={navigateTo}

@@ -1,57 +1,17 @@
-import { useMemo, useState } from 'react'
+import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import {
-  Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
-  Info, PlayCircle, Plus, RotateCcw, Search, SlidersHorizontal, UserX, Users, X,
+  Activity, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
+  Info, Plus, RotateCcw, Search, SlidersHorizontal, UserCheck, UserX, Users, X,
 } from 'lucide-react'
+import {
+  type Affectation, COLLABORATEURS, type TacheWrike,
+  STATUT_AFFECTATION_CLASS, STATUT_AFFECTATION_LABEL, fmtHeures, initiales,
+} from '../data/staffing'
 import './StaffingPage.css'
-
-interface Affectation {
-  id: string
-  collaborateur: string
-  collaborateurProfil: string
-  heures: number
-  staffeLe: string
-}
-
-interface TacheWrike {
-  id: string
-  projet: string
-  tache: string
-  equipe: string
-  priorite: 'Haute' | 'Moyenne' | 'Basse'
-  creeLe: string
-  echeance: string
-  ligneBudgetaire: string
-  ehsPrevu: number
-  affectations: Affectation[]
-}
-
-const COLLABORATEURS = [
-  { nom: 'Ibrahim Mbouombouo', profil: 'Comptable Senior', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Belomo Edwige', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Essogo Erine', profil: 'Analyste Financier', equipe: 'BO1 - Back Office 1' },
-  { nom: 'Pamella Guebediang', profil: 'Contrôleur de gestion', equipe: 'MO1 - Middle Office 1' },
-  { nom: 'Herman Tsaffock', profil: 'Analyste Financier', equipe: 'MO1 - Middle Office 1' },
-  { nom: 'Mbarga Thibaut', profil: 'Opérateur ERP', equipe: 'OP1 - Opérations 1' },
-  { nom: 'Théodore Bessala', profil: 'Chef de projet', equipe: 'PI1 - Pilotage 1' },
-  { nom: 'Brayan Ebongue', profil: 'Développeur Senior', equipe: 'IT1 - Développement 1' },
-]
-
-const TACHES_INITIAL: TacheWrike[] = [
-  { id: 'WRK-1442', projet: 'ERP Academy', tache: 'Cartographie des processus', equipe: 'MO1 - Middle Office 1', priorite: 'Moyenne', creeLe: '02/05/2025', echeance: '18/05/2025', ligneBudgetaire: 'Consultation externe', ehsPrevu: 12, affectations: [] },
-  { id: 'WRK-1443', projet: 'Mission Audit Interne', tache: 'Revue des contrôles internes', equipe: 'BO1 - Back Office 1', priorite: 'Haute', creeLe: '03/05/2025', echeance: '22/05/2025', ligneBudgetaire: 'Déplacement terrain', ehsPrevu: 20, affectations: [] },
-  { id: 'WRK-1444', projet: 'Digitalisation RH', tache: 'Paramétrage du SIRH', equipe: 'IT1 - Développement 1', priorite: 'Basse', creeLe: '04/05/2025', echeance: '28/05/2025', ligneBudgetaire: 'Formation équipe', ehsPrevu: 8, affectations: [] },
-  { id: 'WRK-1445', projet: 'Étude de faisabilité usine', tache: 'Analyse des coûts', equipe: 'PI1 - Pilotage 1', priorite: 'Moyenne', creeLe: '05/05/2025', echeance: '02/06/2025', ligneBudgetaire: 'Achat matériel', ehsPrevu: 15, affectations: [] },
-  { id: 'WRK-1446', projet: 'ERP Academy', tache: "Tests d'intégration module RH", equipe: 'IT1 - Développement 1', priorite: 'Haute', creeLe: '06/05/2025', echeance: '10/06/2025', ligneBudgetaire: 'Support technique', ehsPrevu: 10, affectations: [] },
-]
 
 const PRIORITE_CLASS: Record<TacheWrike['priorite'], string> = { Haute: 'haute', Moyenne: 'moyenne', Basse: 'basse' }
 
-const fmtEhs = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-function initiales(nom: string) {
-  return nom.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
-}
+type Tab = 'prete' | 'staffee'
 
 function CollaborateurSelect({ equipe, value, onChange, exclude }: {
   equipe: string
@@ -89,8 +49,14 @@ function CollaborateurSelect({ equipe, value, onChange, exclude }: {
   )
 }
 
-export default function StaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
-  const [taches, setTaches] = useState<TacheWrike[]>(TACHES_INITIAL)
+interface StaffingPageProps {
+  navigateTo: (page: string) => void
+  taches: TacheWrike[]
+  setTaches: Dispatch<SetStateAction<TacheWrike[]>>
+}
+
+export default function StaffingPage({ navigateTo, taches, setTaches }: StaffingPageProps) {
+  const [activeTab, setActiveTab] = useState<Tab>('prete')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [filterProjet, setFilterProjet] = useState('Tous')
@@ -120,8 +86,12 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
     setFormCollaborateur('')
   }
 
+  const countPrete = taches.filter((t) => t.affectations.length === 0).length
+  const countStaffee = taches.filter((t) => t.affectations.length > 0).length
+
   const filtered = taches.filter((t) => (
-    (filterProjet === 'Tous' || t.projet === filterProjet)
+    (activeTab === 'prete' ? t.affectations.length === 0 : t.affectations.length > 0)
+    && (filterProjet === 'Tous' || t.projet === filterProjet)
     && (filterEquipe === 'Toutes' || t.equipe === filterEquipe)
     && (filterLigne === 'Toutes' || t.ligneBudgetaire === filterLigne)
     && (filterPriorite === 'Toutes' || t.priorite === filterPriorite)
@@ -147,6 +117,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
       collaborateurProfil: profil,
       heures: heuresNum,
       staffeLe: todayStr(),
+      statut: 'en-attente',
     }
     setTaches((list) => list.map((t) => t.id === selected.id ? { ...t, affectations: [...t.affectations, nouvelleAffectation] } : t))
     setFormHeures('')
@@ -154,23 +125,28 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
   }
 
   const totalStaffings = taches.reduce((sum, t) => sum + t.affectations.length, 0)
-  const tachesSansStaffing = taches.filter((t) => t.affectations.length === 0).length
 
   const KPIS = [
-    { icon: Inbox, tone: 'blue', label: 'Tâches prêtes à staffer', value: String(taches.length), sub: 'Total des tâches' },
-    { icon: UserX, tone: 'orange', label: 'Tâches sans staffing', value: String(tachesSansStaffing), sub: "En attente d'un collaborateur" },
-    { icon: CheckCircle2, tone: 'green', label: 'Staffings réalisés', value: String(totalStaffings), sub: 'Affectations effectuées' },
+    { icon: Inbox, tone: 'blue', label: 'Tâches reçues de Wrike', value: String(taches.length), sub: 'Total des tâches' },
+    { icon: UserX, tone: 'orange', label: 'Prêtes à staffer', value: String(countPrete), sub: "En attente d'un collaborateur" },
+    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Au moins un collaborateur' },
+    { icon: Activity, tone: 'indigo', label: 'Staffings réalisés', value: String(totalStaffings), sub: 'Affectations effectuées' },
     { icon: Users, tone: 'purple', label: 'Collaborateurs disponibles', value: String(COLLABORATEURS.length), sub: 'Dans votre équipe' },
   ]
 
   return (
     <section className="ns-page">
+      <nav className="ns-subtabs">
+        <button className="active" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
+        <button onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffing</button>
+      </nav>
+
       <div className="ns-title-row">
         <div>
           <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>
           <p>Attribuez un ou plusieurs collaborateurs aux tâches prêtes à staffer.</p>
         </div>
-        <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}><PlayCircle size={14} />Voir l'exécuté staffing</button>
+        <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}>Voir l'exécuté staffing</button>
       </div>
 
       <div className="ns-toolbar">
@@ -193,6 +169,15 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
 
       <div className="ns-layout">
         <div className="ns-main">
+          <nav className="ns-tabs">
+            <button className={activeTab === 'prete' ? 'active' : ''} onClick={() => { setActiveTab('prete'); closePanel() }}>
+              Prêtes à staffer <span className="ns-tab-count">{countPrete}</span>
+            </button>
+            <button className={activeTab === 'staffee' ? 'active' : ''} onClick={() => { setActiveTab('staffee'); closePanel() }}>
+              Déjà staffées <span className="ns-tab-count">{countStaffee}</span>
+            </button>
+          </nav>
+
           <div className="ns-filters">
             <label>Projet
               <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
@@ -227,12 +212,14 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
 
           <div className="ns-info-banner">
             <Info size={14} />
-            <span>Ces tâches ont déjà leur ligne budgétaire définie. Attribuez-leur un ou plusieurs collaborateurs : une tâche peut être staffée par plusieurs personnes.</span>
+            {activeTab === 'prete'
+              ? <span>Ces tâches ont déjà leur ligne budgétaire définie mais n'ont encore aucun collaborateur staffé.</span>
+              : <span>Ces tâches ont déjà au moins un collaborateur staffé. Vous pouvez toujours en attribuer d'autres : une tâche peut être staffée par plusieurs personnes.</span>}
           </div>
 
           <section className="ns-table-panel">
             <div className="ns-table-head">
-              <h3>Tâches prêtes à staffer <span className="ns-count-badge">{filtered.length}</span></h3>
+              <h3>{activeTab === 'prete' ? 'Tâches prêtes à staffer' : 'Tâches déjà staffées'} <span className="ns-count-badge">{filtered.length}</span></h3>
               <div className="ns-table-head-actions">
                 <label>Afficher<select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></label>
                 <span>1-{filtered.length} sur {filtered.length}</span>
@@ -259,7 +246,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                       <td className="ns-name">{tache.tache}</td>
                       <td>{tache.equipe}</td>
                       <td>{tache.ligneBudgetaire}</td>
-                      <td>{fmtEhs(tache.ehsPrevu)} EHS</td>
+                      <td>{fmtHeures(tache.ehsPrevu)} EHS</td>
                       <td>{tache.echeance}</td>
                       <td>
                         {tache.affectations.length === 0 ? (
@@ -304,7 +291,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                 <div><dt>Tâche</dt><dd>{selected.tache}</dd></div>
                 <div><dt>Équipe</dt><dd>{selected.equipe}</dd></div>
                 <div><dt>Ligne budgétaire</dt><dd>{selected.ligneBudgetaire}</dd></div>
-                <div><dt>EHS prévus tâche</dt><dd>{fmtEhs(selected.ehsPrevu)} EHS</dd></div>
+                <div><dt>EHS prévus tâche</dt><dd>{fmtHeures(selected.ehsPrevu)} EHS</dd></div>
                 <div><dt>Créée le</dt><dd>{selected.creeLe}</dd></div>
                 <div><dt>Échéance</dt><dd className="ns-echeance">{selected.echeance}</dd></div>
                 <div><dt>Priorité</dt><dd><span className={`ns-priorite ns-priorite-${PRIORITE_CLASS[selected.priorite]}`}>{selected.priorite}</span></dd></div>
@@ -323,7 +310,8 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                           <span><strong>{affectation.collaborateur}</strong><small>{affectation.collaborateurProfil}</small></span>
                         </span>
                         <span className="ns-affectation-meta">
-                          <b>{fmtEhs(affectation.heures)} h</b>
+                          <b>{fmtHeures(affectation.heures)} h</b>
+                          <span className={`ns-statut ns-statut-${STATUT_AFFECTATION_CLASS[affectation.statut]}`}>{STATUT_AFFECTATION_LABEL[affectation.statut]}</span>
                           <small><Clock3 size={11} />{affectation.staffeLe}</small>
                         </span>
                       </li>
