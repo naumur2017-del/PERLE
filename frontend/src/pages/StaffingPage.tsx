@@ -1,6 +1,6 @@
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import {
-  Activity, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
+  Activity, AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
   Info, Plus, RotateCcw, Search, SlidersHorizontal, UserCheck, UserX, Users, X,
 } from 'lucide-react'
 import {
@@ -12,6 +12,16 @@ import './StaffingPage.css'
 const PRIORITE_CLASS: Record<TacheWrike['priorite'], string> = { Haute: 'haute', Moyenne: 'moyenne', Basse: 'basse' }
 
 type Tab = 'prete' | 'staffee'
+
+const DEBUT_JOURNEE_MINUTES = 8 * 60
+const FIN_JOURNEE_MINUTES = 17 * 60 + 30
+
+function calculerHeureFin(heures: number) {
+  const total = DEBUT_JOURNEE_MINUTES + Math.round(heures * 60)
+  const h = Math.floor(total / 60) % 24
+  const m = total % 60
+  return { total, label: `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}` }
+}
 
 function CollaborateurSelect({ equipe, value, onChange, exclude }: {
   equipe: string
@@ -104,6 +114,8 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
   }
 
   const heuresNum = parseFloat(formHeures.replace(',', '.'))
+  const heureFin = !Number.isNaN(heuresNum) && heuresNum > 0 ? calculerHeureFin(heuresNum) : null
+  const depasseHeuresSup = heureFin !== null && heureFin.total > FIN_JOURNEE_MINUTES
   const staffingValide = formCollaborateur !== '' && !Number.isNaN(heuresNum) && heuresNum > 0
 
   const todayStr = () => new Date().toLocaleDateString('fr-FR')
@@ -335,6 +347,24 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                     <span>heures</span>
                   </div>
                 </label>
+
+                {heureFin && (
+                  <div className={`ns-heurefin-box ${depasseHeuresSup ? 'warn' : ''}`}>
+                    <Clock3 size={13} />
+                    <span>Heure de fin estimée (début à 08h00) : <b>{heureFin.label}</b></span>
+                  </div>
+                )}
+
+                {depasseHeuresSup && (
+                  <div className="ns-overtime-warning">
+                    <AlertTriangle size={15} />
+                    <div>
+                      <strong>Heures supplémentaires</strong>
+                      <p>Cette tâche amène le collaborateur au-delà de 17h30, il devra faire des heures supplémentaires.</p>
+                    </div>
+                  </div>
+                )}
+
                 <label className="ns-detail-field">
                   Attribuer à *
                   <CollaborateurSelect

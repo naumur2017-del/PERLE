@@ -228,6 +228,21 @@
 
 .ns-staff-empty { margin: 0; font-size: 11px; color: #8f8fa6; line-height: 1.5; }
 
+.ns-heurefin-box {
+  display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 8px;
+  background: #f5f4fa; color: #4a4a63; font-size: 11.5px; font-weight: 600;
+}
+.ns-heurefin-box b { color: #14123a; }
+.ns-heurefin-box.warn { background: #fef1d8; color: #92400e; }
+.ns-heurefin-box.warn b { color: #92400e; }
+
+.ns-overtime-warning {
+  display: flex; gap: 10px; padding: 12px; border: 1px solid #fde3b0; border-radius: 10px; background: #fffaf0; color: #92400e;
+}
+.ns-overtime-warning > svg { flex: 0 0 auto; color: #d97706; margin-top: 1px; }
+.ns-overtime-warning strong { display: block; font-size: 11.5px; margin-bottom: 3px; }
+.ns-overtime-warning p { margin: 0; font-size: 11px; line-height: 1.5; }
+
 .ns-affectations-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .ns-affectations-list li {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

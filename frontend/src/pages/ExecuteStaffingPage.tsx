@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
-  Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
+  AlertTriangle, Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
   ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
   RotateCcw, Search, SlidersHorizontal, UserCheck, X,
 } from 'lucide-react'
@@ -76,6 +76,23 @@ function initiales(nom: string) {
   return nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 }
 
+function parseDateFr(date: string) {
+  const [jour, mois, annee] = date.split('/').map(Number)
+  return new Date(annee, mois - 1, jour).getTime()
+}
+
+const parAttributionFifo = (a: TacheAssignee, b: TacheAssignee) => parseDateFr(a.debut) - parseDateFr(b.debut)
+
+const DEBUT_JOURNEE_MINUTES = 8 * 60
+const FIN_JOURNEE_MINUTES = 17 * 60 + 30
+
+function calculerHeureFin(heures: number) {
+  const total = DEBUT_JOURNEE_MINUTES + Math.round(heures * 60)
+  const h = Math.floor(total / 60) % 24
+  const m = total % 60
+  return { total, label: `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}` }
+}
+
 type StaffColumnId =
   | 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'ehsAffectes'
   | 'debut' | 'echeance' | 'statutStaffing' | 'statutExecution'
@@ -132,6 +149,8 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
 
   const selected = taches.find((t) => t.id === selectedId) ?? null
+  const heureFinSelected = selected ? calculerHeureFin(selected.ehsAffectes) : null
+  const depasseHeuresSupSelected = heureFinSelected !== null && heureFinSelected.total > FIN_JOURNEE_MINUTES
 
   const statutExecutionEffectif = (tache: TacheAssignee): StatutExecution | null => {
     if (tache.statutStaffing !== 'accepte') return null
@@ -154,10 +173,12 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const counts: Record<Tab, number> = { 'a-accepter': 0, 'en-cours': 0, 'en-pause': 0, terminee: 0 }
   taches.forEach((t) => { const tab = tabOf(t); if (tab) counts[tab] += 1 })
 
-  const filtered = taches.filter((t) => (
-    tabOf(t) === activeTab
-    && (search.trim() === '' || `${t.id} ${t.tache} ${t.projet} ${t.attribueePar}`.toLowerCase().includes(search.trim().toLowerCase()))
-  ))
+  const filtered = taches
+    .filter((t) => (
+      tabOf(t) === activeTab
+      && (search.trim() === '' || `${t.id} ${t.tache} ${t.projet} ${t.attribueePar}`.toLowerCase().includes(search.trim().toLowerCase()))
+    ))
+    .sort(parAttributionFifo)
 
   const handleSelect = (tache: TacheAssignee) => setSelectedId(tache.id)
   const closePanel = () => setSelectedId(null)
@@ -275,9 +296,15 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                               return <td key={c.id} className={def.className}>{def.render(tache, exec)}</td>
                             })}
                             <td onClick={(e) => e.stopPropagation()}>
-                              <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(tache)}>
-                                <MoreVertical size={16} />
-                              </button>
+                              {activeTab === 'a-accepter' ? (
+                                <button type="button" className="es-accept-btn" onClick={() => handleSelect(tache)}>
+                                  <Check size={13} />Accepter le staffing
+                                </button>
+                              ) : (
+                                <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(tache)}>
+                                  <MoreVertical size={16} />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         )
@@ -325,7 +352,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                     </tr>
                   </thead>
                   <tbody>
-                    {taches.map((tache) => {
+                    {[...taches].sort(parAttributionFifo).map((tache) => {
                       const exec = statutExecutionEffectif(tache)
                       return (
                         <tr key={tache.id} onClick={() => handleSelect(tache)}>
@@ -401,11 +428,22 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                 <>
                   <div className="es-response-box">
                     <span><Info size={13} />Votre réponse au staffing</span>
-                    <p>Vous devez accepter ou décliner cette tâche pour pouvoir l'exécuter.</p>
+                    <p>{depasseHeuresSupSelected ? "Vous devez accepter ou décliner cette tâche pour pouvoir l'exécuter." : "Vous devez accepter cette tâche pour pouvoir l'exécuter."}</p>
                   </div>
+                  {depasseHeuresSupSelected && heureFinSelected && (
+                    <div className="es-overtime-warning">
+                      <AlertTriangle size={15} />
+                      <div>
+                        <strong>Heures supplémentaires</strong>
+                        <p>Cette tâche amène le collaborateur au-delà de 17h30 (fin estimée à {heureFinSelected.label}), il devra faire des heures supplémentaires.</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="es-detail-actions">
                     <button type="button" className="es-btn-accept" onClick={() => handleAccepter(selected)}><Check size={14} />Accepter le staffing</button>
-                    <button type="button" className="es-btn-decline" onClick={() => handleDecliner(selected)}><X size={14} />Décliner</button>
+                    {depasseHeuresSupSelected && (
+                      <button type="button" className="es-btn-decline" onClick={() => handleDecliner(selected)}><X size={14} />Décliner</button>
+                    )}
                   </div>
                   <a className="es-contact-link" href="#" onClick={(e) => e.preventDefault()}><MessageCircle size={13} />Besoin d'informations complémentaires ? Contacter le manager</a>
                 </>
