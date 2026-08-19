@@ -10,14 +10,15 @@ interface CompteDef {
   nom: string
   code: string
   sousLibelle: string
+  soldeInitial: number
 }
 
 const COMPTES: CompteDef[] = [
-  { id: 'BICEC', nom: 'BICEC', code: '521100', sousLibelle: 'Compte principal' },
-  { id: 'AFR', nom: 'Afriland', code: '521200', sousLibelle: 'Compte principal' },
-  { id: 'CAISSE', nom: 'Caisse principale', code: '530100', sousLibelle: 'Caisse' },
-  { id: 'OM', nom: 'Orange Money', code: '555100', sousLibelle: 'OM' },
-  { id: 'MOMO', nom: 'MTN MoMo', code: '555200', sousLibelle: 'MoMo' },
+  { id: 'BICEC', nom: 'BICEC', code: '521100', sousLibelle: 'Compte principal', soldeInitial: 4500000 },
+  { id: 'AFR', nom: 'Afriland', code: '521200', sousLibelle: 'Compte principal', soldeInitial: 2800000 },
+  { id: 'CAISSE', nom: 'Caisse principale', code: '530100', sousLibelle: 'Caisse', soldeInitial: 350000 },
+  { id: 'OM', nom: 'Orange Money', code: '555100', sousLibelle: 'OM', soldeInitial: 120000 },
+  { id: 'MOMO', nom: 'MTN MoMo', code: '555200', sousLibelle: 'MoMo', soldeInitial: 95000 },
 ]
 
 interface Mouvement {
@@ -91,6 +92,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
   const [detailsVisibles, setDetailsVisibles] = useState(true)
   const [colonnesOpen, setColonnesOpen] = useState(false)
   const [colonnesVisibles, setColonnesVisibles] = useState<Record<ColonneId, boolean>>(COLONNES_PAR_DEFAUT)
+  const [compteSoldeInitial, setCompteSoldeInitial] = useState(COMPTES[0].id)
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -129,6 +131,8 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
     }
     return { entrees, sorties, totalEntrees, totalSorties }
   }, [filtered])
+
+  const compteSoldeInitialDef = COMPTES.find((compte) => compte.id === compteSoldeInitial) ?? COMPTES[0]
 
   const isColonneVisible = (id: ColonneId) => colonnesVisibles[id]
   const toggleColonne = (id: ColonneId) => setColonnesVisibles((current) => ({ ...current, [id]: !current[id] }))
@@ -171,6 +175,22 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
           </article>
         ))}
       </div>
+
+      <article className="co-solde-initial">
+        <span className="co-solde-initial-icon"><Wallet size={18} /></span>
+        <div className="co-solde-initial-body">
+          <span className="co-solde-initial-label">Solde initial</span>
+          <select
+            className="co-solde-initial-select"
+            value={compteSoldeInitial}
+            onChange={(event) => setCompteSoldeInitial(event.target.value)}
+          >
+            {COMPTES.map((compte) => <option key={compte.id} value={compte.id}>{compte.nom}</option>)}
+          </select>
+          <span className="co-solde-initial-meta">{compteSoldeInitialDef.code} - {compteSoldeInitialDef.sousLibelle}</span>
+        </div>
+        <strong className="co-solde-initial-value">{fmtMontant(compteSoldeInitialDef.soldeInitial)} FCFA</strong>
+      </article>
 
       <div className="co-filters">
         <label>Projet

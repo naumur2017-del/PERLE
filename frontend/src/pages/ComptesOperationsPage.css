@@ -62,6 +62,35 @@
 .co-kpi-green .co-kpi-icon { background: #dcf7e3; color: #16a34a; }
 .co-kpi-red .co-kpi-icon { background: #fee2e2; color: #dc2626; }
 
+/* =============== SOLDE INITIAL =============== */
+.co-solde-initial {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #eae7f6;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
+}
+
+.co-solde-initial-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; background: #efe9fd; color: #6b46c1; }
+
+.co-solde-initial-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.co-solde-initial-label { font-size: 11px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: 0.02em; }
+.co-solde-initial-select {
+  height: 32px; min-width: 190px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px;
+  background: #ffffff; color: #2b2b4a; font-size: 12.5px; font-weight: 700;
+}
+.co-solde-initial-meta { font-size: 10.5px; font-weight: 600; color: #a8a8bd; }
+
+.co-solde-initial-value { margin-left: auto; font-size: 20px; font-weight: 800; color: #14123a; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .co-solde-initial { flex-wrap: wrap; }
+  .co-solde-initial-value { margin-left: 0; }
+}
+
 /* =============== FILTERS =============== */
 .co-filters {
   display: flex;

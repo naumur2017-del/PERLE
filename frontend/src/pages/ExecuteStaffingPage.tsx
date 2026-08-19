@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  AlertTriangle, Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
+  AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
   ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
   RotateCcw, Search, SlidersHorizontal, UserCheck, X,
 } from 'lucide-react'
@@ -237,10 +237,6 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     setActiveTab('en-cours')
   }
 
-  const handleDecliner = (tache: TacheAssignee) => {
-    setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutStaffing: 'refuse' } : t))
-  }
-
   const handlePause = (tache: TacheAssignee) => {
     if (timers.some((t) => t.code === tache.id)) onToggleTimer(tache.id)
     setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutExecution: 'en-pause' } : t))
@@ -364,7 +360,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                             <td onClick={(e) => e.stopPropagation()}>
                               {activeTab === 'a-accepter' ? (
                                 <button type="button" className="es-accept-btn" onClick={() => handleSelect(tache)}>
-                                  <Check size={13} />Accepter le staffing
+                                  <Play size={13} />Démarrer
                                 </button>
                               ) : (
                                 <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(tache)}>
@@ -404,7 +400,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
 
               <div className="es-info-banner">
                 <Info size={14} />
-                <span>En acceptant le staffing, vous confirmez votre disponibilité et vous vous engagez à exécuter cette tâche dans les délais prévus.</span>
+                <span>En démarrant le staffing, vous confirmez votre disponibilité et vous vous engagez à exécuter cette tâche dans les délais prévus.</span>
               </div>
             </>
           ) : (
@@ -494,7 +490,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                 <>
                   <div className="es-response-box">
                     <span><Info size={13} />Votre réponse au staffing</span>
-                    <p>{depasseHeuresSupSelected ? "Vous devez accepter ou décliner cette tâche pour pouvoir l'exécuter." : "Vous devez accepter cette tâche pour pouvoir l'exécuter."}</p>
+                    <p>Vous devez démarrer cette tâche pour pouvoir l'exécuter.</p>
                   </div>
                   {depasseHeuresSupSelected && heureFinSelected && (
                     <div className="es-overtime-warning">
@@ -506,10 +502,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                     </div>
                   )}
                   <div className="es-detail-actions">
-                    <button type="button" className="es-btn-accept" onClick={() => handleAccepter(selected)}><Check size={14} />Accepter le staffing</button>
-                    {depasseHeuresSupSelected && (
-                      <button type="button" className="es-btn-decline" onClick={() => handleDecliner(selected)}><X size={14} />Décliner</button>
-                    )}
+                    <button type="button" className="es-btn-accept" onClick={() => handleAccepter(selected)}><Play size={14} />Démarrer</button>
                   </div>
                   <a className="es-contact-link" href="#" onClick={(e) => e.preventDefault()}><MessageCircle size={13} />Besoin d'informations complémentaires ? Contacter le manager</a>
                 </>
