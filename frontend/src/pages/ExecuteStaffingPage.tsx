@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
   ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
@@ -84,15 +84,25 @@ function parseDateFr(date: string) {
 const parAttributionFifo = (a: TacheAssignee, b: TacheAssignee) => parseDateFr(a.debut) - parseDateFr(b.debut)
 
 const AUJOURD_HUI_MS = new Date(2025, 5, 20).getTime()
-const MS_PAR_JOUR = 1000 * 60 * 60 * 24
 
-function tempsRestantInfo(echeance: string, exec: StatutExecution | null) {
+function formatDDHHMMSS(totalSeconds: number) {
+  const neg = totalSeconds < 0
+  const abs = Math.abs(totalSeconds)
+  const jours = Math.floor(abs / 86400)
+  const heures = Math.floor((abs % 86400) / 3600)
+  const minutes = Math.floor((abs % 3600) / 60)
+  const secondes = Math.floor(abs % 60)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${neg ? '-' : ''}${pad(jours)}:${pad(heures)}:${pad(minutes)}:${pad(secondes)}`
+}
+
+function tempsRestantInfo(echeance: string, exec: StatutExecution | null, nowMs: number) {
   if (exec === 'terminee') return { label: 'Terminée', tone: 'done' } as const
-  const jours = Math.round((parseDateFr(echeance) - AUJOURD_HUI_MS) / MS_PAR_JOUR)
-  if (jours < 0) return { label: `En retard (${Math.abs(jours)} j)`, tone: 'retard' } as const
-  if (jours === 0) return { label: "Aujourd'hui", tone: 'urgent' } as const
-  if (jours <= 3) return { label: `${jours} j restant${jours > 1 ? 's' : ''}`, tone: 'urgent' } as const
-  return { label: `${jours} j restants`, tone: 'ok' } as const
+  const totalSeconds = Math.floor((parseDateFr(echeance) - nowMs) / 1000)
+  const label = formatDDHHMMSS(totalSeconds)
+  if (totalSeconds < 0) return { label, tone: 'retard' } as const
+  if (totalSeconds <= 3 * 86400) return { label, tone: 'urgent' } as const
+  return { label, tone: 'ok' } as const
 }
 
 const DEBUT_JOURNEE_MINUTES = 8 * 60
@@ -122,7 +132,7 @@ const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'statutExecution', label: "Statut d'exécution" },
 ]
 
-const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: TacheAssignee, exec: StatutExecution | null) => ReactNode }> = {
+const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: TacheAssignee, exec: StatutExecution | null, nowMs: number) => ReactNode }> = {
   projet: { render: (t) => <span className="es-projet-cell"><Folder size={13} />{t.projet}</span> },
   tache: { className: 'es-name', render: (t) => <><strong>{t.tache}</strong><small>{t.id}</small></> },
   attribueePar: {
@@ -138,8 +148,8 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: T
   debut: { render: (t) => t.debut },
   echeance: { render: (t) => <span className={t.statutStaffing === 'en-attente' ? 'es-echeance' : undefined}>{t.echeance}</span> },
   tempsRestant: {
-    render: (t, exec) => {
-      const info = tempsRestantInfo(t.echeance, exec)
+    render: (t, exec, nowMs) => {
+      const info = tempsRestantInfo(t.echeance, exec, nowMs)
       return <span className={`es-temps-restant es-temps-restant-${info.tone}`}>{info.label}</span>
     },
   },
@@ -165,7 +175,19 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const [activeTab, setActiveTab] = useState<Tab>('a-accepter')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [filterProjet, setFilterProjet] = useState('Tous')
+  const [filterEquipe, setFilterEquipe] = useState('Toutes')
+  const [filterPriorite, setFilterPriorite] = useState('Toutes')
+  const [nowMs, setNowMs] = useState(AUJOURD_HUI_MS)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs((n) => n + 1000), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
+  const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
 
   const selected = taches.find((t) => t.id === selectedId) ?? null
   const heureFinSelected = selected ? calculerHeureFin(selected.ehsAffectes) : null
@@ -195,9 +217,16 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const filtered = taches
     .filter((t) => (
       tabOf(t) === activeTab
+      && (filterProjet === 'Tous' || t.projet === filterProjet)
+      && (filterEquipe === 'Toutes' || t.equipe === filterEquipe)
+      && (filterPriorite === 'Toutes' || t.priorite === filterPriorite)
       && (search.trim() === '' || `${t.id} ${t.tache} ${t.projet} ${t.attribueePar}`.toLowerCase().includes(search.trim().toLowerCase()))
     ))
     .sort(parAttributionFifo)
+
+  const resetFiltres = () => {
+    setFilterProjet('Tous'); setFilterEquipe('Toutes'); setFilterPriorite('Toutes'); setSearch('')
+  }
 
   const handleSelect = (tache: TacheAssignee) => setSelectedId(tache.id)
   const closePanel = () => setSelectedId(null)
@@ -282,11 +311,29 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
               </nav>
 
               <div className="es-filters">
+                <label>Projet
+                  <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
+                    <option>Tous</option>
+                    {projets.map((p) => <option key={p}>{p}</option>)}
+                  </select>
+                </label>
+                <label>Équipe
+                  <select value={filterEquipe} onChange={(e) => setFilterEquipe(e.target.value)}>
+                    <option>Toutes</option>
+                    {equipes.map((e) => <option key={e}>{e}</option>)}
+                  </select>
+                </label>
+                <label>Priorité
+                  <select value={filterPriorite} onChange={(e) => setFilterPriorite(e.target.value)}>
+                    <option>Toutes</option>
+                    <option>Haute</option><option>Moyenne</option><option>Basse</option>
+                  </select>
+                </label>
                 <label className="es-search">
                   <Search size={14} />
                   <input placeholder="Rechercher une tâche, un projet..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </label>
-                <button type="button" className="es-reset" onClick={() => setSearch('')}><RotateCcw size={14} />Réinitialiser</button>
+                <button type="button" className="es-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
               </div>
 
               <section className="es-table-panel">
@@ -312,7 +359,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                           <tr key={tache.id} className={selectedId === tache.id ? 'es-row-selected' : ''} onClick={() => handleSelect(tache)}>
                             {visibleColumns.map((c) => {
                               const def = STAFF_CELL_DEFS[c.id]
-                              return <td key={c.id} className={def.className}>{def.render(tache, exec)}</td>
+                              return <td key={c.id} className={def.className}>{def.render(tache, exec, nowMs)}</td>
                             })}
                             <td onClick={(e) => e.stopPropagation()}>
                               {activeTab === 'a-accepter' ? (

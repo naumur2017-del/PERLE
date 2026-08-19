@@ -183,7 +183,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Demandes de paiement</button>
         <button className="active" onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Paiements exécutés</button>
         <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et opérations</button>
-        <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Rapports financiers</button>
+        <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Journal de la trésorerie</button>
       </nav>
 
       <nav className="pe-request-tabs">

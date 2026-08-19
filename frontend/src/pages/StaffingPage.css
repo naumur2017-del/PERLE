@@ -13,6 +13,16 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
+/* =============== SUB-TABS (Nouveau / Suivi) =============== */
+.ns-subtabs { display: flex; flex-wrap: wrap; gap: 10px; }
+.ns-subtabs button {
+  display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px;
+  border: 1px solid #ddd8f2; border-radius: 8px; background: #ffffff; color: #35335c;
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.ns-subtabs button:hover { background: #f7f5ff; }
+.ns-subtabs button.active { border-color: #6b46c1; background: #6b46c1; color: #ffffff; }
+
 /* =============== TITLE =============== */
 .ns-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .ns-title-row h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; font-weight: 700; color: #14123a; }

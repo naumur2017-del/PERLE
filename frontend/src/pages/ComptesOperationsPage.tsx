@@ -148,7 +148,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
         <div>
           <h1>Comptes et opérations</h1>
           <p>Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent.</p>
-          <button type="button" className="co-link-btn" onClick={() => navigateTo('tresorerie-rapports')}>Voir les rapports financiers</button>
+          <button type="button" className="co-link-btn" onClick={() => navigateTo('tresorerie-rapports')}>Voir le journal de la trésorerie</button>
         </div>
         <div className="co-toolbar">
           <button type="button" className="co-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>

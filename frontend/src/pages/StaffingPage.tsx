@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import {
   Activity, AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
-  Info, Pause, Plus, RotateCcw, Search, SlidersHorizontal, UserX, Users, X,
+  Info, Pause, Plus, RotateCcw, Search, SlidersHorizontal, UserCheck, UserX, Users, X,
 } from 'lucide-react'
 import {
   type Affectation, COLLABORATEURS, type TacheWrike,
@@ -153,6 +153,11 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
 
   return (
     <section className="ns-page">
+      <nav className="ns-subtabs">
+        <button className="active" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
+        <button onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffing</button>
+      </nav>
+
       <div className="ns-title-row">
         <div>
           <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>

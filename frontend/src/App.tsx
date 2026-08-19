@@ -11,7 +11,8 @@ import PerformanceStaffingPage from './pages/PerformanceStaffingPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
 import ComptesOperationsPage from './pages/ComptesOperationsPage'
-import RapportsFinanciersPage from './pages/RapportsFinanciersPage'
+import JournalTresoreriePage from './pages/JournalTresoreriePage'
+import MercurialesPage from './pages/MercurialesPage'
 import GuidePage from './pages/GuidePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
@@ -49,7 +50,8 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
   'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-operations', title: 'Comptes et opérations', description: "Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent." },
-  'tresorerie-rapports': { path: '/tresorerie/rapports-financiers', title: 'Rapports financiers', description: 'Consultez et exportez les rapports financiers de la trésorerie.' },
+  'tresorerie-rapports': { path: '/tresorerie/journal', title: 'Journal de la trésorerie', description: "Enregistrement chronologique de toutes les opérations de trésorerie (entrées, sorties et transferts)." },
+  'tresorerie-mercuriales': { path: '/tresorerie/mercuriales', title: 'Mercuriales', description: 'Gestion des mercuriales (prix de référence) utilisées pour le contrôle des dépenses de trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
   'architecture-monetaire': { path: '/architecture/monetaire', title: 'Architecture monétaire', description: 'Gérez les référentiels monétaires : types de dépenses, recettes et transferts.' },
@@ -258,7 +260,8 @@ function App() {
         { id: 'tresorerie', label: 'Demandes de paiement' },
         { id: 'tresorerie-paiements', label: 'Paiements exécutés' },
         { id: 'tresorerie-comptes', label: 'Comptes et opérations' },
-        { id: 'tresorerie-rapports', label: 'Rapports financiers' },
+        { id: 'tresorerie-rapports', label: 'Journal de la trésorerie' },
+        { id: 'tresorerie-mercuriales', label: 'Mercuriales' },
       ],
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
@@ -374,7 +377,8 @@ function App() {
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
       case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />
-      case 'tresorerie-rapports': return <RapportsFinanciersPage navigateTo={navigateTo} />
+      case 'tresorerie-rapports': return <JournalTresoreriePage navigateTo={navigateTo} />
+      case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage />
       case 'architecture-monetaire': return <ModulePage title={pageConfig['architecture-monetaire'].title} description={pageConfig['architecture-monetaire'].description} icon={icons.architecture} />
