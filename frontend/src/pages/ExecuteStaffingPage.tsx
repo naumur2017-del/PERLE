@@ -83,6 +83,18 @@ function parseDateFr(date: string) {
 
 const parAttributionFifo = (a: TacheAssignee, b: TacheAssignee) => parseDateFr(a.debut) - parseDateFr(b.debut)
 
+const AUJOURD_HUI_MS = new Date(2025, 5, 20).getTime()
+const MS_PAR_JOUR = 1000 * 60 * 60 * 24
+
+function tempsRestantInfo(echeance: string, exec: StatutExecution | null) {
+  if (exec === 'terminee') return { label: 'Terminée', tone: 'done' } as const
+  const jours = Math.round((parseDateFr(echeance) - AUJOURD_HUI_MS) / MS_PAR_JOUR)
+  if (jours < 0) return { label: `En retard (${Math.abs(jours)} j)`, tone: 'retard' } as const
+  if (jours === 0) return { label: "Aujourd'hui", tone: 'urgent' } as const
+  if (jours <= 3) return { label: `${jours} j restant${jours > 1 ? 's' : ''}`, tone: 'urgent' } as const
+  return { label: `${jours} j restants`, tone: 'ok' } as const
+}
+
 const DEBUT_JOURNEE_MINUTES = 8 * 60
 const FIN_JOURNEE_MINUTES = 17 * 60 + 30
 
@@ -95,7 +107,7 @@ function calculerHeureFin(heures: number) {
 
 type StaffColumnId =
   | 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'ehsAffectes'
-  | 'debut' | 'echeance' | 'statutStaffing' | 'statutExecution'
+  | 'debut' | 'echeance' | 'tempsRestant' | 'statutStaffing' | 'statutExecution'
 
 const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'projet', label: 'Projet' },
@@ -105,6 +117,7 @@ const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'ehsAffectes', label: 'EHS affectés' },
   { id: 'debut', label: 'Début' },
   { id: 'echeance', label: 'Échéance' },
+  { id: 'tempsRestant', label: 'Temps restant' },
   { id: 'statutStaffing', label: 'Statut staffing' },
   { id: 'statutExecution', label: "Statut d'exécution" },
 ]
@@ -124,6 +137,12 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: T
   ehsAffectes: { render: (t) => t.ehsAffectes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
   debut: { render: (t) => t.debut },
   echeance: { render: (t) => <span className={t.statutStaffing === 'en-attente' ? 'es-echeance' : undefined}>{t.echeance}</span> },
+  tempsRestant: {
+    render: (t, exec) => {
+      const info = tempsRestantInfo(t.echeance, exec)
+      return <span className={`es-temps-restant es-temps-restant-${info.tone}`}>{info.label}</span>
+    },
+  },
   statutStaffing: { render: (t) => <span className={`es-pill es-pill-${STATUT_STAFFING_CLASS[t.statutStaffing]}`}>{STATUT_STAFFING_LABEL[t.statutStaffing]}</span> },
   statutExecution: {
     render: (_t, exec) => exec

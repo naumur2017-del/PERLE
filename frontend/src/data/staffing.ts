@@ -7,6 +7,7 @@ export interface Affectation {
   heures: number
   staffeLe: string
   statut: AffectationStatut
+  pauseAutorisee: boolean
 }
 
 export interface TacheWrike {

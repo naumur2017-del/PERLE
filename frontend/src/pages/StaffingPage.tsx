@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useMemo, useState } from 'react'
 import {
   Activity, AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox,
-  Info, Plus, RotateCcw, Search, SlidersHorizontal, UserCheck, UserX, Users, X,
+  Info, Pause, Plus, RotateCcw, Search, SlidersHorizontal, UserX, Users, X,
 } from 'lucide-react'
 import {
   type Affectation, COLLABORATEURS, type TacheWrike,
@@ -77,6 +77,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
 
   const [formHeures, setFormHeures] = useState('')
   const [formCollaborateur, setFormCollaborateur] = useState('')
+  const [pauseAutorisee, setPauseAutorisee] = useState(false)
 
   const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
   const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
@@ -88,12 +89,14 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
     setSelectedId(tache.id)
     setFormHeures('')
     setFormCollaborateur('')
+    setPauseAutorisee(false)
   }
 
   const closePanel = () => {
     setSelectedId(null)
     setFormHeures('')
     setFormCollaborateur('')
+    setPauseAutorisee(false)
   }
 
   const countPrete = taches.filter((t) => t.affectations.length === 0).length
@@ -130,10 +133,12 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
       heures: heuresNum,
       staffeLe: todayStr(),
       statut: 'en-attente',
+      pauseAutorisee,
     }
     setTaches((list) => list.map((t) => t.id === selected.id ? { ...t, affectations: [...t.affectations, nouvelleAffectation] } : t))
     setFormHeures('')
     setFormCollaborateur('')
+    setPauseAutorisee(false)
   }
 
   const totalStaffings = taches.reduce((sum, t) => sum + t.affectations.length, 0)
@@ -148,11 +153,6 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
 
   return (
     <section className="ns-page">
-      <nav className="ns-subtabs">
-        <button className="active" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
-        <button onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffing</button>
-      </nav>
-
       <div className="ns-title-row">
         <div>
           <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>
@@ -324,6 +324,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                         <span className="ns-affectation-meta">
                           <b>{fmtHeures(affectation.heures)} h</b>
                           <span className={`ns-statut ns-statut-${STATUT_AFFECTATION_CLASS[affectation.statut]}`}>{STATUT_AFFECTATION_LABEL[affectation.statut]}</span>
+                          {affectation.pauseAutorisee && <span className="ns-pause-pill"><Pause size={10} />Pause autorisée</span>}
                           <small><Clock3 size={11} />{affectation.staffeLe}</small>
                         </span>
                       </li>
@@ -347,6 +348,15 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                     <span>heures</span>
                   </div>
                 </label>
+
+                <button
+                  type="button"
+                  className={`ns-pause-toggle ${pauseAutorisee ? 'active' : ''}`}
+                  onClick={() => setPauseAutorisee((v) => !v)}
+                >
+                  <Pause size={13} />
+                  {pauseAutorisee ? 'Pause autorisée pour ce staffing' : 'Autoriser la pause'}
+                </button>
 
                 {heureFin && (
                   <div className={`ns-heurefin-box ${depasseHeuresSup ? 'warn' : ''}`}>

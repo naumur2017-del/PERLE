@@ -240,7 +240,6 @@ function App() {
       id: 'staffing', label: 'Staffing', icon: icons.staffing,
       children: [
         { id: 'staffing', label: 'Nouveau staffing' },
-        { id: 'staffing-suivi', label: 'Suivi des staffing' },
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
     },
