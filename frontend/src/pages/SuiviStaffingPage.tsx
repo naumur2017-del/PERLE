@@ -76,12 +76,12 @@ export default function SuiviStaffingPage({ navigateTo, taches, setTaches }: Sui
     <section className="su-page">
       <nav className="su-subtabs">
         <button onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
-        <button className="active" onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffing</button>
+        <button className="active" onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffings</button>
       </nav>
 
       <div className="su-title-row">
         <div>
-          <h1>Suivi des staffing <Info size={15} className="su-title-info" /></h1>
+          <h1>Suivi des staffings <Info size={15} className="su-title-info" /></h1>
           <p>Suivez l'évolution de chaque staffing réalisé et faites évoluer son statut.</p>
         </div>
       </div>

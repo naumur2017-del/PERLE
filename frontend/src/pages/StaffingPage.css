@@ -64,7 +64,8 @@
 .ns-kpi small { font-size: 9.5px; color: #8f8fa6; }
 
 /* =============== LAYOUT =============== */
-.ns-layout { display: grid; grid-template-columns: 1fr 340px; align-items: start; gap: 16px; }
+.ns-layout { display: grid; grid-template-columns: 1fr; align-items: start; gap: 16px; }
+.ns-layout.has-detail { grid-template-columns: 1fr 340px; }
 .ns-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 /* =============== STATUS TABS =============== */
@@ -279,7 +280,7 @@
 }
 
 @media (max-width: 1150px) {
-  .ns-layout { grid-template-columns: 1fr; }
+  .ns-layout.has-detail { grid-template-columns: 1fr; }
   .ns-detail { position: static; max-height: none; }
 }
 

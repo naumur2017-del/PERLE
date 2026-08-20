@@ -41,20 +41,18 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Suivez la performance de vos équipes et la mobilisation des ressources.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
-  'staffing-suivi': { path: '/staffing/suivi', title: 'Suivi des staffing', description: "Suivez l'évolution des staffing réalisés et leur statut." },
+  'staffing-suivi': { path: '/staffing/suivi', title: 'Suivi des staffings', description: "Suivez l'évolution des staffing réalisés et leur statut." },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
   gestion: { path: '/gestion-equipes', title: 'Gestion des équipes', description: 'Suivre et gérer les collaborateurs, leurs grades et leurs affectations.' },
   'gestion-equipes': { path: '/gestion-equipes/equipes', title: 'Équipes', description: 'Consultez et organisez les équipes de l’entreprise.' },
-  'gestion-grades': { path: '/gestion-equipes/grades', title: 'Grades et échelons', description: 'Gérez la grille des grades et échelons des collaborateurs.' },
   'gestion-organigramme': { path: '/gestion-equipes/organigramme', title: 'Organigramme', description: 'Visualisez la hiérarchie et les rattachements de l’entreprise.' },
-  tresorerie: { path: '/tresorerie', title: 'Demandes de paiement', description: 'Gestion des paiements et suivi des validations.' },
-  'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Paiements exécutés', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
+  tresorerie: { path: '/tresorerie', title: 'Ordonnances des paiements', description: 'Gestion des paiements et suivi des validations.' },
+  'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Exécutions des paiements', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-operations', title: 'Comptes et opérations', description: "Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent." },
   'tresorerie-rapports': { path: '/tresorerie/journal', title: 'Journal de la trésorerie', description: "Enregistrement chronologique de toutes les opérations de trésorerie (entrées, sorties et transferts)." },
   'tresorerie-mercuriales': { path: '/tresorerie/mercuriales', title: 'Mercuriales', description: 'Gestion des mercuriales (prix de référence) utilisées pour le contrôle des dépenses de trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
-  'architecture-monetaire': { path: '/architecture/monetaire', title: 'Architecture monétaire', description: 'Gérez les référentiels monétaires : types de dépenses, recettes et transferts.' },
   aide: { path: '/aide', title: 'Help / Centre d’assistance', description: 'Nous sommes là pour vous aider à utiliser PERLE efficacement.' },
   'aide-faq': { path: '/aide/faq', title: 'FAQ', description: 'Consultez les questions fréquemment posées et leurs réponses.' },
   'aide-connaissances': { path: '/aide/base-de-connaissances', title: 'Base de connaissances', description: 'Parcourez tous les articles de la base de connaissances PERLE.' },
@@ -250,28 +248,21 @@ function App() {
       children: [
         { id: 'gestion', label: 'Employés' },
         { id: 'gestion-equipes', label: 'Équipes' },
-        { id: 'gestion-grades', label: 'Grades et échelons' },
         { id: 'gestion-organigramme', label: 'Organigramme' },
       ],
     },
     {
       id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie,
       children: [
-        { id: 'tresorerie', label: 'Demandes de paiement' },
-        { id: 'tresorerie-paiements', label: 'Paiements exécutés' },
+        { id: 'tresorerie', label: 'Ordonnances des paiements' },
+        { id: 'tresorerie-paiements', label: 'Exécutions des paiements' },
         { id: 'tresorerie-comptes', label: 'Comptes et opérations' },
         { id: 'tresorerie-rapports', label: 'Journal de la trésorerie' },
         { id: 'tresorerie-mercuriales', label: 'Mercuriales' },
       ],
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
-    {
-      id: 'architecture', label: 'Architecture', icon: icons.architecture,
-      children: [
-        { id: 'architecture', label: 'Architecture des tâches' },
-        { id: 'architecture-monetaire', label: 'Architecture monétaire' },
-      ],
-    },
+    { id: 'architecture', label: 'Architecture des tâches', icon: icons.architecture },
     {
       id: 'aide', label: 'Help', icon: icons.aide,
       children: [
@@ -372,7 +363,6 @@ function App() {
       )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
       case 'gestion-equipes': return <ModulePage title={pageConfig['gestion-equipes'].title} description={pageConfig['gestion-equipes'].description} icon={icons.gestion} />
-      case 'gestion-grades': return <ModulePage title={pageConfig['gestion-grades'].title} description={pageConfig['gestion-grades'].description} icon={icons.gestion} />
       case 'gestion-organigramme': return <ModulePage title={pageConfig['gestion-organigramme'].title} description={pageConfig['gestion-organigramme'].description} icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
@@ -381,7 +371,6 @@ function App() {
       case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage />
       case 'architecture': return <ArchitecturePage />
-      case 'architecture-monetaire': return <ModulePage title={pageConfig['architecture-monetaire'].title} description={pageConfig['architecture-monetaire'].description} icon={icons.architecture} />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
       case 'aide-connaissances': return <ModulePage title={pageConfig['aide-connaissances'].title} description={pageConfig['aide-connaissances'].description} icon={icons.aide} />

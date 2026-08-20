@@ -1,6 +1,6 @@
 import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
-  BarChart3, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
   Info, Network, Pencil, Plus, RotateCcw, Search, Star, UploadCloud, UserPlus,
   Users, Users2, X, MoreVertical,
 } from 'lucide-react'
@@ -378,7 +378,6 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         <nav className="ge-subtabs">
           <button className="active" onClick={() => navigateTo('gestion')}><Users size={14} />Employés</button>
           <button onClick={() => navigateTo('gestion-equipes')}><Users2 size={14} />Équipes</button>
-          <button onClick={() => navigateTo('gestion-grades')}><BarChart3 size={14} />Grilles de grades</button>
           <button onClick={() => navigateTo('gestion-organigramme')}><Network size={14} />Organigramme</button>
         </nav>
         <div className="ge-header-actions">

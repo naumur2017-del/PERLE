@@ -169,7 +169,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         <div>
           <h1>Journal de la trésorerie</h1>
           <p>Enregistrement chronologique de toutes les opérations de trésorerie (entrées, sorties et transferts).</p>
-          <button type="button" className="jt-link-btn" onClick={() => navigateTo('tresorerie')}>Voir les demandes de paiement</button>
+          <button type="button" className="jt-link-btn" onClick={() => navigateTo('tresorerie')}>Voir les ordonnances des paiements</button>
         </div>
         <div className="jt-toolbar">
           <ColumnsMenu columns={JOURNAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="jt-btn-outline" />

@@ -155,7 +155,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
     <section className="ns-page">
       <nav className="ns-subtabs">
         <button className="active" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Nouveau staffing</button>
-        <button onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffing</button>
+        <button onClick={() => navigateTo('staffing-suivi')}><Activity size={14} />Suivi des staffings</button>
       </nav>
 
       <div className="ns-title-row">
@@ -184,7 +184,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
         ))}
       </div>
 
-      <div className="ns-layout">
+      <div className={`ns-layout ${selected ? 'has-detail' : ''}`}>
         <div className="ns-main">
           <nav className="ns-tabs">
             <button className={activeTab === 'prete' ? 'active' : ''} onClick={() => { setActiveTab('prete'); closePanel() }}>
@@ -283,20 +283,13 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
           </section>
         </div>
 
-        <aside className="ns-detail">
-          <div className="ns-detail-head-row">
-            <h3>Détail de la tâche sélectionnée</h3>
-            {selected && <button type="button" className="ns-detail-close" onClick={closePanel} aria-label="Fermer"><X size={16} /></button>}
-          </div>
-          {!selected && (
-            <div className="ns-detail-empty">
-              <Inbox size={26} />
-              <p>Sélectionnez une tâche dans la liste pour la staffer.</p>
+        {selected && (
+          <aside className="ns-detail">
+            <div className="ns-detail-head-row">
+              <h3>Détail de la tâche sélectionnée</h3>
+              <button type="button" className="ns-detail-close" onClick={closePanel} aria-label="Fermer"><X size={16} /></button>
             </div>
-          )}
 
-          {selected && (
-            <>
               <div className="ns-detail-head">
                 <span className="ns-detail-check ns-statut-blue"><CheckCircle2 size={14} /></span>
                 <strong>{selected.id}</strong>
@@ -393,9 +386,8 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                   <button type="button" className="ns-btn-primary" disabled={!staffingValide} onClick={handleEnregistrerStaffing}>Enregistrer le staffing</button>
                 </div>
               </div>
-            </>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </section>
   )
