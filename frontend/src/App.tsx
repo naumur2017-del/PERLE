@@ -25,8 +25,10 @@ import TresoreriePage from './pages/TresoreriePage'
 import SalariePage from './pages/SalariePage'
 import ArchitecturePage from './pages/ArchitecturePage'
 import ParametresPage from './pages/ParametresPage'
-import DeconnexionPage from './pages/DeconnexionPage'
 import ModulePage from './pages/ModulePage'
+import LoginScreen from './components/LoginScreen'
+import AdminDashboardPage from './pages/AdminDashboardPage'
+import type { UserRole } from './auth/roles'
 
 interface Module {
   id: number
@@ -71,7 +73,6 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'guide-architecture': { path: '/guide-utilisation/architecture', title: 'Guide - Architecture des tâches', description: 'Comprenez l’arborescence et l’organisation des tâches.' },
   'guide-parametres': { path: '/guide-utilisation/parametres', title: 'Guide - Paramètres', description: 'Personnalisez PERLE selon les besoins de votre organisation.' },
   parametres: { path: '/parametres', title: 'Paramètres', description: 'Configurez les préférences et les paramètres de PERLE.' },
-  deconnexion: { path: '/deconnexion', title: 'Déconnexion', description: 'Quittez votre session PERLE en toute sécurité.' },
 }
 
 function AppIcon({ children }: { children: ReactNode }) {
@@ -118,6 +119,7 @@ function App() {
     return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
   }
 
+  const [session, setSession] = useState<UserRole | null>(null)
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>({ pilotage: true })
   const [splashVisible, setSplashVisible] = useState(true)
@@ -209,6 +211,18 @@ function App() {
   const openLigneBudgetaire = (projetCode: string, ligneCode: string) => {
     setPilotageFocus({ projetCode, ligneCode })
     navigateTo('pilotage')
+  }
+
+  const handleLogin = (role: UserRole) => {
+    setSession(role)
+    setActiveNav('accueil')
+    if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
+  }
+
+  const handleLogout = () => {
+    setSession(null)
+    setActiveNav('accueil')
+    if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
   }
 
   const icons = {
@@ -389,9 +403,26 @@ function App() {
       case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
       case 'parametres': return <ParametresPage icon={icons.parametres} />
-      case 'deconnexion': return <DeconnexionPage icon={icons.deconnexion} />
       default: return <HomePage modules={modules} navigateTo={navigateTo} />
     }
+  }
+
+  if (!session) {
+    return (
+      <>
+        {splashVisible && <SplashScreen fadingOut={splashFading} />}
+        <LoginScreen onLogin={handleLogin} />
+      </>
+    )
+  }
+
+  if (session === 'admin') {
+    return (
+      <>
+        {splashVisible && <SplashScreen fadingOut={splashFading} />}
+        <AdminDashboardPage onLogout={handleLogout} />
+      </>
+    )
   }
 
   return (
@@ -431,7 +462,7 @@ function App() {
                 <button
                   key={item.id}
                   className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-                  onClick={() => navigateTo(item.id)}
+                  onClick={() => item.id === 'deconnexion' ? handleLogout() : navigateTo(item.id)}
                 >
                   <span className="nav-icon">{item.icon}</span>
                   <span className="nav-label">{item.label}</span>
