@@ -80,6 +80,80 @@
 .eq-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .eq-pagination button.is-active { background: #6b46c1; border-color: #6b46c1; color: #fff; opacity: 1; }
 
+/* =============== CREATE TEAM MODAL =============== */
+.eq-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 15, 55, 0.45);
+  padding: 20px;
+}
+
+.eq-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100vh - 40px);
+  padding: 20px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 24px 48px rgba(20, 15, 60, 0.24);
+  overflow-y: auto;
+}
+
+.eq-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.eq-modal-head h3 { margin: 0 0 3px; font-size: 15px; font-weight: 700; color: #14123a; }
+.eq-modal-head p { margin: 0; font-size: 11px; color: #8f8fa6; }
+
+.eq-modal-close { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: none; border-radius: 7px; background: #f4f2fb; color: #6c6c85; cursor: pointer; }
+.eq-modal-close:hover { background: #eae5fb; color: #6b46c1; }
+
+.eq-modal-field { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; font-weight: 700; color: #35335c; }
+.eq-modal-field input, .eq-modal-field select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #ddd8f2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2b2b4a;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.eq-modal-members-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.eq-modal-members-count { font-size: 10.5px; font-weight: 700; color: #8f8fa6; }
+
+.eq-modal-member-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; }
+.eq-modal-member-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+  border: 1px solid #f0eef8; border-radius: 9px; background: #faf9fe;
+}
+.eq-modal-member-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.eq-modal-member-row strong { font-size: 11.5px; color: #14123a; font-weight: 700; }
+.eq-modal-member-row small { font-size: 10px; color: #8f8fa6; }
+.eq-modal-member-manager-tag { flex-shrink: 0; padding: 3px 8px; border-radius: 999px; background: #efe9fd; color: #6b46c1; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+.eq-modal-member-remove { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border: none; border-radius: 6px; background: none; color: #b45309; cursor: pointer; }
+.eq-modal-member-remove:hover { background: #fee2e2; color: #b91c1c; }
+.eq-modal-member-empty { margin: 0; padding: 14px; border: 1px dashed #ddd8f2; border-radius: 9px; text-align: center; color: #a8a8bd; font-size: 11px; font-weight: 600; }
+
+.eq-modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; border-top: 1px solid #f0eef8; }
+.eq-modal-cancel {
+  height: 40px; padding: 0 18px; border: 1px solid #ddd8f2; border-radius: 8px;
+  background: #ffffff; color: #35335c; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.eq-modal-cancel:hover { background: #f7f5ff; }
+.eq-modal-submit {
+  height: 40px; padding: 0 20px; border: none; border-radius: 8px;
+  background: #6b46c1; color: #ffffff; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.eq-modal-submit:hover:not(:disabled) { background: #5b3aa8; }
+.eq-modal-submit:disabled { background: #d8d2ef; cursor: not-allowed; }
+
 /* =============== RESPONSIVE =============== */
 @media (max-width: 900px) {
   .eq-detail-panel { padding: 14px 14px 18px; }

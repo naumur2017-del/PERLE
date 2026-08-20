@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import {
   ArrowUpDown, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ChevronLeft, MoreVertical,
-  Network, Plus, Search, UserPlus, Users, Users2,
+  Network, Plus, Search, UserPlus, Users, Users2, X,
 } from 'lucide-react'
 import './GestionEquipesPage.css'
 import './EquipesPage.css'
@@ -35,7 +35,7 @@ const membre = (matricule: string, employe: string, initiales: string, couleur: 
   { matricule, employe, initiales, couleur, fonction, role, statut }
 )
 
-const EQUIPES: Equipe[] = [
+const EQUIPES_INITIAL: Equipe[] = [
   {
     code: 'EQ-001',
     nom: 'Pilotage',
@@ -89,8 +89,19 @@ const EQUIPES: Equipe[] = [
   },
 ]
 
-const TOTAL_EQUIPES = EQUIPES.length
-const MANAGERS = Array.from(new Set(EQUIPES.filter((e) => e.manager).map((e) => e.manager!.nom)))
+/* Vivier du personnel : dédupliqué par nom à partir des membres déjà affectés à une équipe,
+   pour proposer les mêmes personnes comme manager ou membre lors de la création d'une équipe. */
+const PERSONNEL_POOL: MembreEquipe[] = Array.from(
+  EQUIPES_INITIAL.flatMap((e) => e.membres).reduce((map, m) => (map.has(m.employe) ? map : map.set(m.employe, m)), new Map<string, MembreEquipe>()).values(),
+).sort((a, b) => a.employe.localeCompare(b.employe))
+
+const nextCode = (equipes: Equipe[]) => {
+  const maxNum = equipes.reduce((max, e) => {
+    const num = Number(e.code.replace(/\D/g, ''))
+    return Number.isFinite(num) && num > max ? num : max
+  }, 0)
+  return `EQ-${String(maxNum + 1).padStart(3, '0')}`
+}
 
 type SortKey = 'code' | 'nom' | 'manager' | 'membres' | 'membresActifs'
 type SortDir = 'asc' | 'desc'
@@ -107,11 +118,116 @@ function SortHeader({ sortKey, label, activeKey, onSort }: { sortKey: SortKey; l
   )
 }
 
+function CreateEquipeModal({ code, onClose, onCreate }: { code: string; onClose: () => void; onCreate: (equipe: Equipe) => void }) {
+  const [nom, setNom] = useState('')
+  const [managerNom, setManagerNom] = useState('')
+  const [membres, setMembres] = useState<MembreEquipe[]>([])
+
+  const disponibles = PERSONNEL_POOL.filter((p) => !membres.some((m) => m.employe === p.employe))
+
+  const addMembre = (nomChoisi: string) => {
+    const personne = PERSONNEL_POOL.find((p) => p.employe === nomChoisi)
+    if (!personne) return
+    setMembres((current) => [...current, personne])
+  }
+
+  const removeMembre = (employe: string) => {
+    setMembres((current) => current.filter((m) => m.employe !== employe))
+    if (managerNom === employe) setManagerNom('')
+  }
+
+  const chooseManager = (nomChoisi: string) => {
+    setManagerNom(nomChoisi)
+    if (nomChoisi && !membres.some((m) => m.employe === nomChoisi)) addMembre(nomChoisi)
+  }
+
+  const canCreate = nom.trim() !== ''
+
+  const handleSubmit = () => {
+    if (!canCreate) return
+    const manager = managerNom ? PERSONNEL_POOL.find((p) => p.employe === managerNom) ?? null : null
+    const membresFinal = membres.map((m) => ({
+      ...m,
+      role: manager && m.employe === manager.employe ? 'Manager' : 'Membre',
+      statut: 'Actif' as StatutMembre,
+    }))
+
+    onCreate({
+      code,
+      nom: nom.trim(),
+      manager: manager ? { nom: manager.employe, initiales: manager.initiales, couleur: manager.couleur } : null,
+      membres: membresFinal,
+    })
+  }
+
+  return (
+    <div className="eq-modal-overlay" role="dialog" aria-modal="true" aria-label="Créer une équipe" onMouseDown={onClose}>
+      <div className="eq-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="eq-modal-head">
+          <div>
+            <h3>Créer une équipe</h3>
+            <p>Définissez son nom, son manager et ses membres.</p>
+          </div>
+          <button type="button" className="eq-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+
+        <label className="eq-modal-field">Nom de l'équipe *
+          <input autoFocus placeholder="Ex. Support Client" value={nom} onChange={(event) => setNom(event.target.value)} />
+        </label>
+
+        <label className="eq-modal-field">Manager
+          <select value={managerNom} onChange={(event) => chooseManager(event.target.value)}>
+            <option value="">Non assigné</option>
+            {PERSONNEL_POOL.map((p) => <option key={p.matricule} value={p.employe}>{p.employe} — {p.fonction}</option>)}
+          </select>
+        </label>
+
+        <label className="eq-modal-field">Ajouter un membre
+          <select value="" onChange={(event) => addMembre(event.target.value)} disabled={disponibles.length === 0}>
+            <option value="">{disponibles.length === 0 ? 'Tous les employés sont déjà membres' : 'Sélectionner un employé...'}</option>
+            {disponibles.map((p) => <option key={p.matricule} value={p.employe}>{p.employe} — {p.fonction}</option>)}
+          </select>
+        </label>
+
+        <div className="eq-modal-field">
+          <div className="eq-modal-members-head">
+            <span>Membres de l'équipe</span>
+            <span className="eq-modal-members-count">{membres.length} sélectionné(s)</span>
+          </div>
+          {membres.length === 0 ? (
+            <p className="eq-modal-member-empty">Aucun membre pour le moment. Ajoutez-en via la liste ci-dessus.</p>
+          ) : (
+            <ul className="eq-modal-member-list">
+              {membres.map((m) => (
+                <li className="eq-modal-member-row" key={m.matricule}>
+                  <span className="eq-avatar" style={{ background: m.couleur }}>{m.initiales}</span>
+                  <div><strong>{m.employe}</strong><small>{m.fonction}</small></div>
+                  {managerNom === m.employe && <span className="eq-modal-member-manager-tag">Manager</span>}
+                  <button type="button" className="eq-modal-member-remove" aria-label={`Retirer ${m.employe}`} onClick={() => removeMembre(m.employe)}><X size={13} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="eq-modal-actions">
+          <button type="button" className="eq-modal-cancel" onClick={onClose}>Annuler</button>
+          <button type="button" className="eq-modal-submit" disabled={!canCreate} onClick={handleSubmit}>Créer l'équipe</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function EquipesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [equipes, setEquipes] = useState<Equipe[]>(EQUIPES_INITIAL)
   const [search, setSearch] = useState('')
   const [managerFiltre, setManagerFiltre] = useState('Tous')
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'code', dir: 'asc' })
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['EQ-002']))
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
+  const managers = useMemo(() => Array.from(new Set(equipes.filter((e) => e.manager).map((e) => e.manager!.nom))), [equipes])
 
   const toggleSort = (key: SortKey) => {
     setSort((current) => current.key === key ? { key, dir: current.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
@@ -126,9 +242,15 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     })
   }
 
+  const handleCreateEquipe = (equipe: Equipe) => {
+    setEquipes((current) => [...current, equipe])
+    setExpanded((current) => new Set(current).add(equipe.code))
+    setShowCreateModal(false)
+  }
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    const list = EQUIPES.filter((equipe) => (
+    const list = equipes.filter((equipe) => (
       (managerFiltre === 'Tous' || equipe.manager?.nom === managerFiltre || (managerFiltre === 'Non assigné' && !equipe.manager))
       && (query === '' || equipe.nom.toLowerCase().includes(query) || equipe.code.toLowerCase().includes(query))
     ))
@@ -142,7 +264,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
       return sort.dir === 'asc' ? cmp : -cmp
     })
     return sorted
-  }, [search, managerFiltre, sort])
+  }, [equipes, search, managerFiltre, sort])
 
   return (
     <section className="ge-page">
@@ -160,14 +282,14 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
             <p>Création et gestion des équipes de l'organisation.</p>
           </div>
         </div>
-        <button type="button" className="ge-btn-primary"><Plus size={14} />Créer une équipe</button>
+        <button type="button" className="ge-btn-primary" onClick={() => setShowCreateModal(true)}><Plus size={14} />Créer une équipe</button>
       </div>
 
       <div className="ge-filters">
         <label>Manager
           <select value={managerFiltre} onChange={(e) => setManagerFiltre(e.target.value)}>
             <option value="Tous">Tous les managers</option>
-            {MANAGERS.map((nom) => <option key={nom} value={nom}>{nom}</option>)}
+            {managers.map((nom) => <option key={nom} value={nom}>{nom}</option>)}
             <option value="Non assigné">Non assigné</option>
           </select>
         </label>
@@ -273,7 +395,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
           </table>
         </div>
         <div className="eq-table-foot">
-          <span>Affichage 1 à {filtered.length} sur {TOTAL_EQUIPES} équipes</span>
+          <span>Affichage 1 à {filtered.length} sur {equipes.length} équipes</span>
           <div className="eq-table-foot-right">
             <label className="eq-page-size">
               <select defaultValue="10"><option value="10">10 / page</option><option value="25">25 / page</option><option value="50">50 / page</option></select>
@@ -288,6 +410,14 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
           </div>
         </div>
       </div>
+
+      {showCreateModal && (
+        <CreateEquipeModal
+          code={nextCode(equipes)}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreateEquipe}
+        />
+      )}
     </section>
   )
 }
