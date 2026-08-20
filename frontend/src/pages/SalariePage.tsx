@@ -19,6 +19,7 @@ import {
   Clock,
   Download,
   Eye,
+  EyeOff,
   FileText,
   Gift,
   Hand,
@@ -103,6 +104,20 @@ const nextId = (prefix: string, items: { id: string }[]) => {
 
 function countByStatut<T extends { statut: Statut }>(items: T[], statut: Statut) {
   return items.filter((item) => item.statut === statut).length
+}
+
+const PERIODES = ['Mai 2025', 'Avril 2025', 'Mars 2025', 'Février 2025', 'Janvier 2025', 'Décembre 2024']
+
+function PeriodeFilter({ value, onChange, label = 'Période' }: { value: string; onChange: (value: string) => void; label?: string }) {
+  return (
+    <label className="salarie-filter salarie-filter-periode">
+      <Calendar size={13} strokeWidth={2} />
+      {label} :
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {PERIODES.map((periode) => <option key={periode} value={periode}>{periode}</option>)}
+      </select>
+    </label>
+  )
 }
 
 const tabs = [
@@ -303,6 +318,7 @@ function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (v
 }
 
 function DemandesTab() {
+  const [periode, setPeriode] = useState(PERIODES[0])
   const [congeDemandes, setCongeDemandes] = useState<CongeDemande[]>(initialCongeDemandes)
   const [avanceDemandes, setAvanceDemandes] = useState<AvanceDemande[]>(initialAvanceDemandes)
   const [viewConge, setViewConge] = useState<CongeDemande | null>(null)
@@ -361,6 +377,10 @@ function DemandesTab() {
         <p>Consultez et suivez l’état de vos demandes.</p>
       </div>
 
+      <div className="salarie-tab-filter-row">
+        <PeriodeFilter value={periode} onChange={setPeriode} />
+      </div>
+
       <div className="salarie-summary">
         <SummaryCard
           icon={<Calendar size={19} strokeWidth={2} />} iconClass="conge" title="Demandes de congé"
@@ -378,7 +398,7 @@ function DemandesTab() {
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><span className="salarie-panel-icon conge"><Calendar size={15} strokeWidth={2} /></span><h3>Demandes de congé</h3></div>
           <div className="salarie-panel-actions">
-            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Filtrer par mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+            <PeriodeFilter value={periode} onChange={setPeriode} label="Filtrer par mois" />
             <button className="salarie-primary-btn" onClick={() => setShowCongeForm(true)}><Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé</button>
           </div>
         </div>
@@ -419,7 +439,7 @@ function DemandesTab() {
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><span className="salarie-panel-icon avance"><Wallet size={15} strokeWidth={2} /></span><h3>Demandes d’avance sur salaire</h3></div>
           <div className="salarie-panel-actions">
-            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Filtrer par mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+            <PeriodeFilter value={periode} onChange={setPeriode} label="Filtrer par mois" />
             <button className="salarie-primary-btn" onClick={() => setShowAvanceForm(true)}><Download size={14} strokeWidth={2.4} />Nouvelle demande d’avance</button>
           </div>
         </div>
@@ -884,8 +904,14 @@ function DonutChart() {
 }
 
 function DashboardTab() {
+  const [periode, setPeriode] = useState(PERIODES[0])
+
   return (
     <div className="salarie-dashboard">
+      <div className="salarie-tab-filter-row">
+        <PeriodeFilter value={periode} onChange={setPeriode} />
+      </div>
+
       <div className="salarie-dash-greeting">
         <span className="salarie-dash-wave"><Hand size={26} strokeWidth={2} /></span>
         <div className="salarie-dash-greeting-text">
@@ -999,27 +1025,6 @@ const penalitesDetails = [
   { type: 'Rappel à l’ordre', motif: 'Manquement aux règles internes', montant: 5000, statut: 'Appliquée' },
 ]
 
-interface BulletinHistorique {
-  mois: string
-  brut: number
-  primesPerformance: number
-  primesRattrapage: number
-  deductions: number
-  penalites: number
-  statut: 'À venir' | 'Payé'
-}
-
-const bulletinsHistorique: BulletinHistorique[] = [
-  { mois: 'Mai 2025', brut: 2000000, primesPerformance: 58000, primesRattrapage: 40000, deductions: 308290, penalites: 30000, statut: 'À venir' },
-  { mois: 'Avril 2025', brut: 2000000, primesPerformance: 52000, primesRattrapage: 0, deductions: 250000, penalites: 20000, statut: 'Payé' },
-  { mois: 'Mars 2025', brut: 2000000, primesPerformance: 50000, primesRattrapage: 0, deductions: 245000, penalites: 10000, statut: 'Payé' },
-  { mois: 'Février 2025', brut: 2000000, primesPerformance: 45000, primesRattrapage: 0, deductions: 245000, penalites: 0, statut: 'Payé' },
-  { mois: 'Janvier 2025', brut: 2000000, primesPerformance: 45000, primesRattrapage: 0, deductions: 245000, penalites: 0, statut: 'Payé' },
-]
-
-const netBulletin = (bulletin: BulletinHistorique) =>
-  bulletin.brut + bulletin.primesPerformance + bulletin.primesRattrapage - bulletin.deductions - bulletin.penalites
-
 const remuStats = [
   { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(2000000), unit: 'FCFA', sub: 'Fixe mensuel' },
   { icon: Gift, iconClass: 'prime', label: 'Primes du mois', value: frMontant(58000), unit: 'FCFA', sub: 'Selon résultats' },
@@ -1101,14 +1106,23 @@ function RemuDonut() {
 }
 
 function RemunerationTab() {
+  const [periode, setPeriode] = useState(PERIODES[0])
+  const [detailsVisibles, setDetailsVisibles] = useState(true)
+
   return (
     <div className="salarie-remuneration">
       <div className="salarie-remu-heading">
         <div>
           <h2>Récapitulatif de rémunération</h2>
-          <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Période : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+          <PeriodeFilter value={periode} onChange={setPeriode} />
         </div>
-        <button className="salarie-primary-btn"><Download size={14} strokeWidth={2.4} />Télécharger le bulletin de paie (PDF)</button>
+        <div className="salarie-remu-heading-actions">
+          <button type="button" className="salarie-ghost-btn" onClick={() => setDetailsVisibles((value) => !value)}>
+            {detailsVisibles ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
+            {detailsVisibles ? 'Masquer les détails' : 'Afficher les détails'}
+          </button>
+          <button className="salarie-primary-btn"><Download size={14} strokeWidth={2.4} />Télécharger le bulletin de paie (PDF)</button>
+        </div>
       </div>
 
       <div className="salarie-dash-stats salarie-remu-stats">
@@ -1125,58 +1139,64 @@ function RemunerationTab() {
       </div>
 
       <div className="salarie-remu-panels">
-        <section className="salarie-panel salarie-remu-detail-card">
-          <div className="salarie-dash-panel-heading">
-            <h3>Détail de la rémunération</h3>
-            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Période : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
-          </div>
-          <div className="salarie-remu-columns">
-            <RemuColumn title="1. Éléments positifs" tone="positif" lignes={elementsPositifs} totalLabel="Total éléments positifs (A)" total={totalPositifs} />
-            <span className="salarie-remu-op">+</span>
-            <RemuColumn title="2. Déductions légales" tone="deduction" lignes={deductionsLegales} totalLabel="Total déductions légales (B)" total={totalDeductionsLegales} />
-            <span className="salarie-remu-op">+</span>
-            <RemuColumn title="3. Pénalités / Sanctions" tone="penalite" lignes={penalitesLignes} totalLabel="Total pénalités (C)" total={totalPenalites} />
-            <span className="salarie-remu-op">=</span>
-            <div className="salarie-remu-col resultat">
-              <h4>Résultat</h4>
-              <ul>
-                <li><span>Éléments positifs (A)</span><b>{frMontant(totalPositifs)}</b></li>
-                <li><span>- Déductions légales (B)</span><b>- {frMontant(totalDeductionsLegales)}</b></li>
-                <li><span>- Pénalités (C)</span><b>- {frMontant(totalPenalites)}</b></li>
-              </ul>
-              <div className="salarie-remu-total net"><span>Net à payer (A - B - C)</span><b>{frMontant(netAPayer)}</b></div>
+        {detailsVisibles && (
+          <section className="salarie-panel salarie-remu-detail-card">
+            <div className="salarie-dash-panel-heading">
+              <h3>Détail de la rémunération</h3>
+              <PeriodeFilter value={periode} onChange={setPeriode} />
             </div>
-          </div>
-          <Note>Les montants sont exprimés en FCFA.</Note>
-        </section>
+            <div className="salarie-remu-columns">
+              <RemuColumn title="1. Éléments positifs" tone="positif" lignes={elementsPositifs} totalLabel="Total éléments positifs (A)" total={totalPositifs} />
+              <span className="salarie-remu-op">+</span>
+              <RemuColumn title="2. Déductions légales" tone="deduction" lignes={deductionsLegales} totalLabel="Total déductions légales (B)" total={totalDeductionsLegales} />
+              <span className="salarie-remu-op">+</span>
+              <RemuColumn title="3. Pénalités / Sanctions" tone="penalite" lignes={penalitesLignes} totalLabel="Total pénalités (C)" total={totalPenalites} />
+              <span className="salarie-remu-op">=</span>
+              <div className="salarie-remu-col resultat">
+                <h4>Résultat</h4>
+                <ul>
+                  <li><span>Éléments positifs (A)</span><b>{frMontant(totalPositifs)}</b></li>
+                  <li><span>- Déductions légales (B)</span><b>- {frMontant(totalDeductionsLegales)}</b></li>
+                  <li><span>- Pénalités (C)</span><b>- {frMontant(totalPenalites)}</b></li>
+                </ul>
+                <div className="salarie-remu-total net"><span>Net à payer (A - B - C)</span><b>{frMontant(netAPayer)}</b></div>
+              </div>
+            </div>
+            <Note>Les montants sont exprimés en FCFA.</Note>
+          </section>
+        )}
 
         <div className="salarie-remu-side">
-          <section className="salarie-panel salarie-remu-donut-card">
-            <div className="salarie-dash-panel-heading"><h3>Répartition des éléments</h3></div>
-            <RemuDonut />
-          </section>
+          {detailsVisibles && (
+            <section className="salarie-panel salarie-remu-donut-card">
+              <div className="salarie-dash-panel-heading"><h3>Répartition des éléments</h3></div>
+              <RemuDonut />
+            </section>
+          )}
 
-          <section className="salarie-panel salarie-remu-penalites-card">
-            <div className="salarie-dash-panel-heading"><h3>Détails des pénalités - Mai 2025</h3></div>
-            <div className="salarie-table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Type de pénalité</th><th>Motif</th><th>Montant (FCFA)</th><th>Statut</th></tr>
-                </thead>
-                <tbody>
-                  {penalitesDetails.map((ligne) => (
-                    <tr key={ligne.type}>
-                      <td><strong>{ligne.type}</strong></td>
-                      <td>{ligne.motif}</td>
-                      <td>- {frMontant(ligne.montant)}</td>
-                      <td><span className="salarie-pill refusee">{ligne.statut}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="salarie-remu-total penalites"><span>Total pénalités</span><b>- {frMontant(totalPenalites)} FCFA</b></div>
-          </section>
+          {detailsVisibles && (
+            <section className="salarie-panel salarie-remu-penalites-card">
+              <div className="salarie-dash-panel-heading"><h3>Détails des pénalités - {periode}</h3></div>
+              <div className="salarie-table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Type de pénalité</th><th>Motif</th><th>Montant (FCFA)</th><th>Statut</th></tr>
+                  </thead>
+                  <tbody>
+                    {penalitesDetails.map((ligne) => (
+                      <tr key={ligne.type}>
+                        <td><strong>{ligne.type}</strong></td>
+                        <td>{ligne.motif}</td>
+                        <td>- {frMontant(ligne.montant)}</td>
+                        <td><span className="salarie-pill refusee">{ligne.statut}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="salarie-remu-total penalites"><span>Total pénalités</span><b>- {frMontant(totalPenalites)} FCFA</b></div>
+            </section>
+          )}
 
           <div className="salarie-info">
             <Info size={18} strokeWidth={2} />
@@ -1194,51 +1214,50 @@ function RemunerationTab() {
 
       <section className="salarie-panel salarie-remu-history-card">
         <div className="salarie-dash-panel-heading">
-          <h3>Historique des bulletins de paie</h3>
-          <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+          <h3>Récapitulatif des activités</h3>
+          <PeriodeFilter value={periode} onChange={setPeriode} label="Mois" />
         </div>
         <div className="salarie-table-wrap">
           <table>
             <thead>
               <tr>
-                <th rowSpan={2}>Mois</th>
-                <th rowSpan={2}>Salaire brut (FCFA)</th>
-                <th colSpan={2}>Primes (FCFA)</th>
-                <th rowSpan={2}>Déductions légales (FCFA)</th>
-                <th rowSpan={2}>Pénalités (FCFA)</th>
-                <th rowSpan={2}>Net à payer (FCFA)</th>
-                <th rowSpan={2}>Statut</th>
-                <th rowSpan={2}>Bulletin</th>
+                <th>Projet</th>
+                <th>Tâche</th>
+                <th>Date de début</th>
+                <th>Date de fin</th>
+                <th>Temps total</th>
+                <th>EHS consommés</th>
               </tr>
-              <tr><th>Performance</th><th>Rattrapage</th></tr>
             </thead>
             <tbody>
-              {bulletinsHistorique.map((bulletin) => (
-                <tr key={bulletin.mois}>
-                  <td><strong>{bulletin.mois}</strong></td>
-                  <td>{frMontant(bulletin.brut)}</td>
-                  <td>{frMontant(bulletin.primesPerformance)}</td>
-                  <td>{bulletin.primesRattrapage ? frMontant(bulletin.primesRattrapage) : '0'}</td>
-                  <td>{frMontant(bulletin.deductions)}</td>
-                  <td>{frMontant(bulletin.penalites)}</td>
-                  <td><strong>{frMontant(netBulletin(bulletin))}</strong></td>
-                  <td><span className={`salarie-pill ${bulletin.statut === 'Payé' ? 'approuvee' : 'attente'}`}>{bulletin.statut}</span></td>
-                  <td className="salarie-actions"><button aria-label="Télécharger le bulletin"><Download size={14} strokeWidth={2} /></button></td>
+              {tachesHistorique.map((tache) => (
+                <tr key={tache.tache}>
+                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
+                  <td><strong>{tache.tache}</strong></td>
+                  <td>{tache.dateDebut}</td>
+                  <td>{tache.dateFin}</td>
+                  <td>{tache.tempsTotal}</td>
+                  <td>{frNumber(tache.ehs)}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="salarie-table-total">
+                <td colSpan={4}>Total</td>
+                <td>{totalTempsHistorique}</td>
+                <td>{frNumber(totalEhsHistorique)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
         <div className="salarie-table-footer">
-          <span>Affichage de 1 à 5 sur 12 bulletins</span>
+          <span>Affichage de 1 à {tachesHistorique.length} sur {tachesHistorique.length} activités</span>
           <div className="salarie-pagination">
             <button disabled><ChevronsLeft size={13} /></button>
             <button disabled><ChevronLeft size={13} /></button>
             <button className="active">1</button>
-            <button>2</button>
-            <button>3</button>
-            <button><ChevronRight size={13} /></button>
-            <button><ChevronsRight size={13} /></button>
+            <button disabled><ChevronRight size={13} /></button>
+            <button disabled><ChevronsRight size={13} /></button>
           </div>
         </div>
       </section>
@@ -1289,6 +1308,17 @@ const tachesHistorique: TacheHistorique[] = [
   { projet: 'DIEGO', badge: 'indigo', tache: 'Saisie et vérification des données', dateDebut: '03/05/2025', dateFin: '17/05/2025', tempsTotal: '22h 30m', ehs: 9, validePar: 'Ajara LAMARE', dateValidation: '18/05/2025' },
 ]
 
+const parseTempsLabel = (label: string) => {
+  const match = label.match(/(\d+)h\s*(\d+)?/)
+  if (!match) return 0
+  return Number(match[1]) * 60 + Number(match[2] ?? 0)
+}
+
+const formatMinutesToTemps = (totalMinutes: number) => `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`
+
+const totalTempsHistorique = formatMinutesToTemps(tachesHistorique.reduce((sum, tache) => sum + parseTempsLabel(tache.tempsTotal), 0))
+const totalEhsHistorique = tachesHistorique.reduce((sum, tache) => sum + tache.ehs, 0)
+
 function ProjetBadge({ label, tone }: { label: string; tone: string }) {
   return <span className={`salarie-project-badge ${tone}`}>{label}</span>
 }
@@ -1326,6 +1356,7 @@ const HISTORIQUE_COLUMNS: ColumnDef<HistoriqueColumnId>[] = [
 ]
 
 function ActivitesTab() {
+  const [periode, setPeriode] = useState(PERIODES[0])
   const [viewEnCours, setViewEnCours] = useState<TacheEnCours | null>(null)
   const [viewHistorique, setViewHistorique] = useState<TacheHistorique | null>(null)
   const enCoursCols = useColumnVisibility(EN_COURS_COLUMNS)
@@ -1343,7 +1374,12 @@ function ActivitesTab() {
       <div className="salarie-filters">
         <label className="salarie-filter-field">
           <span>Période</span>
-          <div className="salarie-filter-control"><Calendar size={13} strokeWidth={2} />01/05/2025 - 31/05/2025</div>
+          <div className="salarie-filter-control select">
+            <Calendar size={13} strokeWidth={2} />
+            <select value={periode} onChange={(event) => setPeriode(event.target.value)}>
+              {PERIODES.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
         </label>
         <label className="salarie-filter-field">
           <span>Projet</span>
@@ -1404,7 +1440,7 @@ function ActivitesTab() {
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><h3>Historique des tâches effectuées</h3><span className="salarie-count-badge">12 tâches</span></div>
           <div className="salarie-panel-actions">
-            <label className="salarie-filter"><Calendar size={13} strokeWidth={2} />Mois : <b>Mai 2025</b><ChevronDown size={13} strokeWidth={2} /></label>
+            <PeriodeFilter value={periode} onChange={setPeriode} label="Mois" />
             <ColumnsMenu columns={HISTORIQUE_COLUMNS} hiddenColumns={historiqueCols.hiddenColumns} onToggle={historiqueCols.toggleColumn} />
             <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
           </div>

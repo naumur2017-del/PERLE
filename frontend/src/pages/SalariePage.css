@@ -47,6 +47,10 @@
 .salarie-filter { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #6b6f8f; font-size: 11px; font-weight: 500; }
 .salarie-filter b { color: #1a1a2e; }
 .salarie-filter svg { color: #8286a8; flex: 0 0 auto; }
+.salarie-filter-periode { cursor: pointer; }
+.salarie-filter-periode select { border: none; background: none; padding: 0; margin: 0; color: #1a1a2e; font: inherit; font-weight: 700; cursor: pointer; }
+.salarie-filter-periode select:focus { outline: none; }
+.salarie-tab-filter-row { display: flex; justify-content: flex-end; }
 .salarie-primary-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: #5b21b6; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
 .salarie-primary-btn:hover { background: #6d28d9; transform: translateY(-1px); }
 
@@ -264,6 +268,7 @@
 .salarie-remuneration { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
 .salarie-remu-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
 .salarie-remu-heading h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 19px; }
+.salarie-remu-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .salarie-remu-tooltip { display: inline-grid; margin-left: 4px; color: #b3b6d1; cursor: help; vertical-align: -1px; }
 
 .salarie-remu-panels { display: grid; grid-template-columns: 2.2fr 1fr; gap: 14px; align-items: start; }
@@ -315,6 +320,8 @@
 .salarie-filter-control { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #e0ddf2; border-radius: 7px; background: #fff; color: #1a1a2e; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .salarie-filter-control.select { justify-content: space-between; min-width: 170px; color: #4b4f75; }
 .salarie-filter-control svg { color: #8286a8; flex: 0 0 auto; }
+.salarie-filter-control select { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+.salarie-filter-control select:focus { outline: none; }
 .salarie-filter-reset { height: 36px; }
 
 .salarie-count-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 10px; font-weight: 700; }
