@@ -9,7 +9,11 @@
       "Bash(ln -sf \"C:\\\\Users\\\\EbongueNsame\\\\AppData\\\\Local\\\\npm-cache\\\\_npx\\\\e41f203b7505f1fb\\\\node_modules\" node_modules)",
       "Bash(node shot14.mjs)",
       "Bash(rm -rf \"C:/Users/EBONGU~1/AppData/Local/Temp/claude/c--Users-EbongueNsame-Documents-PERLE/7caa9695-b180-4674-9b60-c15a47530836/scratchpad/node_modules\"; echo done)",
-      "Bash(node -e \"const icons=require\\('lucide-react'\\); console.log\\('Columns3' in icons, 'Columns3Icon' in icons\\)\")"
+      "Bash(node -e \"const icons=require\\('lucide-react'\\); console.log\\('Columns3' in icons, 'Columns3Icon' in icons\\)\")",
+      "Bash(node shot20.mjs)",
+      "Bash(node shot29.mjs)",
+      "Bash(rm -rf \"C:\\\\Users\\\\EBONGU~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-EbongueNsame-Documents-PERLE\\\\7caa9695-b180-4674-9b60-c15a47530836\\\\scratchpad\\\\node_modules\")",
+      "Bash(node shot30.mjs)"
     ],
     "additionalDirectories": [
       "C:\\Users\\EBONGU~1\\AppData\\Local\\Temp\\claude\\c--Users-EbongueNsame-Documents-PERLE\\7caa9695-b180-4674-9b60-c15a47530836\\scratchpad\\node_modules"
