@@ -249,7 +249,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                 <thead>
                   <tr>
                     <th>Wrike</th><th>Projet</th><th>Tâche</th><th>Équipe</th><th>Ligne budgétaire</th>
-                    <th>EHS prévus tâche</th><th>Échéance</th><th>Collaborateurs staffés</th><th>Action</th>
+                    <th>Durée prévue tâche</th><th>Échéance</th><th>Collaborateurs staffés</th><th>Action</th>
                   </tr>
                 </thead>
                 <tbody>

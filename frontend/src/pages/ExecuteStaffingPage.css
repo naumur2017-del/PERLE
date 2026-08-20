@@ -54,7 +54,14 @@
 .es-kpi small { font-size: 10.5px; color: #8f8fa6; }
 
 /* =============== LAYOUT =============== */
-.es-layout { display: grid; grid-template-columns: 1fr 340px; align-items: start; gap: 16px; }
+.es-layout {
+  display: grid;
+  grid-template-columns: 1fr 0px;
+  column-gap: 0px;
+  align-items: start;
+  transition: grid-template-columns 280ms ease, column-gap 280ms ease;
+}
+.es-layout.has-detail { grid-template-columns: 1fr 340px; column-gap: 16px; }
 .es-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 /* =============== PAGE TABS (Mes tâches / Historique) =============== */
@@ -191,10 +198,20 @@
   box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
   max-height: calc(100vh - 32px);
   overflow-y: auto;
+  animation: es-detail-in 260ms ease-out;
 }
 
-.es-detail-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 10px; color: #a8a8bd; text-align: center; }
-.es-detail-empty p { margin: 0; font-size: 12px; }
+@keyframes es-detail-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes es-detail-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(16px); }
+}
+
+.es-detail.es-detail-closing { animation: es-detail-out 220ms ease-in forwards; }
 
 .es-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .es-detail-head h3 { margin: 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: #6c6c85; }
@@ -266,7 +283,7 @@
 }
 
 @media (max-width: 1150px) {
-  .es-layout { grid-template-columns: 1fr; }
+  .es-layout, .es-layout.has-detail { grid-template-columns: 1fr; column-gap: 0; }
   .es-detail { position: static; max-height: none; }
 }
 

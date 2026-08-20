@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
   ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
@@ -107,6 +107,7 @@ function tempsRestantInfo(echeance: string, exec: StatutExecution | null, nowMs:
 
 const DEBUT_JOURNEE_MINUTES = 8 * 60
 const FIN_JOURNEE_MINUTES = 17 * 60 + 30
+const DETAIL_CLOSE_MS = 220
 
 function calculerHeureFin(heures: number) {
   const total = DEBUT_JOURNEE_MINUTES + Math.round(heures * 60)
@@ -174,6 +175,8 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const [pageTab, setPageTab] = useState<'mes-taches' | 'historique'>('mes-taches')
   const [activeTab, setActiveTab] = useState<Tab>('a-accepter')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [panelClosing, setPanelClosing] = useState(false)
+  const closeTimeoutRef = useRef<number | null>(null)
   const [search, setSearch] = useState('')
   const [filterProjet, setFilterProjet] = useState('Tous')
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
@@ -185,6 +188,8 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     const interval = setInterval(() => setNowMs((n) => n + 1000), 1000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => () => { if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current) }, [])
 
   const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
   const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
@@ -228,8 +233,20 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     setFilterProjet('Tous'); setFilterEquipe('Toutes'); setFilterPriorite('Toutes'); setSearch('')
   }
 
-  const handleSelect = (tache: TacheAssignee) => setSelectedId(tache.id)
-  const closePanel = () => setSelectedId(null)
+  const handleSelect = (tache: TacheAssignee) => {
+    if (closeTimeoutRef.current) { window.clearTimeout(closeTimeoutRef.current); closeTimeoutRef.current = null }
+    setPanelClosing(false)
+    setSelectedId(tache.id)
+  }
+
+  const closePanel = () => {
+    setPanelClosing(true)
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setSelectedId(null)
+      setPanelClosing(false)
+      closeTimeoutRef.current = null
+    }, DETAIL_CLOSE_MS)
+  }
 
   const handleAccepter = (tache: TacheAssignee) => {
     setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutStaffing: 'accepte', statutExecution: 'en-cours' } : t))
@@ -285,7 +302,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
         ))}
       </div>
 
-      <div className="es-layout">
+      <div className={`es-layout ${selected ? 'has-detail' : ''}`}>
         <div className="es-main">
           <nav className="es-page-tabs">
             <button className={pageTab === 'mes-taches' ? 'active' : ''} onClick={() => setPageTab('mes-taches')}>Mes tâches</button>
@@ -433,15 +450,8 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
           )}
         </div>
 
-        <aside className={`es-detail ${selected ? '' : 'is-empty'}`}>
-          {!selected && (
-            <div className="es-detail-empty">
-              <ListChecks size={26} />
-              <p>Sélectionnez une tâche dans la liste pour voir son détail.</p>
-            </div>
-          )}
-
-          {selected && (
+        {selected && (
+          <aside className={`es-detail ${panelClosing ? 'es-detail-closing' : ''}`}>
             <>
               <div className="es-detail-head">
                 <h3>Détail de la tâche</h3>
@@ -539,8 +549,8 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                 </div>
               )}
             </>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </section>
   )
