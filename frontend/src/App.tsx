@@ -20,6 +20,7 @@ import StaffingPage from './pages/StaffingPage'
 import SuiviStaffingPage from './pages/SuiviStaffingPage'
 import { TACHES_INITIAL, type TacheWrike } from './data/staffing'
 import GestionEquipesPage from './pages/GestionEquipesPage'
+import EquipesPage from './pages/EquipesPage'
 import TresoreriePage from './pages/TresoreriePage'
 import SalariePage from './pages/SalariePage'
 import ArchitecturePage from './pages/ArchitecturePage'
@@ -362,7 +363,7 @@ function App() {
         />
       )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
-      case 'gestion-equipes': return <ModulePage title={pageConfig['gestion-equipes'].title} description={pageConfig['gestion-equipes'].description} icon={icons.gestion} />
+      case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} />
       case 'gestion-organigramme': return <ModulePage title={pageConfig['gestion-organigramme'].title} description={pageConfig['gestion-organigramme'].description} icon={icons.gestion} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
