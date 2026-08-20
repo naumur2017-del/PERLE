@@ -263,7 +263,7 @@ export default function StaffingPage({ navigateTo, taches, setTaches }: Staffing
                       <td className="ns-name">{tache.tache}</td>
                       <td>{tache.equipe}</td>
                       <td>{tache.ligneBudgetaire}</td>
-                      <td>{fmtHeures(tache.ehsPrevu)} EHS</td>
+                      <td>{fmtHeures(tache.ehsPrevu)} heures</td>
                       <td>{tache.echeance}</td>
                       <td>
                         {tache.affectations.length === 0 ? (
