@@ -3,11 +3,24 @@ import AnimatedLogo from './AnimatedLogo'
 import { searchOrganisations, type Organisation } from './organisations'
 import type { UserRole } from '../auth/roles'
 import { apiPost, ApiError } from '../api/client'
-import { saveSession } from '../auth/session'
+import { saveSession, type Session } from '../auth/session'
 import './LoginScreen.css'
 import './Registration.css'
 
-type UserSummary = { id: number; email: string; first_name: string; role: UserRole; organisation: { id: number; name: string } | null }
+type UserSummary = {
+  id: number
+  email: string
+  first_name: string
+  last_name: string
+  role: UserRole
+  organisation: { id: number; name: string } | null
+  phone: string
+  fonction: string
+  matricule: string
+  date_naissance: string | null
+  pays: string
+  ville: string
+}
 type AuthResponse = { token: string; user: UserSummary }
 
 const formEntries = (form: HTMLFormElement): Record<string, string> => {
@@ -40,7 +53,7 @@ const CLOSE_MS = 620
 const FORM_SWEEP_MS = 320
 const CASCADE_BARS = [0, 1, 2, 3, 4, 5, 6]
 
-export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => void }) {
+export default function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [chooser, setChooser] = useState<'open' | 'closing' | null>(null)
   const [step, setStep] = useState<Step>('type')
@@ -60,7 +73,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
 
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [requestSubmitted, setRequestSubmitted] = useState(false)
 
   const timer = useRef<number | undefined>(undefined)
   const formTimer = useRef<number | undefined>(undefined)
@@ -86,14 +98,22 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
   const isCompany = accountType === 'organization' && orgKind === 'company'
 
   const authenticated = (response: AuthResponse) => {
-    saveSession({
+    const session: Session = {
       token: response.token,
       role: response.user.role,
       email: response.user.email,
       firstName: response.user.first_name,
+      lastName: response.user.last_name,
       organisationName: response.user.organisation?.name ?? '',
-    })
-    onLogin(response.user.role)
+      phone: response.user.phone,
+      fonction: response.user.fonction,
+      matricule: response.user.matricule,
+      dateNaissance: response.user.date_naissance,
+      pays: response.user.pays,
+      ville: response.user.ville,
+    }
+    saveSession(session)
+    onLogin(session)
   }
 
   /* Le rôle est renvoyé par l’API : administrateur applicatif vers l’espace
@@ -131,8 +151,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
       if (accountType === 'member') {
         if (!selectedOrg) throw new Error('Aucune organisation sélectionnée.')
         const fields = formEntries(event.currentTarget)
-        await apiPost('/membership-requests/', { ...fields, organisation: selectedOrg.id })
-        setRequestSubmitted(true)
+        authenticated(await apiPost<AuthResponse>('/organisations/register/member/', { ...fields, organisation: selectedOrg.id }))
         return
       }
 
@@ -180,7 +199,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
     setEntering(null)
     setChooser('open')
     setFormError(null)
-    setRequestSubmitted(false)
   }
 
   const goToStep = (next: Step, direction: Direction) => {
@@ -205,7 +223,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
     setSelectedOrg(null)
     resetCompanySteps()
     setFormError(null)
-    setRequestSubmitted(false)
     setMode('register')
   })
 
@@ -215,7 +232,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
       setAccountType('member')
       setOrgKind(null)
       setFormError(null)
-      setRequestSubmitted(false)
       setMode('register')
     })
   }
@@ -281,19 +297,15 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
             <button type="button" onClick={openChooser}>Changer</button>
           </div>
 
-          {accountType === 'member' ? (requestSubmitted ? <div className="registration-success">
-            <i>✓</i>
-            <h3>Demande envoyée</h3>
-            <p>Votre demande d’accès à {selectedOrg ? selectedOrg.name : 'l’organisation'} a bien été transmise. Un administrateur doit l’approuver avant que vous puissiez vous connecter.</p>
-          </div> : <div className="registration-fields member-fields">
+          {accountType === 'member' ? <div className="registration-fields member-fields">
             <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Votre prénom" /></label></div>
             <label className="login-field"><span>Adresse e-mail professionnelle</span><input type="email" name="email" required placeholder="prenom.nom@organisation.com" /></label>
             <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
             <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input name="fonction" required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Matricule (facultatif)</span><input name="matricule" placeholder="Ex. NM-2041" /></label></div>
             <label className="login-field"><span>Date de naissance</span><input type="date" name="date_naissance" required /></label>
             <div className="registration-row"><label className="login-field"><span>Pays</span><input name="pays" required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input name="ville" required placeholder="Votre ville" /></label></div>
-            <p className="registration-note">Votre demande d’accès sera soumise à un administrateur de {selectedOrg ? selectedOrg.name : 'l’organisation'}.</p>
-          </div>) : isCompany ? <>
+            <p className="registration-note">Vous rejoindrez immédiatement {selectedOrg ? selectedOrg.name : 'l’organisation'}.</p>
+          </div> : isCompany ? <>
             <ol className="form-steps" aria-label="Étapes de l’inscription">
               <li className={companyStep === 1 ? 'current' : 'done'}><b>{companyStep === 1 ? '1' : '✓'}</b><span>Informations de l’entreprise</span></li>
               <li className={companyStep === 2 ? 'current' : ''}><b>2</b><span>Administrateur de l’entreprise</span></li>
@@ -329,12 +341,12 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
             <div className="registration-row"><label className="login-field"><span>Pays</span><input name="country" required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input name="city" required placeholder="Votre ville" /></label></div>
           </div>}
 
-          {!(accountType === 'member' && requestSubmitted) && <button className="login-submit registration-submit" type="submit" disabled={submitting}>
+          <button className="login-submit registration-submit" type="submit" disabled={submitting}>
             {submitting ? 'Envoi…' : isCompany && companyStep === 1 ? <>Continuer &nbsp;→</> : <>Créer mon compte &nbsp;→</>}
-          </button>}
-          {accountType === 'member' && requestSubmitted ? null : isCompany && companyStep === 2
+          </button>
+          {isCompany && companyStep === 2
             ? <button className="register-switch" type="button" onClick={() => goCompanyStep(1, 'back')}>← Revenir aux informations de l’entreprise</button>
-            : <button className="register-switch" type="button" onClick={() => { setFormError(null); setRequestSubmitted(false); setMode('login') }}>← Retour à la connexion</button>}
+            : <button className="register-switch" type="button" onClick={() => { setFormError(null); setMode('login') }}>← Retour à la connexion</button>}
         </>}
       </form>
     </section>

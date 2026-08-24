@@ -7,7 +7,14 @@ export type Session = {
   role: UserRole
   email: string
   firstName: string
+  lastName: string
   organisationName: string
+  phone: string
+  fonction: string
+  matricule: string
+  dateNaissance: string | null
+  pays: string
+  ville: string
 }
 
 export function saveSession(session: Session): void {

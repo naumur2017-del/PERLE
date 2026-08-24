@@ -389,6 +389,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
     const idx = ALL_PROJECTS.findIndex((p) => p.code === focusTarget.projetCode)
     if (idx === -1) { onFocusConsumed?.(); return }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local filters in response to an external navigation command (focusTarget), not derived from render
     setSearch(''); setChef('Tous'); setClient('Tous'); setStatut('Tous'); setEquipe('Toutes')
     setPage(Math.floor(idx / pageSize) + 1)
     setExpandedRows((prev) => new Set(prev).add(focusTarget.projetCode))

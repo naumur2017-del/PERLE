@@ -28,8 +28,7 @@ import ParametresPage from './pages/ParametresPage'
 import ModulePage from './pages/ModulePage'
 import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
-import type { UserRole } from './auth/roles'
-import { clearSession } from './auth/session'
+import { clearSession, getSession, type Session } from './auth/session'
 
 interface Module {
   id: number
@@ -108,6 +107,8 @@ interface AppNotification {
   date: string
 }
 
+const initials = (label: string) => label.trim().split(/\s+/).map((word) => word[0]).slice(0, 2).join('').toUpperCase()
+
 const fmtTimer = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600)
   const m = Math.floor((totalSeconds % 3600) / 60)
@@ -120,7 +121,7 @@ function App() {
     return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
   }
 
-  const [session, setSession] = useState<UserRole | null>(null)
+  const [session, setSession] = useState<Session | null>(getSession)
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>({ pilotage: true })
   const [splashVisible, setSplashVisible] = useState(true)
@@ -214,8 +215,8 @@ function App() {
     navigateTo('pilotage')
   }
 
-  const handleLogin = (role: UserRole) => {
-    setSession(role)
+  const handleLogin = (nextSession: Session) => {
+    setSession(nextSession)
     setActiveNav('accueil')
     if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
   }
@@ -386,7 +387,7 @@ function App() {
       case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />
       case 'tresorerie-rapports': return <JournalTresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
-      case 'salarie': return <SalariePage />
+      case 'salarie': return <SalariePage session={session!} />
       case 'architecture': return <ArchitecturePage />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
@@ -418,7 +419,7 @@ function App() {
     )
   }
 
-  if (session === 'admin') {
+  if (session.role === 'admin') {
     return (
       <>
         {splashVisible && <SplashScreen fadingOut={splashFading} />}
@@ -537,7 +538,7 @@ function App() {
             {/* Hero Top with Controls */}
             <div className="hero-top-controls">
               <button className="team-button">
-                <span>Maxwell</span>
+                <span>{session.firstName}</span>
                 <span className="dropdown-icon">▼</span>
               </button>
               <div className="hero-actions">
@@ -560,9 +561,9 @@ function App() {
                   )}
                 </div>
                 <div className="user-profile">
-                  <span className="avatar">EP</span>
+                  <span className="avatar">{initials(session.fonction || 'Équipe Pilotage')}</span>
                   <div className="user-info">
-                    <span className="user-name">Équipe Pilotage</span>
+                    <span className="user-name">{session.fonction || 'Équipe Pilotage'}</span>
                     <button className="profile-dropdown">▼</button>
                   </div>
                 </div>

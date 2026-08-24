@@ -15,6 +15,7 @@ export interface HeaderCell {
   isGroup: boolean
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook is colocated with the component it configures
 export function useColumnVisibility<Id extends string>(columns: ColumnDef<Id>[]) {
   const [hiddenColumns, setHiddenColumns] = useState<Set<Id>>(new Set())
 

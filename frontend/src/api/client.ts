@@ -1,3 +1,5 @@
+import { getSession } from '../auth/session'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
 
 export class ApiError extends Error {
@@ -11,12 +13,17 @@ export class ApiError extends Error {
   }
 }
 
+const authHeaders = (): Record<string, string> => {
+  const token = getSession()?.token
+  return token ? { Authorization: `Token ${token}` } : {}
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
-      headers: { Accept: 'application/json', ...options.headers },
+      headers: { Accept: 'application/json', ...authHeaders(), ...options.headers },
     })
   } catch {
     throw new ApiError(0, null, 'Impossible de contacter le serveur.')

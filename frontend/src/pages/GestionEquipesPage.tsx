@@ -1,172 +1,82 @@
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
-  Info, Network, Pencil, Plus, RotateCcw, Search, Star, UploadCloud, UserPlus,
-  Users, Users2, X, MoreVertical,
+  Info, Network, Pencil, Plus, RotateCcw, Search, UploadCloud, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { fetchEmployees, fetchTeams, type Employee, type StatutEmploye, type Team } from '../api/employees'
 import './GestionEquipesPage.css'
 
-type StatutEmploye = 'Actif' | 'Inactif' | 'En congé'
-type StatutAffectation = 'Actif' | 'Inactif'
-
-interface Affectation {
-  equipeCode: string
-  equipeNom: string
-  grade: string
-  dateEffet: string
-  salaire: number
-  statut: StatutAffectation
-}
-
-interface Mouvement {
-  date: string
-  ancienGrade: string
-  nouveauGrade: string
-  type: string
-  dateFin: string
-}
+type StatutLabel = 'Actif' | 'Inactif' | 'En congé'
 
 interface Employe {
-  id: string
+  id: number
+  displayId: string
   nom: string
   email: string
   initiales: string
   couleur: string
-  statut: StatutEmploye
-  departement: string
+  statut: StatutLabel
   fonction: string
   manager: string
   telephone: string
-  typeContrat: string
+  matricule: string
   dateEntree: string
-  derniereMajDate: string
-  derniereMajPar: string
-  affectation: Affectation
-  historique: Mouvement[]
+  role: 'Manager' | 'Membre'
+  equipeNom: string
 }
 
-const EQUIPES = [
-  { code: 'MO1', nom: 'MO1 - Middle Office 1' },
-  { code: 'BO1', nom: 'BO1 - Back Office 1' },
-  { code: 'BO2', nom: 'BO2 - Back Office 2' },
-  { code: 'PI', nom: 'PI - Pilotage & Ingénierie' },
-  { code: 'IT', nom: 'IT - Informatique' },
-  { code: 'RH', nom: 'RH - Ressources Humaines' },
-  { code: 'DG', nom: 'DG - Direction Générale' },
-  { code: 'TR', nom: 'TR - Trésorerie' },
-  { code: 'ARC', nom: 'ARC - Architecture' },
-]
+const STATUT_LABELS: Record<StatutEmploye, StatutLabel> = { actif: 'Actif', conge: 'En congé', inactif: 'Inactif' }
+const AVATAR_COLORS = ['#4338ca', '#16a34a', '#f59e0b', '#db2777', '#0ea5e9', '#dc2626', '#0d9488', '#a855f7', '#6b7280', '#ea580c']
 
-const EMPLOYES: Employe[] = [
-  {
-    id: 'EMP-2025-021', nom: 'Essogo Erine', email: 'erine.essogo@naumur.com', initiales: 'EE', couleur: '#4338ca',
-    statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Comptable', manager: 'Ajara Lamare',
-    telephone: '+237 6 77 12 34 56', typeContrat: 'CDI', dateEntree: '10/05/2022', derniereMajDate: '10/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '01/06/2026', salaire: 125000, statut: 'Actif' },
-    historique: [
-      { date: '01/06/2026', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' },
-      { date: '15/10/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '31/05/2026' },
-      { date: '10/02/2025', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '14/10/2025' },
-    ],
-  },
-  {
-    id: 'EMP-2025-005', nom: 'Mbouombouo Ibrahim', email: 'ibrahim.m@naumur.com', initiales: 'IM', couleur: '#16a34a',
-    statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Contrôleur de gestion', manager: 'Ajara Lamare',
-    telephone: '+237 6 90 22 11 08', typeContrat: 'CDI', dateEntree: '12/07/2021', derniereMajDate: '08/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G4', dateEffet: '08/02/2025', salaire: 120000, statut: 'Actif' },
-    historique: [{ date: '08/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-014', nom: 'Guebediang Pamella', email: 'pamella.g@naumur.com', initiales: 'PG', couleur: '#f59e0b',
-    statut: 'Actif', departement: 'Pilotage & Opérations', fonction: 'Contrôleur de gestion', manager: 'Ajara Lamare',
-    telephone: '+237 6 55 87 43 21', typeContrat: 'CDI', dateEntree: '12/07/2021', derniereMajDate: '05/02/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'MO1', equipeNom: 'MO1 - Middle Office 1', grade: 'G3', dateEffet: '05/02/2025', salaire: 95000, statut: 'Actif' },
-    historique: [{ date: '05/02/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-009', nom: 'Bessala Ndzana Théodore', email: 'theodore.b@naumur.com', initiales: 'BT', couleur: '#db2777',
-    statut: 'Actif', departement: 'Ressources Humaines', fonction: 'Responsable RH', manager: 'Ngando D. Garnier',
-    telephone: '+237 6 71 09 88 45', typeContrat: 'CDI', dateEntree: '01/02/2019', derniereMajDate: '01/02/2025', derniereMajPar: 'Direction',
-    affectation: { equipeCode: 'RH', equipeNom: 'RH - Ressources Humaines', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' },
-    historique: [{ date: '01/02/2025', ancienGrade: 'G3', nouveauGrade: 'G4', type: 'Promotion', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-010', nom: 'Assabe Zainabou', email: 'zainabou.a@naumur.com', initiales: 'AZ', couleur: '#0ea5e9',
-    statut: 'Actif', departement: 'Direction Générale', fonction: 'Assistante de direction', manager: 'Ngando D. Garnier',
-    telephone: '+237 6 82 34 19 67', typeContrat: 'CDI', dateEntree: '15/03/2018', derniereMajDate: '01/02/2025', derniereMajPar: 'Direction',
-    affectation: { equipeCode: 'DG', equipeNom: 'DG - Direction Générale', grade: 'G4', dateEffet: '01/02/2025', salaire: 130000, statut: 'Actif' },
-    historique: [{ date: '01/02/2025', ancienGrade: 'G4', nouveauGrade: 'G4', type: 'Affectation initiale', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-012', nom: 'Herman Tsaffack', email: 'herman.t@naumur.com', initiales: 'HT', couleur: '#dc2626',
-    statut: 'Actif', departement: 'Ressources Humaines', fonction: 'Maintenancier & Réseau', manager: 'Théodore Bessala',
-    telephone: '+237 6 96 40 12 78', typeContrat: 'CDD', dateEntree: '15/08/2022', derniereMajDate: '28/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'IT', equipeNom: 'IT - Informatique', grade: 'G3', dateEffet: '28/01/2025', salaire: 95000, statut: 'Actif' },
-    historique: [{ date: '28/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-018', nom: 'Bella Gamaliel Fabrice', email: 'gamaliel.b@naumur.com', initiales: 'BG', couleur: '#0d9488',
-    statut: 'Actif', departement: 'Back Office', fonction: 'Agent back office', manager: 'Ajara Lamare',
-    telephone: '+237 6 60 15 27 39', typeContrat: 'CDI', dateEntree: '25/01/2023', derniereMajDate: '25/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '25/01/2025', salaire: 90000, statut: 'Actif' },
-    historique: [{ date: '25/01/2025', ancienGrade: 'G2', nouveauGrade: 'G3', type: 'Promotion', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-022', nom: 'Nyanné Kédé Jezabel', email: 'jezabel.n@naumur.com', initiales: 'NJ', couleur: '#a855f7',
-    statut: 'En congé', departement: 'Back Office', fonction: 'Agent back office', manager: 'Ajara Lamare',
-    telephone: '+237 6 54 78 90 23', typeContrat: 'CDI', dateEntree: '15/01/2023', derniereMajDate: '15/01/2025', derniereMajPar: 'Ajara Lamare',
-    affectation: { equipeCode: 'BO1', equipeNom: 'BO1 - Back Office 1', grade: 'G3', dateEffet: '15/01/2025', salaire: 90000, statut: 'Actif' },
-    historique: [{ date: '15/01/2025', ancienGrade: 'G3', nouveauGrade: 'G3', type: 'Affectation initiale', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-030', nom: 'Essogo Jacques', email: 'jacques.e@naumur.com', initiales: 'EJ', couleur: '#6b7280',
-    statut: 'Inactif', departement: 'Trésorerie', fonction: 'Trésorier', manager: 'Direction',
-    telephone: '+237 6 91 45 60 82', typeContrat: 'CDI', dateEntree: '10/12/2024', derniereMajDate: '10/12/2024', derniereMajPar: 'Direction',
-    affectation: { equipeCode: 'TR', equipeNom: 'TR - Trésorerie', grade: 'G2', dateEffet: '10/12/2024', salaire: 75000, statut: 'Inactif' },
-    historique: [{ date: '10/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }],
-  },
-  {
-    id: 'EMP-2025-031', nom: 'Ngono Mireille', email: 'mireille.n@naumur.com', initiales: 'NM', couleur: '#ea580c',
-    statut: 'Inactif', departement: 'Architecture', fonction: 'Analyste architecture', manager: 'Direction',
-    telephone: '+237 6 83 21 74 09', typeContrat: 'CDD', dateEntree: '05/12/2024', derniereMajDate: '05/12/2024', derniereMajPar: 'Direction',
-    affectation: { equipeCode: 'ARC', equipeNom: 'ARC - Architecture', grade: 'G2', dateEffet: '05/12/2024', salaire: 75000, statut: 'Inactif' },
-    historique: [{ date: '05/12/2024', ancienGrade: 'G2', nouveauGrade: 'G2', type: 'Affectation initiale', dateFin: '—' }],
-  },
-]
+const initiales = (first: string, last: string) => `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase()
+const couleurPour = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.length]
 
-const TOTAL_EMPLOYES = 136
-const DEPARTEMENTS = Array.from(new Set(EMPLOYES.map((e) => e.departement)))
-const GRADES = ['G1', 'G2', 'G3', 'G4', 'G5']
-const TYPES_MOUVEMENT = ['Promotion', 'Affectation initiale', 'Mutation', 'Rétrogradation']
+const formatDate = (iso: string | null) => {
+  if (!iso) return 'Non renseignée'
+  return new Date(iso).toLocaleDateString('fr-FR')
+}
 
-const KPIS = [
-  { icon: Users, tone: 'purple', label: 'Total employés', value: '136', sub: 'Actifs' },
-  { icon: Star, tone: 'pink', label: 'Promotions ce mois', value: '8', sub: 'Toutes équipes' },
-  { icon: Users2, tone: 'blue', label: 'Équipes', value: '9', sub: 'Dans l’organisation' },
-]
+const toEmploye = (employee: Employee, teams: Team[]): Employe => {
+  const team = teams.find((t) => t.id === employee.team?.id)
+  const isManager = team?.manager?.id === employee.id
+  return {
+    id: employee.id,
+    displayId: `EMP-${String(employee.id).padStart(4, '0')}`,
+    nom: `${employee.first_name} ${employee.last_name}`,
+    email: employee.email,
+    initiales: initiales(employee.first_name, employee.last_name),
+    couleur: couleurPour(employee.id),
+    statut: STATUT_LABELS[employee.statut],
+    fonction: employee.fonction || 'Non renseignée',
+    manager: team?.manager ? `${team.manager.first_name} ${team.manager.last_name}` : '—',
+    telephone: employee.phone || 'Non renseigné',
+    matricule: employee.matricule || 'Non renseigné',
+    dateEntree: formatDate(employee.date_joined),
+    role: isManager ? 'Manager' : 'Membre',
+    equipeNom: employee.team?.name ?? 'Non affecté',
+  }
+}
 
-const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
-
-const statutClass = (statut: StatutEmploye) => {
+const statutClass = (statut: StatutLabel) => {
   if (statut === 'Actif') return 'actif'
   if (statut === 'En congé') return 'conge'
   return 'inactif'
 }
 
-type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'gradePrincipal' | 'derniereMaj'
+type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'dateEntree'
 
 const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
   { id: 'id', label: 'ID Employé' },
   { id: 'employe', label: 'Employé' },
   { id: 'statut', label: 'Statut' },
   { id: 'equipe', label: 'Équipe' },
-  { id: 'gradePrincipal', label: 'Grade principal' },
-  { id: 'derniereMaj', label: 'Dernière mise à jour' },
+  { id: 'fonction', label: 'Fonction' },
+  { id: 'dateEntree', label: "Date d'entrée" },
 ]
 
 const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (e: Employe) => ReactNode }> = {
-  id: { className: 'ge-code', render: (e) => e.id },
+  id: { className: 'ge-code', render: (e) => e.displayId },
   employe: {
     render: (e) => (
       <div className="ge-employe-cell">
@@ -179,18 +89,17 @@ const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (
     ),
   },
   statut: { render: (e) => <span className={`ge-pill ge-pill-${statutClass(e.statut)}`}>{e.statut}</span> },
-  equipe: { render: (e) => e.affectation.equipeNom },
-  gradePrincipal: { render: (e) => <span className="ge-grade-pill">{e.affectation.grade}</span> },
-  derniereMaj: { render: (e) => <><strong>{e.derniereMajDate}</strong><small className="ge-sub">Par {e.derniereMajPar}</small></> },
+  equipe: { render: (e) => e.equipeNom },
+  fonction: { render: (e) => e.fonction },
+  dateEntree: { render: (e) => e.dateEntree },
 }
 
 function InfosGeneralesTab({ employe }: { employe: Employe }) {
   const rows: [string, string][] = [
     ['Fonction', employe.fonction],
-    ['Département', employe.departement],
     ['Manager', employe.manager],
-    ['Type de contrat', employe.typeContrat],
-    ['Date d’entrée', employe.dateEntree],
+    ['Matricule', employe.matricule],
+    ["Date d’entrée", employe.dateEntree],
     ['Téléphone', employe.telephone],
     ['Email', employe.email],
   ]
@@ -204,58 +113,20 @@ function InfosGeneralesTab({ employe }: { employe: Employe }) {
 }
 
 function AffectationsTab({ employe }: { employe: Employe }) {
-  const [typeMouvement, setTypeMouvement] = useState('Tous')
-
-  const historique = employe.historique.filter((m) => typeMouvement === 'Tous' || m.type === typeMouvement)
-  const { affectation } = employe
-
   return (
     <div className="ge-detail-section">
-      <h4><Info size={13} />Affectations par équipe & grade actuel</h4>
+      <h4><Info size={13} />Affectation actuelle</h4>
       <div className="ge-detail-table-wrap">
         <table className="ge-detail-table">
           <thead>
-            <tr><th>Équipe</th><th>Grade actuel</th><th>Date d’effet</th><th>Salaire / valeur liée au grade</th><th>Statut</th></tr>
+            <tr><th>Équipe</th><th>Rôle</th><th>Statut</th></tr>
           </thead>
           <tbody>
-            <tr key={affectation.equipeCode}>
-              <td>{affectation.equipeNom}</td>
-              <td><span className="ge-grade-pill">{affectation.grade}</span></td>
-              <td>{affectation.dateEffet}</td>
-              <td>{fmtMontant(affectation.salaire)} FCFA / EHS</td>
-              <td><span className={`ge-pill ge-pill-${affectation.statut === 'Actif' ? 'actif' : 'inactif'}`}>{affectation.statut}</span></td>
+            <tr>
+              <td>{employe.equipeNom}</td>
+              <td><span className={`ge-grade-pill ${employe.role === 'Membre' ? 'ge-grade-pill-muted' : ''}`}>{employe.role}</span></td>
+              <td><span className={`ge-pill ge-pill-${statutClass(employe.statut)}`}>{employe.statut}</span></td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h4 className="ge-detail-section-title-spaced">Historique des grades & promotions</h4>
-      <div className="ge-detail-filters">
-        <label>Type de mouvement
-          <select value={typeMouvement} onChange={(event) => setTypeMouvement(event.target.value)}>
-            <option value="Tous">Tous</option>
-            {TYPES_MOUVEMENT.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="ge-detail-table-wrap">
-        <table className="ge-detail-table">
-          <thead>
-            <tr><th>Date</th><th>Ancien grade</th><th>Nouveau grade</th><th>Type de mouvement</th><th>Date de fin</th></tr>
-          </thead>
-          <tbody>
-            {historique.map((mouvement, index) => (
-              <tr key={`${mouvement.date}-${index}`}>
-                <td>{mouvement.date}</td>
-                <td><span className="ge-grade-pill ge-grade-pill-muted">{mouvement.ancienGrade}</span></td>
-                <td><span className="ge-grade-pill">{mouvement.nouveauGrade}</span></td>
-                <td>{mouvement.type}</td>
-                <td>{mouvement.dateFin}</td>
-              </tr>
-            ))}
-            {historique.length === 0 && (
-              <tr><td colSpan={5} className="ge-detail-empty">Aucun mouvement pour {affectation.equipeNom}.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -317,14 +188,14 @@ function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => 
             <strong>{employe.nom}</strong>
             <span className={`ge-pill ge-pill-${statutClass(employe.statut)}`}>{employe.statut}</span>
           </div>
-          <span className="ge-detail-id">ID : {employe.id}</span>
+          <span className="ge-detail-id">ID : {employe.displayId}</span>
           <span className="ge-detail-email">{employe.email}</span>
         </div>
       </div>
 
       <nav className="ge-detail-tabs">
         <button className={tab === 'infos' ? 'active' : ''} onClick={() => setTab('infos')}>Infos générales</button>
-        <button className={tab === 'affectations' ? 'active' : ''} onClick={() => setTab('affectations')}>Affectations & grades</button>
+        <button className={tab === 'affectations' ? 'active' : ''} onClick={() => setTab('affectations')}>Affectation</button>
         <button className={tab === 'documents' ? 'active' : ''} onClick={() => setTab('documents')}>Documents</button>
       </nav>
 
@@ -338,38 +209,59 @@ function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => 
 }
 
 export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const [search, setSearch] = useState('')
   const [statutFiltre, setStatutFiltre] = useState('Tous')
-  const [departementFiltre, setDepartementFiltre] = useState('Tous')
   const [equipeFiltre, setEquipeFiltre] = useState('Tous')
-  const [gradeFiltre, setGradeFiltre] = useState('Tous')
-  const [selectedId, setSelectedId] = useState<string | null>(EMPLOYES[0].id)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EMPLOYE_COLUMNS)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchEmployees(), fetchTeams()])
+      .then(([employeesData, teamsData]) => {
+        if (cancelled) return
+        setEmployees(employeesData)
+        setTeams(teamsData)
+        setSelectedId(employeesData[0]?.id ?? null)
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger les employés.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const employes = useMemo(() => employees.map((e) => toEmploye(e, teams)), [employees, teams])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return EMPLOYES.filter((employe) => {
+    return employes.filter((employe) => {
       const matchesQuery = !query
         || employe.nom.toLowerCase().includes(query)
-        || employe.id.toLowerCase().includes(query)
+        || employe.displayId.toLowerCase().includes(query)
         || employe.email.toLowerCase().includes(query)
       const matchesStatut = statutFiltre === 'Tous' || employe.statut === statutFiltre
-      const matchesDepartement = departementFiltre === 'Tous' || employe.departement === departementFiltre
-      const matchesEquipe = equipeFiltre === 'Tous' || employe.affectation.equipeCode === equipeFiltre
-      const matchesGrade = gradeFiltre === 'Tous' || employe.affectation.grade === gradeFiltre
-      return matchesQuery && matchesStatut && matchesDepartement && matchesEquipe && matchesGrade
+      const matchesEquipe = equipeFiltre === 'Tous' || employe.equipeNom === equipeFiltre
+      return matchesQuery && matchesStatut && matchesEquipe
     })
-  }, [search, statutFiltre, departementFiltre, equipeFiltre, gradeFiltre])
+  }, [employes, search, statutFiltre, equipeFiltre])
 
-  const isFiltered = search.trim() !== '' || statutFiltre !== 'Tous' || departementFiltre !== 'Tous' || equipeFiltre !== 'Tous' || gradeFiltre !== 'Tous'
-  const selected = EMPLOYES.find((employe) => employe.id === selectedId) ?? null
+  const isFiltered = search.trim() !== '' || statutFiltre !== 'Tous' || equipeFiltre !== 'Tous'
+  const selected = employes.find((employe) => employe.id === selectedId) ?? null
+
+  const kpis = [
+    { icon: Users, tone: 'purple', label: 'Total employés', value: String(employes.length), sub: 'Dans l’organisation' },
+    { icon: Users2, tone: 'pink', label: 'Employés actifs', value: String(employes.filter((e) => e.statut === 'Actif').length), sub: 'Statut actif' },
+    { icon: Users2, tone: 'blue', label: 'Équipes', value: String(teams.length), sub: 'Dans l’organisation' },
+  ]
 
   const resetFilters = () => {
     setSearch('')
     setStatutFiltre('Tous')
-    setDepartementFiltre('Tous')
     setEquipeFiltre('Tous')
-    setGradeFiltre('Tous')
   }
 
   return (
@@ -382,12 +274,11 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         </nav>
         <div className="ge-header-actions">
           <button type="button" className="ge-btn-outline"><Download size={14} />Exporter</button>
-          <button type="button" className="ge-btn-primary"><Plus size={14} />Nouvel employé</button>
         </div>
       </div>
 
       <div className="ge-kpis">
-        {KPIS.map((kpi) => (
+        {kpis.map((kpi) => (
           <article key={kpi.label} className={`ge-kpi ge-kpi-${kpi.tone}`}>
             <span className="ge-kpi-icon"><kpi.icon size={18} /></span>
             <div>
@@ -414,105 +305,92 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
             <option value="Inactif">Inactif</option>
           </select>
         </label>
-        <label>Département
-          <select value={departementFiltre} onChange={(event) => setDepartementFiltre(event.target.value)}>
-            <option value="Tous">Tous</option>
-            {DEPARTEMENTS.map((departement) => <option key={departement} value={departement}>{departement}</option>)}
-          </select>
-        </label>
         <label>Équipe
           <select value={equipeFiltre} onChange={(event) => setEquipeFiltre(event.target.value)}>
             <option value="Tous">Toutes les équipes</option>
-            {EQUIPES.map((equipe) => <option key={equipe.code} value={equipe.code}>{equipe.nom}</option>)}
-          </select>
-        </label>
-        <label>Grade
-          <select value={gradeFiltre} onChange={(event) => setGradeFiltre(event.target.value)}>
-            <option value="Tous">Tous les grades</option>
-            {GRADES.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+            {teams.map((equipe) => <option key={equipe.id} value={equipe.name}>{equipe.name}</option>)}
           </select>
         </label>
         <button type="button" className="ge-reset" onClick={resetFilters}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
-      <div className={`ge-main ${selected ? '' : 'ge-main-full'}`}>
-        <div className="ge-table-panel">
-          <div className="ge-table-head">
-            <h3>Liste des employés ({isFiltered ? filtered.length : EMPLOYES.length})</h3>
-            <ColumnsMenu columns={EMPLOYE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
-          </div>
-          <div className="ge-table-wrap">
-            <table className="ge-table">
-              <thead>
-                <tr>
-                  {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((employe) => (
-                  <tr
-                    key={employe.id}
-                    className={employe.id === selectedId ? 'is-selected' : ''}
-                    onClick={() => setSelectedId(employe.id)}
-                  >
-                    {visibleColumns.map((c) => {
-                      const def = EMPLOYE_CELL_DEFS[c.id]
-                      return <td key={c.id} className={def.className}>{def.render(employe)}</td>
-                    })}
-                    <td onClick={(event) => event.stopPropagation()}>
-                      <div className="ge-actions">
-                        <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
-                        <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
-                        <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions"><MoreVertical size={13} /></button>
-                      </div>
-                    </td>
+      {loading && <p className="ge-detail-empty">Chargement des employés…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+
+      {!loading && !loadError && (
+        <div className={`ge-main ${selected ? '' : 'ge-main-full'}`}>
+          <div className="ge-table-panel">
+            <div className="ge-table-head">
+              <h3>Liste des employés ({filtered.length})</h3>
+              <ColumnsMenu columns={EMPLOYE_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+            </div>
+            <div className="ge-table-wrap">
+              <table className="ge-table">
+                <thead>
+                  <tr>
+                    {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                    <th>Action</th>
                   </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={visibleColumns.length + 1} className="ge-detail-empty">Aucun employé ne correspond à votre recherche.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="ge-table-foot">
-            <span>
-              {isFiltered
-                ? `${filtered.length} employé${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
-                : `Affichage de 1 à ${EMPLOYES.length} sur ${TOTAL_EMPLOYES} employés`}
-            </span>
-            <div className="ge-table-foot-right">
-              <label className="ge-page-size">
-                <select defaultValue="10"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
-              </label>
-              <nav className="ge-pagination" aria-label="Pagination">
-                <button type="button" disabled><ChevronsLeft size={14} /></button>
-                <button type="button" disabled><ChevronLeft size={14} /></button>
-                <button type="button" className="is-active">1</button>
-                <button type="button">2</button>
-                <button type="button">3</button>
-                <button type="button">4</button>
-                <button type="button">5</button>
-                <span className="ge-page-ellipsis">…</span>
-                <button type="button">14</button>
-                <button type="button"><ChevronRight size={14} /></button>
-                <button type="button"><ChevronsRight size={14} /></button>
-              </nav>
+                </thead>
+                <tbody>
+                  {filtered.map((employe) => (
+                    <tr
+                      key={employe.id}
+                      className={employe.id === selectedId ? 'is-selected' : ''}
+                      onClick={() => setSelectedId(employe.id)}
+                    >
+                      {visibleColumns.map((c) => {
+                        const def = EMPLOYE_CELL_DEFS[c.id]
+                        return <td key={c.id} className={def.className}>{def.render(employe)}</td>
+                      })}
+                      <td onClick={(event) => event.stopPropagation()}>
+                        <div className="ge-actions">
+                          <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
+                          <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
+                          <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions"><MoreVertical size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={visibleColumns.length + 1} className="ge-detail-empty">Aucun employé ne correspond à votre recherche.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="ge-table-foot">
+              <span>
+                {isFiltered
+                  ? `${filtered.length} employé${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                  : `${employes.length} employé${employes.length > 1 ? 's' : ''} au total`}
+              </span>
+              <div className="ge-table-foot-right">
+                <label className="ge-page-size">
+                  <select defaultValue="10"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                </label>
+                <nav className="ge-pagination" aria-label="Pagination">
+                  <button type="button" disabled><ChevronsLeft size={14} /></button>
+                  <button type="button" disabled><ChevronLeft size={14} /></button>
+                  <button type="button" className="is-active">1</button>
+                  <button type="button" disabled><ChevronRight size={14} /></button>
+                  <button type="button" disabled><ChevronsRight size={14} /></button>
+                </nav>
+              </div>
             </div>
           </div>
-        </div>
 
-        {selected && <DetailEmploye key={selected.id} employe={selected} onClose={() => setSelectedId(null)} />}
-      </div>
+          {selected && <DetailEmploye key={selected.id} employe={selected} onClose={() => setSelectedId(null)} />}
+        </div>
+      )}
 
       <div className="ge-legend-info">
         <Info size={14} />
-        <span>Un employé doit avoir un grade actif dans une équipe pour pouvoir être staffé sur une tâche de cette équipe.</span>
+        <span>Un employé apparaît ici dès qu’il crée un compte ou rejoint votre organisation.</span>
       </div>
 
-      {!selected && (
-        <button type="button" className="ge-reopen-detail" onClick={() => setSelectedId(EMPLOYES[0].id)}>
-          <UserPlus size={14} />Afficher le détail d’un employé
+      {!loading && !loadError && !selected && employes.length > 0 && (
+        <button type="button" className="ge-reopen-detail" onClick={() => setSelectedId(employes[0].id)}>
+          <Plus size={14} />Afficher le détail d’un employé
         </button>
       )}
     </section>

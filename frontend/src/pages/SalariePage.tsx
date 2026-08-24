@@ -43,6 +43,7 @@ import {
 import passportCover from '../assets/passport.jpg'
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import type { Session } from '../auth/session'
 import './SalariePage.css'
 
 type Statut = 'Approuvée' | 'En attente' | 'Refusée'
@@ -130,7 +131,7 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]['id']
 
-export default function SalariePage() {
+export default function SalariePage({ session }: { session: Session }) {
   const [activeTab, setActiveTab] = useState<TabId>('demandes')
   const activeLabel = tabs.find((tab) => tab.id === activeTab)!.label
 
@@ -147,11 +148,11 @@ export default function SalariePage() {
         })}
       </nav>
 
-      {activeTab === 'dashboard' ? <DashboardTab />
+      {activeTab === 'dashboard' ? <DashboardTab session={session} />
         : activeTab === 'activites' ? <ActivitesTab />
         : activeTab === 'remuneration' ? <RemunerationTab />
         : activeTab === 'demandes' ? <DemandesTab />
-        : activeTab === 'profil' ? <ProfilTab />
+        : activeTab === 'profil' ? <ProfilTab session={session} />
         : <ComingSoon label={activeLabel} icon={tabs.find((tab) => tab.id === activeTab)!.icon} />}
     </section>
   )
@@ -531,35 +532,35 @@ function DemandesTab() {
   )
 }
 
-const personalInfoLeft: [string, ReactNode][] = [
-  ['Matricule', 'IT001V1'],
-  ['Nom complet', 'Maxwell Ebongue'],
-  ['Date de naissance', '15/03/1992'],
-  ['Lieu de naissance', 'Yaoundé, Cameroun'],
-  ['Nationalité', 'Camerounaise'],
-  ['Situation matrimoniale', 'Célibataire'],
-  ['Nombre d’enfants', '0'],
-]
+const formatDateNaissance = (value: string | null) => {
+  if (!value) return 'Non renseignée'
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
 
-const personalInfoRight: [string, ReactNode][] = [
-  ['Téléphone', '+237 6 78 90 12 34'],
-  ['Email professionnel', 'maxwell.ebongue@perle.com'],
-  ['Email personnel', 'maxwell.ebongue@gmail.com'],
-  ['Adresse', <>Quartier Bastos, Yaoundé<br />BP 12345 Yaoundé</>],
-  ['Date d’embauche', '05/01/2024'],
-  ['Statut', <span className="salarie-pill approuvee">Actif</span>],
-  ['Poste', 'Analyste des données'],
-  ['Équipe', 'VRAI'],
-  ['Grade', '6'],
-]
+function PersonalInfoCard({ session }: { session: Session }) {
+  const fullName = `${session.firstName} ${session.lastName}`
+  const personalInfoLeft: [string, ReactNode][] = [
+    ['Matricule', session.matricule || 'Non renseigné'],
+    ['Nom complet', fullName],
+    ['Date de naissance', formatDateNaissance(session.dateNaissance)],
+    ['Lieu de naissance', session.ville && session.pays ? `${session.ville}, ${session.pays}` : 'Non renseigné'],
+  ]
 
-function PersonalInfoCard() {
+  const personalInfoRight: [string, ReactNode][] = [
+    ['Téléphone', session.phone || 'Non renseigné'],
+    ['Email professionnel', session.email],
+    ['Organisation', session.organisationName || 'Non renseignée'],
+    ['Statut', <span className="salarie-pill approuvee">Actif</span>],
+    ['Poste', session.fonction || 'Non renseigné'],
+  ]
+
   return (
     <section className="salarie-panel salarie-profil-card personal-card">
       <h3>Informations personnelles</h3>
       <div className="salarie-personal-body">
         <div className="salarie-avatar-block">
-          <img src={profilePhoto} alt="Maxwell Ebongue" className="salarie-avatar-photo" />
+          <img src={profilePhoto} alt={fullName} className="salarie-avatar-photo" />
           <button className="salarie-ghost-btn"><Camera size={13} strokeWidth={2} />Modifier la photo</button>
         </div>
         <div className="salarie-info-columns">
@@ -675,8 +676,9 @@ function ProfessionalInfoCard() {
   )
 }
 
-function CvCard() {
+function CvCard({ session }: { session: Session }) {
   const [previewOpen, setPreviewOpen] = useState(false)
+  const cvFileName = `${session.firstName}_${session.lastName}_CV.pdf`
 
   return (
     <section className="salarie-panel salarie-profil-card cv-card">
@@ -684,7 +686,7 @@ function CvCard() {
       <div className="salarie-cv-file">
         <span className="salarie-cv-icon"><FileText size={20} strokeWidth={1.8} /></span>
         <div>
-          <strong>Maxwell_Ebongue_CV.pdf</strong>
+          <strong>{cvFileName}</strong>
           <small>Dernière mise à jour : 10/05/2025</small>
           <small>Taille : 512 Ko</small>
         </div>
@@ -703,7 +705,7 @@ function CvCard() {
       <Note>Veuillez maintenir votre CV à jour pour faciliter les opportunités internes et externes.</Note>
 
       {previewOpen && (
-        <Lightbox title="Maxwell_Ebongue_CV.pdf" onClose={() => setPreviewOpen(false)}>
+        <Lightbox title={cvFileName} onClose={() => setPreviewOpen(false)}>
           <div className="salarie-lightbox-placeholder">
             <FileText size={40} strokeWidth={1.4} />
             <p>Aperçu indisponible : aucun fichier PDF n’a encore été téléversé pour ce CV de démonstration.</p>
@@ -734,16 +736,16 @@ function OtherInfoCard() {
   )
 }
 
-function ProfilTab() {
+function ProfilTab({ session }: { session: Session }) {
   return (
     <div className="salarie-profil">
       <div className="salarie-profil-row row-1">
-        <PersonalInfoCard />
+        <PersonalInfoCard session={session} />
         <DocumentsCard />
       </div>
       <div className="salarie-profil-row row-2">
         <ProfessionalInfoCard />
-        <CvCard />
+        <CvCard session={session} />
         <OtherInfoCard />
       </div>
     </div>
@@ -903,7 +905,7 @@ function DonutChart() {
   )
 }
 
-function DashboardTab() {
+function DashboardTab({ session }: { session: Session }) {
   const [periode, setPeriode] = useState(PERIODES[0])
 
   return (
@@ -915,7 +917,7 @@ function DashboardTab() {
       <div className="salarie-dash-greeting">
         <span className="salarie-dash-wave"><Hand size={26} strokeWidth={2} /></span>
         <div className="salarie-dash-greeting-text">
-          <h3>Bonjour Maxwell Ebongue,</h3>
+          <h3>Bonjour {session.firstName} {session.lastName},</h3>
           <p>
             Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
             pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>542 000 FCFA</strong>,

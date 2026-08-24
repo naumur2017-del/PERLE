@@ -1,10 +1,9 @@
 from django.contrib.auth import authenticate
-from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import MembershipRequest, Organisation, User
+from .models import Organisation, Team, User
 
 
 class OrganisationSearchSerializer(serializers.ModelSerializer):
@@ -23,7 +22,10 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'organisation']
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'role', 'organisation',
+            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'ville',
+        ]
 
 
 class RegisterPersonalOrganisationSerializer(serializers.Serializer):
@@ -129,25 +131,41 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
         return user
 
 
-class MembershipRequestSerializer(serializers.ModelSerializer):
+class RegisterMemberSerializer(serializers.Serializer):
     organisation = serializers.PrimaryKeyRelatedField(queryset=Organisation.objects.all())
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    fonction = serializers.CharField(max_length=150)
+    matricule = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    date_naissance = serializers.DateField()
+    pays = serializers.CharField(max_length=100)
+    ville = serializers.CharField(max_length=100)
 
-    class Meta:
-        model = MembershipRequest
-        fields = [
-            'id', 'organisation', 'first_name', 'last_name', 'email', 'password',
-            'fonction', 'matricule', 'date_naissance', 'pays', 'ville', 'status',
-        ]
-        read_only_fields = ['id', 'status']
-        extra_kwargs = {'password': {'write_only': True}}
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('Un compte existe déjà avec cet e-mail.')
+        return value
 
     def validate_password(self, value):
         validate_password(value)
         return value
 
     def create(self, validated_data):
-        validated_data['password'] = make_password(validated_data['password'])
-        return MembershipRequest.objects.create(**validated_data)
+        return User.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            fonction=validated_data['fonction'],
+            matricule=validated_data.get('matricule', ''),
+            date_naissance=validated_data['date_naissance'],
+            pays=validated_data['pays'],
+            ville=validated_data['ville'],
+            role='salarie',
+            organisation=validated_data['organisation'],
+        )
 
 
 class LoginSerializer(serializers.Serializer):
@@ -162,3 +180,67 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Ce compte est désactivé.')
         attrs['user'] = user
         return attrs
+
+
+class TeamSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ['id', 'code', 'name']
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    is_manager = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'first_name', 'last_name', 'email', 'fonction', 'matricule', 'statut', 'is_manager']
+
+    def get_is_manager(self, obj):
+        return obj.team_id is not None and obj.team.manager_id == obj.id
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    team = TeamSummarySerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
+            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'team', 'date_joined',
+        ]
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    manager = TeamMemberSerializer(read_only=True)
+    manager_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
+    )
+    members = TeamMemberSerializer(many=True, read_only=True, source='team_members')
+
+    class Meta:
+        model = Team
+        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'created_at']
+        read_only_fields = ['id', 'code', 'created_at']
+
+    def validate_manager_id(self, value):
+        request = self.context['request']
+        if value is not None and value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce manager n’appartient pas à votre organisation.')
+        return value
+
+    def create(self, validated_data):
+        organisation = self.context['request'].user.organisation
+        last = Team.objects.filter(organisation=organisation).order_by('-id').first()
+        next_num = int(last.code.replace('EQ-', '')) + 1 if last else 1
+        team = Team.objects.create(organisation=organisation, code=f'EQ-{next_num:03d}', **validated_data)
+        manager = validated_data.get('manager')
+        if manager is not None:
+            manager.move_to_team(team)
+        return team
+
+    def update(self, instance, validated_data):
+        manager = validated_data.get('manager', instance.manager)
+        team = super().update(instance, validated_data)
+        if manager is not None and manager.team_id != team.id:
+            manager.move_to_team(team)
+        return team

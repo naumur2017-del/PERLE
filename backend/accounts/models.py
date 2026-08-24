@@ -39,6 +39,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('admin', 'Administrateur PERLE'),
         ('directeur', 'Directeur'),
+        ('salarie', 'Salarié'),
+    ]
+    STATUT_CHOICES = [
+        ('actif', 'Actif'),
+        ('conge', 'En congé'),
+        ('inactif', 'Inactif'),
     ]
 
     email = models.EmailField(unique=True)
@@ -50,6 +56,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     organisation = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name='members', null=True, blank=True
     )
+    team = models.ForeignKey(
+        'Team', on_delete=models.SET_NULL, related_name='team_members', null=True, blank=True
+    )
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
+    matricule = models.CharField(max_length=50, blank=True)
+    date_naissance = models.DateField(null=True, blank=True)
+    pays = models.CharField(max_length=100, blank=True)
+    ville = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
@@ -62,29 +76,28 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
+    def move_to_team(self, team):
+        """Reassign this user's team, clearing them as manager of any team they're leaving."""
+        previous_team = self.team
+        if previous_team and previous_team.manager_id == self.id and previous_team != team:
+            previous_team.manager = None
+            previous_team.save(update_fields=['manager'])
+        self.team = team
+        self.save(update_fields=['team'])
 
-class MembershipRequest(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'En attente'),
-        ('approved', 'Approuvée'),
-        ('rejected', 'Rejetée'),
-    ]
 
-    organisation = models.ForeignKey(
-        Organisation, on_delete=models.CASCADE, related_name='membership_requests'
+class Team(models.Model):
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='teams')
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=150)
+    manager = models.ForeignKey(
+        User, on_delete=models.SET_NULL, related_name='teams_managed', null=True, blank=True
     )
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
-    email = models.EmailField()
-    password = models.CharField(max_length=128)
-    fonction = models.CharField(max_length=150)
-    matricule = models.CharField(max_length=50, blank=True)
-    date_naissance = models.DateField()
-    pays = models.CharField(max_length=100)
-    ville = models.CharField(max_length=100)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('organisation', 'code')
+        ordering = ['code']
 
     def __str__(self):
-        return f'{self.email} -> {self.organisation.name} ({self.status})'
+        return f'{self.code} — {self.name}'
