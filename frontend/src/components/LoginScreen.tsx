@@ -1,9 +1,33 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import AnimatedLogo from './AnimatedLogo'
 import { searchOrganisations, type Organisation } from './organisations'
-import { resolveRole, type UserRole } from '../auth/roles'
+import type { UserRole } from '../auth/roles'
+import { apiPost, ApiError } from '../api/client'
+import { saveSession } from '../auth/session'
 import './LoginScreen.css'
 import './Registration.css'
+
+type UserSummary = { id: number; email: string; first_name: string; role: UserRole; organisation: { id: number; name: string } | null }
+type AuthResponse = { token: string; user: UserSummary }
+
+const formEntries = (form: HTMLFormElement): Record<string, string> => {
+  const result: Record<string, string> = {}
+  new FormData(form).forEach((value, key) => { result[key] = String(value) })
+  return result
+}
+
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué. Vérifiez les informations saisies.'
+  }
+  return 'Impossible de contacter le serveur. Réessayez.'
+}
 
 type AccountType = 'organization' | 'member'
 type OrgKind = 'personal' | 'company'
@@ -34,9 +58,14 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
   const [formSweep, setFormSweep] = useState<FormDirection | null>(null)
   const [formEntering, setFormEntering] = useState<FormDirection | null>(null)
 
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [requestSubmitted, setRequestSubmitted] = useState(false)
+
   const timer = useRef<number | undefined>(undefined)
   const formTimer = useRef<number | undefined>(undefined)
   const searchToken = useRef(0)
+  const companyStep1Data = useRef<Record<string, string>>({})
 
   useEffect(() => () => { window.clearTimeout(timer.current); window.clearTimeout(formTimer.current) }, [])
 
@@ -56,21 +85,75 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
 
   const isCompany = accountType === 'organization' && orgKind === 'company'
 
-  /* Le rôle est déduit de l’adresse saisie : administrateur applicatif vers l’espace
+  const authenticated = (response: AuthResponse) => {
+    saveSession({
+      token: response.token,
+      role: response.user.role,
+      email: response.user.email,
+      firstName: response.user.first_name,
+      organisationName: response.user.organisation?.name ?? '',
+    })
+    onLogin(response.user.role)
+  }
+
+  /* Le rôle est renvoyé par l’API : administrateur applicatif vers l’espace
      d’administration, directeur d’entreprise vers l’accueil métier. */
-  const submitLogin = (event: FormEvent<HTMLFormElement>) => {
+  const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const email = String(new FormData(event.currentTarget).get('email') ?? '')
-    onLogin(resolveRole(email))
+    const { email, password } = formEntries(event.currentTarget)
+    setFormError(null)
+    setSubmitting(true)
+    try {
+      authenticated(await apiPost<AuthResponse>('/auth/login/', { email, password }))
+    } catch (error) {
+      setFormError(errorMessage(error))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   /* Le passage à l’étape 2 se fait par la soumission du formulaire : la validation
-     native des champs de l’étape 1 s’applique donc avant d’avancer. */
-  const submitRegistration = (event: FormEvent<HTMLFormElement>) => {
+     native des champs de l’étape 1 s’applique donc avant d’avancer. Le fieldset de
+     l’étape 1 devient `disabled` à l’étape 2 (donc absent du FormData final) : ses
+     valeurs sont donc capturées ici avant de basculer. */
+  const submitRegistration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isCompany && companyStep === 1) { goCompanyStep(2, 'next'); return }
-    // Une inscription crée toujours un administrateur d’entreprise : espace métier.
-    onLogin('directeur')
+    setFormError(null)
+
+    if (isCompany && companyStep === 1) {
+      companyStep1Data.current = formEntries(event.currentTarget)
+      goCompanyStep(2, 'next')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      if (accountType === 'member') {
+        if (!selectedOrg) throw new Error('Aucune organisation sélectionnée.')
+        const fields = formEntries(event.currentTarget)
+        await apiPost('/membership-requests/', { ...fields, organisation: selectedOrg.id })
+        setRequestSubmitted(true)
+        return
+      }
+
+      if (isCompany) {
+        const step2 = formEntries(event.currentTarget)
+        if (step2.password !== step2.password_confirm) {
+          setFormError('Les mots de passe ne correspondent pas.')
+          return
+        }
+        const payload = { ...companyStep1Data.current, ...step2 }
+        authenticated(await apiPost<AuthResponse>('/organisations/register/company/', payload))
+        return
+      }
+
+      const fields = formEntries(event.currentTarget)
+      authenticated(await apiPost<AuthResponse>('/organisations/register/personal/', fields))
+    } catch (error) {
+      setFormError(errorMessage(error))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const goCompanyStep = (next: 1 | 2, direction: FormDirection) => {
@@ -96,6 +179,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
     setSweep(null)
     setEntering(null)
     setChooser('open')
+    setFormError(null)
+    setRequestSubmitted(false)
   }
 
   const goToStep = (next: Step, direction: Direction) => {
@@ -119,6 +204,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
     setOrgKind(kind)
     setSelectedOrg(null)
     resetCompanySteps()
+    setFormError(null)
+    setRequestSubmitted(false)
     setMode('register')
   })
 
@@ -127,6 +214,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
     closeChooser(() => {
       setAccountType('member')
       setOrgKind(null)
+      setFormError(null)
+      setRequestSubmitted(false)
       setMode('register')
     })
   }
@@ -176,11 +265,13 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
               : 'Complétez les informations ci-dessous pour finaliser votre inscription.'}
         </p>
 
+        {formError && <p className="form-error">{formError}</p>}
+
         {mode === 'login' ? <>
           <label className="login-field"><span>Adresse e-mail</span><input type="email" name="email" placeholder="nom@entreprise.com" required /></label>
-          <label className="login-field"><span>Mot de passe</span><input type="password" placeholder="Saisissez votre mot de passe" required minLength={4} /></label>
+          <label className="login-field"><span>Mot de passe</span><input type="password" name="password" placeholder="Saisissez votre mot de passe" required minLength={4} /></label>
           <div className="login-options"><label><input type="checkbox" /> Se souvenir de moi</label><button type="button">Mot de passe oublié ?</button></div>
-          <button className="login-submit" type="submit">Se connecter &nbsp;→</button>
+          <button className="login-submit" type="submit" disabled={submitting}>{submitting ? 'Connexion…' : <>Se connecter &nbsp;→</>}</button>
           <button className="register-switch" type="button" onClick={openChooser}>Créer un compte — Inscription</button>
           <p className="login-help">Besoin d’aide ? <button type="button">Contacter le support</button></p>
         </> : <>
@@ -190,15 +281,19 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
             <button type="button" onClick={openChooser}>Changer</button>
           </div>
 
-          {accountType === 'member' ? <div className="registration-fields member-fields">
-            <div className="registration-row"><label className="login-field"><span>Nom</span><input required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input required placeholder="Votre prénom" /></label></div>
-            <label className="login-field"><span>Adresse e-mail professionnelle</span><input type="email" required placeholder="prenom.nom@organisation.com" /></label>
-            <label className="login-field"><span>Mot de passe</span><input type="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
-            <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Matricule (facultatif)</span><input placeholder="Ex. NM-2041" /></label></div>
-            <label className="login-field"><span>Date de naissance</span><input type="date" required /></label>
-            <div className="registration-row"><label className="login-field"><span>Pays</span><input required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input required placeholder="Votre ville" /></label></div>
+          {accountType === 'member' ? (requestSubmitted ? <div className="registration-success">
+            <i>✓</i>
+            <h3>Demande envoyée</h3>
+            <p>Votre demande d’accès à {selectedOrg ? selectedOrg.name : 'l’organisation'} a bien été transmise. Un administrateur doit l’approuver avant que vous puissiez vous connecter.</p>
+          </div> : <div className="registration-fields member-fields">
+            <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Votre prénom" /></label></div>
+            <label className="login-field"><span>Adresse e-mail professionnelle</span><input type="email" name="email" required placeholder="prenom.nom@organisation.com" /></label>
+            <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
+            <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input name="fonction" required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Matricule (facultatif)</span><input name="matricule" placeholder="Ex. NM-2041" /></label></div>
+            <label className="login-field"><span>Date de naissance</span><input type="date" name="date_naissance" required /></label>
+            <div className="registration-row"><label className="login-field"><span>Pays</span><input name="pays" required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input name="ville" required placeholder="Votre ville" /></label></div>
             <p className="registration-note">Votre demande d’accès sera soumise à un administrateur de {selectedOrg ? selectedOrg.name : 'l’organisation'}.</p>
-          </div> : isCompany ? <>
+          </div>) : isCompany ? <>
             <ol className="form-steps" aria-label="Étapes de l’inscription">
               <li className={companyStep === 1 ? 'current' : 'done'}><b>{companyStep === 1 ? '1' : '✓'}</b><span>Informations de l’entreprise</span></li>
               <li className={companyStep === 2 ? 'current' : ''}><b>2</b><span>Administrateur de l’entreprise</span></li>
@@ -208,38 +303,38 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
                 tout en excluant l’étape masquée de la validation native. */}
             <div className="registration-fields company-fields">
               <fieldset className={stepClass(1)} hidden={companyStep !== 1} disabled={companyStep !== 1}>
-                <label className="login-field"><span>Raison sociale</span><input required placeholder="Nom légal de l’entreprise" /></label>
-                <div className="registration-row"><label className="login-field"><span>Numéro d’identification</span><input required placeholder="SIREN / RCS / IFU" /></label><label className="login-field"><span>Effectif</span><select required defaultValue=""><option value="" disabled>Sélectionnez</option><option>1 à 10</option><option>11 à 50</option><option>51 à 250</option><option>251 à 1000</option><option>Plus de 1000</option></select></label></div>
-                <label className="login-field"><span>Secteur d’activité</span><input required placeholder="Ex. Industrie, BTP, énergie…" /></label>
-                <div className="registration-row"><label className="login-field"><span>E-mail de l’entreprise</span><input type="email" required placeholder="contact@entreprise.com" /></label><label className="login-field"><span>Téléphone</span><input type="tel" required placeholder="+33 1 00 00 00 00" /></label></div>
-                <label className="login-field"><span>Adresse du siège</span><input required placeholder="Rue, numéro, code postal" /></label>
-                <div className="registration-row"><label className="login-field"><span>Pays</span><input required placeholder="Pays du siège" /></label><label className="login-field"><span>Ville</span><input required placeholder="Ville du siège" /></label></div>
-                <label className="login-field"><span>Site web (facultatif)</span><input type="url" placeholder="https://" /></label>
+                <label className="login-field"><span>Raison sociale</span><input name="organisation_name" required placeholder="Nom légal de l’entreprise" /></label>
+                <div className="registration-row"><label className="login-field"><span>Numéro d’identification</span><input name="registration_number" required placeholder="SIREN / RCS / IFU" /></label><label className="login-field"><span>Effectif</span><select name="headcount" required defaultValue=""><option value="" disabled>Sélectionnez</option><option value="1-10">1 à 10</option><option value="11-50">11 à 50</option><option value="51-250">51 à 250</option><option value="251-1000">251 à 1000</option><option value="1000+">Plus de 1000</option></select></label></div>
+                <label className="login-field"><span>Secteur d’activité</span><input name="sector" required placeholder="Ex. Industrie, BTP, énergie…" /></label>
+                <div className="registration-row"><label className="login-field"><span>E-mail de l’entreprise</span><input type="email" name="org_email" required placeholder="contact@entreprise.com" /></label><label className="login-field"><span>Téléphone</span><input type="tel" name="org_phone" required placeholder="+33 1 00 00 00 00" /></label></div>
+                <label className="login-field"><span>Adresse du siège</span><input name="address" required placeholder="Rue, numéro, code postal" /></label>
+                <div className="registration-row"><label className="login-field"><span>Pays</span><input name="country" required placeholder="Pays du siège" /></label><label className="login-field"><span>Ville</span><input name="city" required placeholder="Ville du siège" /></label></div>
+                <label className="login-field"><span>Site web (facultatif)</span><input type="url" name="website" placeholder="https://" /></label>
               </fieldset>
 
               <fieldset className={stepClass(2)} hidden={companyStep !== 2} disabled={companyStep !== 2}>
-                <div className="registration-row"><label className="login-field"><span>Nom</span><input required placeholder="Nom de l’administrateur" /></label><label className="login-field"><span>Prénom</span><input required placeholder="Prénom de l’administrateur" /></label></div>
-                <label className="login-field"><span>Fonction dans l’entreprise</span><input required placeholder="Ex. Directeur QHSE" /></label>
-                <div className="registration-row"><label className="login-field"><span>E-mail professionnel</span><input type="email" required placeholder="prenom.nom@entreprise.com" /></label><label className="login-field"><span>Téléphone direct</span><input type="tel" required placeholder="+33 6 00 00 00 00" /></label></div>
-                <div className="registration-row"><label className="login-field"><span>Mot de passe</span><input type="password" required minLength={4} placeholder="Créez un mot de passe" /></label><label className="login-field"><span>Confirmation</span><input type="password" required minLength={4} placeholder="Confirmez le mot de passe" /></label></div>
+                <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Nom de l’administrateur" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Prénom de l’administrateur" /></label></div>
+                <label className="login-field"><span>Fonction dans l’entreprise</span><input name="fonction" required placeholder="Ex. Directeur QHSE" /></label>
+                <div className="registration-row"><label className="login-field"><span>E-mail professionnel</span><input type="email" name="email" required placeholder="prenom.nom@entreprise.com" /></label><label className="login-field"><span>Téléphone direct</span><input type="tel" name="phone" required placeholder="+33 6 00 00 00 00" /></label></div>
+                <div className="registration-row"><label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label><label className="login-field"><span>Confirmation</span><input type="password" name="password_confirm" required minLength={4} placeholder="Confirmez le mot de passe" /></label></div>
                 <label className="registration-consent"><input type="checkbox" required /> <span>Je certifie être habilité à créer et administrer l’espace PERLE de cette entreprise.</span></label>
               </fieldset>
             </div>
           </> : <div className="registration-fields organization-fields">
-            <label className="login-field"><span>Nom de l’organisation</span><input required placeholder="Nom de votre activité" /></label>
-            <div className="registration-row"><label className="login-field"><span>Nom</span><input required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input required placeholder="Votre prénom" /></label></div>
-            <label className="login-field"><span>Adresse e-mail</span><input type="email" required placeholder="nom@exemple.com" /></label>
-            <label className="login-field"><span>Mot de passe</span><input type="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
-            <div className="registration-row"><label className="login-field"><span>Domaine d’activité</span><input required placeholder="Ex. Conseil, formation…" /></label><label className="login-field"><span>Téléphone</span><input type="tel" required placeholder="+33 6 00 00 00 00" /></label></div>
-            <div className="registration-row"><label className="login-field"><span>Pays</span><input required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input required placeholder="Votre ville" /></label></div>
+            <label className="login-field"><span>Nom de l’organisation</span><input name="organisation_name" required placeholder="Nom de votre activité" /></label>
+            <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Votre prénom" /></label></div>
+            <label className="login-field"><span>Adresse e-mail</span><input type="email" name="email" required placeholder="nom@exemple.com" /></label>
+            <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
+            <div className="registration-row"><label className="login-field"><span>Domaine d’activité</span><input name="sector" required placeholder="Ex. Conseil, formation…" /></label><label className="login-field"><span>Téléphone</span><input type="tel" name="phone" required placeholder="+33 6 00 00 00 00" /></label></div>
+            <div className="registration-row"><label className="login-field"><span>Pays</span><input name="country" required placeholder="Votre pays" /></label><label className="login-field"><span>Ville</span><input name="city" required placeholder="Votre ville" /></label></div>
           </div>}
 
-          <button className="login-submit registration-submit" type="submit">
-            {isCompany && companyStep === 1 ? <>Continuer &nbsp;→</> : <>Créer mon compte &nbsp;→</>}
-          </button>
-          {isCompany && companyStep === 2
+          {!(accountType === 'member' && requestSubmitted) && <button className="login-submit registration-submit" type="submit" disabled={submitting}>
+            {submitting ? 'Envoi…' : isCompany && companyStep === 1 ? <>Continuer &nbsp;→</> : <>Créer mon compte &nbsp;→</>}
+          </button>}
+          {accountType === 'member' && requestSubmitted ? null : isCompany && companyStep === 2
             ? <button className="register-switch" type="button" onClick={() => goCompanyStep(1, 'back')}>← Revenir aux informations de l’entreprise</button>
-            : <button className="register-switch" type="button" onClick={() => setMode('login')}>← Retour à la connexion</button>}
+            : <button className="register-switch" type="button" onClick={() => { setFormError(null); setRequestSubmitted(false); setMode('login') }}>← Retour à la connexion</button>}
         </>}
       </form>
     </section>

@@ -223,6 +223,42 @@
   font-weight: 700;
 }
 
+.registration-success {
+  display: flex;
+  padding: 26px 22px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #6b46c1;
+  border-radius: 12px;
+  background: #f7f4ff;
+  text-align: center;
+}
+
+.registration-success i {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ece7ff;
+  color: #5b37d3;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.registration-success h3 {
+  color: #20255f;
+  font-size: 16px;
+}
+
+.registration-success p {
+  color: #5b5f88;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 /* --- Parcours d’inscription : cascade violette plein écran --- */
 
 .type-overlay {

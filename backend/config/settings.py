@@ -10,10 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -38,8 +44,21 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
+    'accounts',
 ]
+
+AUTH_USER_MODEL = 'accounts.User'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -74,17 +93,45 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+#
+# DB_ENGINE controls which database backend is used:
+#   - "sqlite" -> local db.sqlite3 file (default, no setup required)
+#   - "postgres" -> DATABASE_URL env var holding a Postgres connection string
+#     (Supabase, Xata, Neon, Railway... any provider works, it's just a URL)
+#   - "local_postgres" -> a Postgres server reachable via discrete DB_NAME/
+#     DB_USER/DB_PASSWORD/DB_HOST/DB_PORT env vars (e.g. one running on your machine)
+# Set these in a .env file at the backend root (see .env.example).
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "perle_db",
-        "USER": "test1",
-        "PASSWORD": "naumur",
-        "HOST": "localhost",
-        "PORT": "5432",
+DB_ENGINE = os.environ.get("DB_ENGINE", "sqlite").lower()
+
+if DB_ENGINE == "postgres":
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError(
+            "DB_ENGINE is set to 'postgres' but DATABASE_URL is not defined. "
+            "Add DATABASE_URL to your .env file with the Postgres connection string."
+        )
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
-}
+elif DB_ENGINE == "local_postgres":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("DB_NAME", "perle_db"),
+            "USER": os.environ.get("DB_USER", "test1"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "naumur"),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "5432"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # CORS

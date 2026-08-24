@@ -29,6 +29,7 @@ import ModulePage from './pages/ModulePage'
 import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import type { UserRole } from './auth/roles'
+import { clearSession } from './auth/session'
 
 interface Module {
   id: number
@@ -220,6 +221,7 @@ function App() {
   }
 
   const handleLogout = () => {
+    clearSession()
     setSession(null)
     setActiveNav('accueil')
     if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
