@@ -76,6 +76,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         'Team', on_delete=models.SET_NULL, related_name='team_members', null=True, blank=True
     )
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
+    grade = models.PositiveIntegerField(default=0)
     matricule = models.CharField(max_length=50, blank=True)
     date_naissance = models.DateField(null=True, blank=True)
     pays = models.CharField(max_length=100, blank=True)

@@ -10,6 +10,7 @@ urlpatterns = [
     path('auth/login/', views.LoginView.as_view()),
     path('employees/', views.EmployeeListView.as_view()),
     path('employees/me/', views.EmployeeMeView.as_view()),
+    path('employees/<int:pk>/', views.EmployeeDetailView.as_view()),
     path('teams/', views.TeamListCreateView.as_view()),
     path('teams/<int:pk>/', views.TeamDetailView.as_view()),
     path('teams/<int:pk>/add-member/', views.TeamAddMemberView.as_view()),

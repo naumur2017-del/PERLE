@@ -21,8 +21,15 @@ export interface Employee {
   pays: string
   ville: string
   statut: StatutEmploye
+  grade: number
+  is_active: boolean
   team: TeamSummary | null
   date_joined: string
+  date_embauche: string | null
+  cni_document: string | null
+  autre_piece_document: string | null
+  cv_document: string | null
+  contrat_document: string | null
 }
 
 export interface TeamMember {
@@ -46,6 +53,9 @@ export interface Team {
 }
 
 export const fetchEmployees = () => apiGet<Employee[]>('/employees/')
+
+export const updateEmployee = (id: number, data: { grade?: number; is_active?: boolean }) =>
+  apiPatch<{ id: number; grade: number; is_active: boolean }>(`/employees/${id}/`, data)
 
 export const fetchTeams = () => apiGet<Team[]>('/teams/')
 

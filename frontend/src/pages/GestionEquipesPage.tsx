@@ -1,11 +1,26 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Eye, FileText,
-  Info, Network, Pencil, Plus, RotateCcw, Search, UploadCloud, Users, Users2, X, MoreVertical,
+  Info, Network, Pencil, Plus, RotateCcw, Search, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
-import { fetchEmployees, fetchTeams, type Employee, type StatutEmploye, type Team } from '../api/employees'
+import { fetchEmployees, fetchTeams, updateEmployee, type Employee, type StatutEmploye, type Team } from '../api/employees'
+import { ApiError } from '../api/client'
 import './GestionEquipesPage.css'
+
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué.'
+  }
+  return 'Impossible de contacter le serveur.'
+}
 
 type StatutLabel = 'Actif' | 'Inactif' | 'En congé'
 
@@ -21,9 +36,15 @@ interface Employe {
   manager: string
   telephone: string
   matricule: string
-  dateEntree: string
+  dateEmbauche: string
   role: 'Manager' | 'Membre'
   equipeNom: string
+  grade: number
+  isActive: boolean
+  cniDocument: string | null
+  autrePieceDocument: string | null
+  cvDocument: string | null
+  contratDocument: string | null
 }
 
 const STATUT_LABELS: Record<StatutEmploye, StatutLabel> = { actif: 'Actif', conge: 'En congé', inactif: 'Inactif' }
@@ -52,9 +73,15 @@ const toEmploye = (employee: Employee, teams: Team[]): Employe => {
     manager: team?.manager ? `${team.manager.first_name} ${team.manager.last_name}` : '—',
     telephone: employee.phone || 'Non renseigné',
     matricule: employee.matricule || 'Non renseigné',
-    dateEntree: formatDate(employee.date_joined),
+    dateEmbauche: formatDate(employee.date_embauche),
     role: isManager ? 'Manager' : 'Membre',
     equipeNom: employee.team?.name ?? 'Non affecté',
+    grade: employee.grade,
+    isActive: employee.is_active,
+    cniDocument: employee.cni_document,
+    autrePieceDocument: employee.autre_piece_document,
+    cvDocument: employee.cv_document,
+    contratDocument: employee.contrat_document,
   }
 }
 
@@ -64,7 +91,7 @@ const statutClass = (statut: StatutLabel) => {
   return 'inactif'
 }
 
-type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'dateEntree'
+type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'grade' | 'dateEmbauche'
 
 const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
   { id: 'id', label: 'ID Employé' },
@@ -72,7 +99,8 @@ const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
   { id: 'statut', label: 'Statut' },
   { id: 'equipe', label: 'Équipe' },
   { id: 'fonction', label: 'Fonction' },
-  { id: 'dateEntree', label: "Date d'entrée" },
+  { id: 'grade', label: 'Grade' },
+  { id: 'dateEmbauche', label: "Date d'embauche" },
 ]
 
 const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (e: Employe) => ReactNode }> = {
@@ -91,7 +119,8 @@ const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (
   statut: { render: (e) => <span className={`ge-pill ge-pill-${statutClass(e.statut)}`}>{e.statut}</span> },
   equipe: { render: (e) => e.equipeNom },
   fonction: { render: (e) => e.fonction },
-  dateEntree: { render: (e) => e.dateEntree },
+  grade: { render: (e) => <span className="ge-grade-pill">{`G${e.grade}`}</span> },
+  dateEmbauche: { render: (e) => e.dateEmbauche },
 }
 
 function InfosGeneralesTab({ employe }: { employe: Employe }) {
@@ -99,7 +128,8 @@ function InfosGeneralesTab({ employe }: { employe: Employe }) {
     ['Fonction', employe.fonction],
     ['Manager', employe.manager],
     ['Matricule', employe.matricule],
-    ["Date d’entrée", employe.dateEntree],
+    ['Grade', `G${employe.grade}`],
+    ['Date d’embauche', employe.dateEmbauche],
     ['Téléphone', employe.telephone],
     ['Email', employe.email],
   ]
@@ -134,40 +164,128 @@ function AffectationsTab({ employe }: { employe: Employe }) {
   )
 }
 
-type DocKey = 'cv' | 'cni' | 'contrat'
+function Lightbox({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  return createPortal(
+    <div className="ge-lightbox-overlay" onClick={onClose}>
+      <div className={`ge-lightbox${wide ? ' ge-lightbox-wide' : ''}`} onClick={(event) => event.stopPropagation()}>
+        <div className="ge-lightbox-head">
+          <h3>{title}</h3>
+          <button type="button" aria-label="Fermer l’aperçu" onClick={onClose}><X size={16} strokeWidth={2} /></button>
+        </div>
+        <div className="ge-lightbox-body">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
-const DOC_TYPES: { key: DocKey; label: string }[] = [
-  { key: 'cv', label: 'CV' },
-  { key: 'cni', label: 'CNI / Carte d’identité' },
-  { key: 'contrat', label: 'Contrat de travail' },
+type EmployeeDocField = 'cniDocument' | 'autrePieceDocument' | 'cvDocument' | 'contratDocument'
+
+const EMPLOYEE_DOC_META: { field: EmployeeDocField; title: string; kind: 'image' | 'pdf' }[] = [
+  { field: 'cniDocument', title: 'Carte Nationale d’Identité (CNI)', kind: 'image' },
+  { field: 'autrePieceDocument', title: 'Autres pièces d’identité', kind: 'image' },
+  { field: 'cvDocument', title: 'CV', kind: 'pdf' },
+  { field: 'contratDocument', title: 'Contrat de travail', kind: 'pdf' },
 ]
 
 function DocumentsTab({ employe }: { employe: Employe }) {
-  const [files, setFiles] = useState<Record<DocKey, File | null>>({ cv: null, cni: null, contrat: null })
+  const [openField, setOpenField] = useState<EmployeeDocField | null>(null)
+  const openDoc = EMPLOYEE_DOC_META.find((doc) => doc.field === openField) ?? null
+  const openUrl = openField ? employe[openField] : null
 
-  const handleUpload = (key: DocKey, event: ChangeEvent<HTMLInputElement>) => {
-    setFiles((prev) => ({ ...prev, [key]: event.target.files?.[0] ?? null }))
+  return (
+    <>
+      <ul className="ge-doc-list">
+        {EMPLOYEE_DOC_META.map((doc) => {
+          const url = employe[doc.field]
+          return (
+            <li key={doc.field}>
+              <span className="ge-doc-icon"><FileText size={14} /></span>
+              <div>
+                <strong>{doc.title}</strong>
+                <small>{url ? 'Document disponible' : `Aucun document pour ${employe.nom}`}</small>
+              </div>
+              {url && (
+                <button type="button" className="ge-doc-view-btn" onClick={() => setOpenField(doc.field)}>
+                  <Eye size={13} strokeWidth={2} />Voir
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {openDoc && openUrl && (
+        <Lightbox title={openDoc.title} onClose={() => setOpenField(null)} wide={openDoc.kind === 'pdf'}>
+          {openDoc.kind === 'image'
+            ? <img src={openUrl} alt={openDoc.title} className="ge-lightbox-image" />
+            : <iframe src={openUrl} title={openDoc.title} className="ge-pdf-frame" />}
+        </Lightbox>
+      )}
+    </>
+  )
+}
+
+function GradeModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (grade: number) => Promise<void> }) {
+  const [grade, setGrade] = useState(employe.grade)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(grade)
+      onClose()
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
   }
 
   return (
-    <ul className="ge-doc-list">
-      {DOC_TYPES.map((doc) => {
-        const file = files[doc.key]
-        return (
-          <li key={doc.key}>
-            <span className="ge-doc-icon"><FileText size={14} /></span>
-            <div>
-              <strong>{doc.label}</strong>
-              <small>{file ? file.name : `Aucun fichier pour ${employe.nom}`}</small>
-            </div>
-            <label className="ge-doc-upload-btn">
-              <UploadCloud size={13} />{file ? 'Remplacer' : 'Téléverser'}
-              <input type="file" className="ge-hidden-input" onChange={(event) => handleUpload(doc.key, event)} />
-            </label>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Modifier le grade" onMouseDown={onClose}>
+      <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <h3>Modifier le grade</h3>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+        <p className="ge-modal-employee">{employe.nom}</p>
+        {error && <p className="ge-form-error">{error}</p>}
+        <div className="ge-grade-stepper">
+          <button type="button" onClick={() => setGrade((g) => Math.max(0, g - 1))} disabled={grade <= 0} aria-label="Diminuer le grade">−</button>
+          <span className="ge-grade-stepper-value">{`G${grade}`}</span>
+          <button type="button" onClick={() => setGrade((g) => g + 1)} aria-label="Augmenter le grade">+</button>
+        </div>
+        <div className="ge-modal-actions">
+          <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+          <button type="button" className="ge-btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ActionsMenu({ employe, onToggleActive }: { employe: Employe; onToggleActive: () => void }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="ge-actions-menu-wrap">
+      <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions" onClick={() => setOpen((o) => !o)}>
+        <MoreVertical size={13} />
+      </button>
+      {open && (
+        <div className="ge-actions-menu" onMouseLeave={() => setOpen(false)}>
+          <button
+            type="button"
+            className={employe.isActive ? 'danger' : ''}
+            onClick={() => { setOpen(false); onToggleActive() }}
+          >
+            {employe.isActive ? 'Désactiver le compte' : 'Activer le compte'}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -218,6 +336,8 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
   const [statutFiltre, setStatutFiltre] = useState('Tous')
   const [equipeFiltre, setEquipeFiltre] = useState('Tous')
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [gradeModalId, setGradeModalId] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EMPLOYE_COLUMNS)
 
   useEffect(() => {
@@ -235,6 +355,18 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
   }, [])
 
   const employes = useMemo(() => employees.map((e) => toEmploye(e, teams)), [employees, teams])
+
+  const applyEmployeeUpdate = (id: number, data: { grade?: number; is_active?: boolean }) =>
+    updateEmployee(id, data).then((updated) => {
+      setEmployees((prev) => prev.map((e) => e.id === id ? { ...e, grade: updated.grade, is_active: updated.is_active } : e))
+    })
+
+  const handleToggleActive = (employe: Employe) => {
+    setActionError(null)
+    applyEmployeeUpdate(employe.id, { is_active: !employe.isActive }).catch((err) => setActionError(errorMessage(err)))
+  }
+
+  const gradeModalEmploye = employes.find((e) => e.id === gradeModalId) ?? null
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -314,6 +446,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         <button type="button" className="ge-reset" onClick={resetFilters}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
+      {actionError && <p className="ge-form-error">{actionError}</p>}
       {loading && <p className="ge-detail-empty">Chargement des employés…</p>}
       {loadError && <p className="ge-detail-empty">{loadError}</p>}
 
@@ -346,8 +479,8 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
                       <td onClick={(event) => event.stopPropagation()}>
                         <div className="ge-actions">
                           <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
-                          <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier"><Pencil size={13} /></button>
-                          <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions"><MoreVertical size={13} /></button>
+                          <button type="button" className="ge-row-action" aria-label="Modifier le grade" title="Modifier le grade" onClick={() => setGradeModalId(employe.id)}><Pencil size={13} /></button>
+                          <ActionsMenu employe={employe} onToggleActive={() => handleToggleActive(employe)} />
                         </div>
                       </td>
                     </tr>
@@ -392,6 +525,14 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         <button type="button" className="ge-reopen-detail" onClick={() => setSelectedId(employes[0].id)}>
           <Plus size={14} />Afficher le détail d’un employé
         </button>
+      )}
+
+      {gradeModalEmploye && (
+        <GradeModal
+          employe={gradeModalEmploye}
+          onClose={() => setGradeModalId(null)}
+          onSave={(grade) => applyEmployeeUpdate(gradeModalEmploye.id, { grade })}
+        />
       )}
     </section>
   )

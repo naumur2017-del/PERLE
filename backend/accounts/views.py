@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from .models import Organisation, Team, User
 from .serializers import (
+    EmployeeAdminUpdateSerializer,
     EmployeeMeSerializer,
     EmployeeSerializer,
     LoginSerializer,
@@ -90,6 +91,17 @@ class EmployeeMeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class EmployeeDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = EmployeeAdminUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return User.objects.none()
+        return User.objects.filter(organisation=organisation)
 
 
 class TeamListCreateView(generics.ListCreateAPIView):

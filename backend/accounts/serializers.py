@@ -207,8 +207,23 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
-            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'team', 'date_joined',
+            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'is_active',
+            'team', 'date_joined', 'date_embauche',
+            'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
         ]
+
+
+class EmployeeAdminUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'grade', 'is_active']
+        read_only_fields = ['id']
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if attrs.get('is_active') is False and request and self.instance == request.user:
+            raise serializers.ValidationError({'is_active': 'Vous ne pouvez pas désactiver votre propre compte.'})
+        return attrs
 
 
 class EmployeeMeSerializer(serializers.ModelSerializer):
