@@ -279,36 +279,24 @@
 
 .ge-form-error { margin: 0; padding: 10px 12px; border-left: 3px solid #c0392b; border-radius: 4px; background: #fdecea; color: #a5291d; font-size: 11.5px; font-weight: 600; line-height: 1.5; }
 
-/* =============== ACTIONS MENU (activer / désactiver) =============== */
-.ge-actions-menu-wrap { position: relative; }
-.ge-actions-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  min-width: 170px;
-  padding: 6px;
-  border: 1px solid #eae7f6;
-  border-radius: 10px;
-  background: #ffffff;
-  box-shadow: 0 12px 28px rgba(20, 15, 60, 0.16);
-}
-.ge-actions-menu button {
+/* =============== STATUT MODAL =============== */
+.ge-statut-options { display: flex; flex-direction: column; gap: 8px; }
+.ge-statut-options button {
   display: block;
   width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: none;
+  padding: 11px 14px;
+  border: 1px solid #eae7f6;
+  border-radius: 9px;
+  background: #ffffff;
   color: #35335c;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
-.ge-actions-menu button:hover { background: #f7f5ff; }
-.ge-actions-menu button.danger { color: #b91c1c; }
-.ge-actions-menu button.danger:hover { background: #fef2f2; }
+.ge-statut-options button:hover:not(:disabled) { background: #f7f5ff; border-color: #ddd8f2; }
+.ge-statut-options button.is-selected { background: #efe9fd; border-color: #d8cdfb; color: #6b46c1; font-weight: 700; }
+.ge-statut-options button:disabled { cursor: not-allowed; opacity: .7; }
 
 /* =============== GRADE MODAL =============== */
 .ge-modal-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(20, 15, 55, 0.45); padding: 20px; }

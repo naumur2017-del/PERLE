@@ -125,6 +125,7 @@
 .salarie-avatar-photo { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 3px solid #ede9fe; }
 .salarie-ghost-btn { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; font-size: 10.5px; font-weight: 600; cursor: pointer; }
 .salarie-ghost-btn:hover { background: #f5f3ff; }
+.salarie-photo-upload { position: relative; }
 .salarie-info-columns { display: grid; grid-template-columns: 1fr 1fr; flex: 1; gap: 0 24px; }
 
 /* Documents officiels */
@@ -150,6 +151,7 @@
 .salarie-skills li.checked svg { color: #15803d; }
 .salarie-skills li:not(.checked) svg { color: #c3c6dc; }
 .salarie-empty-hint { margin: 0; color: #a5a8c2; font-size: 11px; font-style: italic; }
+.salarie-note-inline { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f7f6fd; color: #6b6f8f; font-size: 10.5px; font-weight: 500; }
 
 /* CV à jour */
 .salarie-cv-file { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #ececf4; border-radius: 10px; }
@@ -187,12 +189,71 @@
 .salarie-form input,
 .salarie-form select,
 .salarie-form textarea { border: 1px solid #e0ddf2; border-radius: 7px; padding: 9px 11px; color: #1a1a2e; font: inherit; font-size: 11.5px; font-weight: 500; outline: none; }
+.salarie-form input:disabled,
+.salarie-form select:disabled { background: #f5f4fa; color: #8286a8; cursor: not-allowed; }
 .salarie-form input:focus,
 .salarie-form select:focus,
 .salarie-form textarea:focus { border-color: #5b21b6; box-shadow: 0 0 0 3px rgba(91, 33, 182, .1); }
 .salarie-form textarea { resize: vertical; }
 .salarie-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .salarie-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* Sélecteur de pays (drapeau) */
+.salarie-country-picker { position: relative; }
+.salarie-country-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e0ddf2;
+  border-radius: 7px;
+  background: #fff;
+  color: #8286a8;
+  cursor: pointer;
+}
+.salarie-country-trigger:hover:not(:disabled) { border-color: #c7bdf0; }
+.salarie-country-trigger:disabled { background: #f5f4fa; cursor: not-allowed; }
+.salarie-country-trigger svg { flex: 0 0 auto; color: #8286a8; }
+.salarie-country-flag { font-size: 22px; flex: 0 0 auto; border-radius: 3px; box-shadow: 0 0 0 1px rgba(20, 15, 60, .08); }
+.salarie-country-placeholder { font-size: 11.5px; font-weight: 500; color: #a5a8c2; }
+
+.salarie-country-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid #eae7f6;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 36px rgba(20, 15, 60, .18);
+}
+.salarie-country-list li button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: #1a1a2e;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.salarie-country-list li button:hover,
+.salarie-country-list li button.is-selected { background: #f5f3ff; }
+.salarie-country-list li button.is-selected { color: #5b21b6; font-weight: 700; }
+.salarie-country-list .salarie-country-flag { font-size: 18px; }
 .salarie-form-actions .salarie-ghost-btn { padding: 10px 16px; }
 .salarie-form-actions .salarie-primary-btn { padding: 0 16px; height: 36px; }
 

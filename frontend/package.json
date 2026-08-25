@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "country-state-city": "^3.2.1",
+    "flag-icons": "^7.5.0",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

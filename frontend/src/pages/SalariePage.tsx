@@ -24,7 +24,6 @@ import {
   Gift,
   Hand,
   HelpCircle,
-  IdCard,
   Info,
   LayoutDashboard,
   ListChecks,
@@ -41,12 +40,13 @@ import {
   Wallet2,
   X,
 } from 'lucide-react'
-import passportCover from '../assets/passport.jpg'
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
 import { ApiError } from '../api/client'
+import { flagIconClass, formatPhonecode, getCitiesOfCountry, getCountries, type CountryOption } from '../utils/geo'
 import type { Session } from '../auth/session'
+import 'flag-icons/css/flag-icons.min.css'
 import './SalariePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -567,7 +567,6 @@ type PersonalForm = {
   phone: string
   email: string
   fonction: string
-  statut: MeProfile['statut']
 }
 
 const personalFormFrom = (profile: MeProfile): PersonalForm => ({
@@ -580,14 +579,72 @@ const personalFormFrom = (profile: MeProfile): PersonalForm => ({
   phone: profile.phone,
   email: profile.email,
   fonction: profile.fonction,
-  statut: profile.statut,
 })
+
+/* Le numéro composé remplace uniquement l’indicatif existant : le reste du numéro saisi est conservé. */
+const applyPhonecode = (phone: string, phonecode: string) => {
+  const digits = phone.replace(/^\+\d+\s*/, '')
+  return `${formatPhonecode(phonecode)} ${digits}`.trim()
+}
+
+function CountryPicker({ countries, selectedIso, onSelect, loading }: {
+  countries: CountryOption[]
+  selectedIso: string
+  onSelect: (isoCode: string) => void
+  loading: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = countries.find((c) => c.isoCode === selectedIso) ?? null
+
+  return (
+    <div className="salarie-country-picker">
+      <button
+        type="button"
+        className="salarie-country-trigger"
+        onClick={() => setOpen((o) => !o)}
+        disabled={loading}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={selected?.name}
+      >
+        {selected
+          ? <span className={`${flagIconClass(selected.isoCode)} salarie-country-flag`} aria-hidden="true" />
+          : <span className="salarie-country-placeholder">{loading ? 'Chargement…' : 'Sélectionner un pays'}</span>}
+        <ChevronDown size={14} strokeWidth={2} />
+      </button>
+      {open && (
+        <ul className="salarie-country-list" role="listbox" onMouseLeave={() => setOpen(false)}>
+          {countries.map((c) => (
+            <li key={c.isoCode}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={c.isoCode === selectedIso}
+                className={c.isoCode === selectedIso ? 'is-selected' : ''}
+                onClick={() => { onSelect(c.isoCode); setOpen(false) }}
+              >
+                <span className={`${flagIconClass(c.isoCode)} salarie-country-flag`} aria-hidden="true" />
+                <span>{c.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<PersonalForm>(() => personalFormFrom(profile))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  const [countries, setCountries] = useState<CountryOption[]>([])
+  const [cities, setCities] = useState<string[]>([])
+  const [selectedCountryIso, setSelectedCountryIso] = useState('')
+  const [geoLoading, setGeoLoading] = useState(false)
 
   const fullName = `${profile.first_name} ${profile.last_name}`
 
@@ -595,10 +652,46 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
     setForm(personalFormFrom(profile))
     setError(null)
     setEditing(true)
+    setGeoLoading(true)
+    getCountries().then(async (list) => {
+      setCountries(list)
+      const current = list.find((c) => c.name === profile.pays)
+      if (current) {
+        setSelectedCountryIso(current.isoCode)
+        setCities(await getCitiesOfCountry(current.isoCode))
+      }
+    }).finally(() => setGeoLoading(false))
   }
 
   const handleChange = (key: keyof PersonalForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  }
+
+  const handleCountryChange = async (isoCode: string) => {
+    setSelectedCountryIso(isoCode)
+    const country = countries.find((c) => c.isoCode === isoCode)
+    setForm((prev) => ({
+      ...prev,
+      pays: country?.name ?? '',
+      ville: '',
+      phone: country ? applyPhonecode(prev.phone, country.phonecode) : prev.phone,
+    }))
+    setCities(isoCode ? await getCitiesOfCountry(isoCode) : [])
+  }
+
+  const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadingPhoto(true)
+    setError(null)
+    try {
+      onUpdated(await uploadMyDocument('profile_photo', file))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploadingPhoto(false)
+    }
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -618,9 +711,10 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
 
   const personalInfoLeft: [string, ReactNode][] = [
     ['Matricule', profile.matricule || 'Non renseigné'],
+    ['Grade', `G${profile.grade}`],
     ['Nom complet', fullName],
     ['Date de naissance', formatDateNaissance(profile.date_naissance)],
-    ['Lieu de naissance', profile.ville && profile.pays ? `${profile.ville}, ${profile.pays}` : 'Non renseigné'],
+    ['Lieu de résidence', profile.ville && profile.pays ? `${profile.ville}, ${profile.pays}` : 'Non renseigné'],
   ]
 
   const personalInfoRight: [string, ReactNode][] = [
@@ -641,8 +735,11 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
       {!editing ? (
         <div className="salarie-personal-body">
           <div className="salarie-avatar-block">
-            <img src={profilePhoto} alt={fullName} className="salarie-avatar-photo" />
-            <button className="salarie-ghost-btn"><Camera size={13} strokeWidth={2} />Modifier la photo</button>
+            <img src={profile.profile_photo || profilePhoto} alt={fullName} className="salarie-avatar-photo" />
+            <label className="salarie-ghost-btn salarie-photo-upload">
+              <Camera size={13} strokeWidth={2} />{uploadingPhoto ? 'Envoi…' : 'Modifier la photo'}
+              <input type="file" accept="image/*" className="salarie-upload-input" disabled={uploadingPhoto} onChange={handlePhotoUpload} />
+            </label>
           </div>
           <div className="salarie-info-columns">
             <div className="salarie-info-col">{personalInfoLeft.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
@@ -661,8 +758,15 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
             <label>Date de naissance<input type="date" value={form.date_naissance} onChange={handleChange('date_naissance')} /></label>
           </div>
           <div className="salarie-form-row">
-            <label>Pays<input value={form.pays} onChange={handleChange('pays')} /></label>
-            <label>Ville<input value={form.ville} onChange={handleChange('ville')} /></label>
+            <label>Pays
+              <CountryPicker countries={countries} selectedIso={selectedCountryIso} onSelect={handleCountryChange} loading={geoLoading} />
+            </label>
+            <label>Ville
+              <select value={form.ville} onChange={handleChange('ville')} disabled={!selectedCountryIso}>
+                <option value="">{selectedCountryIso ? 'Sélectionner une ville' : 'Choisissez d’abord un pays'}</option>
+                {cities.map((city) => <option key={city} value={city}>{city}</option>)}
+              </select>
+            </label>
           </div>
           <div className="salarie-form-row">
             <label>Téléphone<input value={form.phone} onChange={handleChange('phone')} /></label>
@@ -671,11 +775,7 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
           <div className="salarie-form-row">
             <label>Poste<input value={form.fonction} onChange={handleChange('fonction')} /></label>
             <label>Statut
-              <select value={form.statut} onChange={handleChange('statut')}>
-                <option value="actif">Actif</option>
-                <option value="conge">En congé</option>
-                <option value="inactif">Inactif</option>
-              </select>
+              <input value={STATUT_LABELS[profile.statut]} disabled title="Le statut est géré par votre organisation, depuis la liste des employés." />
             </label>
           </div>
           <div className="salarie-form-actions">
@@ -690,11 +790,11 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
 
 type DocField = 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
 
-const DOCUMENTS_META: { field: DocField; title: string; kind: 'image' | 'pdf'; placeholderIcon?: typeof IdCard; placeholderImage?: string }[] = [
-  { field: 'cni_document', title: 'Carte Nationale d’Identité (CNI)', kind: 'image', placeholderIcon: IdCard },
-  { field: 'autre_piece_document', title: 'Autres pièces d’identité', kind: 'image', placeholderImage: passportCover },
-  { field: 'cv_document', title: 'CV à jour', kind: 'pdf', placeholderIcon: FileText },
-  { field: 'contrat_document', title: 'Contrat de travail', kind: 'pdf', placeholderIcon: FileText },
+const DOCUMENTS_META: { field: DocField; title: string; kind: 'image' | 'pdf' }[] = [
+  { field: 'cni_document', title: 'Carte Nationale d’Identité (CNI)', kind: 'image' },
+  { field: 'autre_piece_document', title: 'Autres pièces d’identité', kind: 'image' },
+  { field: 'cv_document', title: 'CV à jour', kind: 'pdf' },
+  { field: 'contrat_document', title: 'Contrat de travail', kind: 'pdf' },
 ]
 
 const documentFileName = (url: string) => decodeURIComponent(url.split('/').pop() ?? '')
@@ -729,14 +829,11 @@ function DocumentsCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: 
       <div className="salarie-document-list">
         {DOCUMENTS_META.map((doc) => {
           const url = profile[doc.field]
-          const Icon = doc.placeholderIcon
           return (
             <article key={doc.field} className="salarie-document">
-              {doc.kind === 'image' && url
+              {url
                 ? <img src={url} alt={doc.title} className="salarie-document-photo" />
-                : doc.kind === 'image' && doc.placeholderImage
-                  ? <img src={doc.placeholderImage} alt={doc.title} className="salarie-document-photo" />
-                  : Icon && <span className="salarie-document-thumb"><Icon size={28} strokeWidth={1.6} /></span>}
+                : <span className="salarie-document-thumb"><FileText size={28} strokeWidth={1.6} /></span>}
               <div className="salarie-document-body">
                 <strong>{doc.title}</strong>
                 <InfoRow label="Statut" value={<span className={`salarie-pill ${url ? 'approuvee' : 'attente'}`}>{url ? 'Téléversé' : 'Non téléversé'}</span>} />
@@ -781,21 +878,17 @@ const splitSkills = (value: string) => value.split(',').map((skill) => skill.tri
 type ProfessionalForm = Omit<
   Pick<
     MeProfileEditableFields,
-    'departement' | 'responsable_hierarchique' | 'date_embauche' | 'type_contrat' | 'periode_essai'
-    | 'lieu_travail' | 'temps_travail' | 'horaire' | 'competences_principales' | 'competences_secondaires'
+    'date_embauche' | 'type_contrat' | 'periode_essai'
+    | 'temps_travail' | 'competences_principales' | 'competences_secondaires'
   >,
   'date_embauche'
 > & { date_embauche: string }
 
 const professionalFormFrom = (profile: MeProfile): ProfessionalForm => ({
-  departement: profile.departement,
-  responsable_hierarchique: profile.responsable_hierarchique,
   date_embauche: profile.date_embauche ?? '',
   type_contrat: profile.type_contrat,
   periode_essai: profile.periode_essai,
-  lieu_travail: profile.lieu_travail,
   temps_travail: profile.temps_travail,
-  horaire: profile.horaire,
   competences_principales: profile.competences_principales,
   competences_secondaires: profile.competences_secondaires,
 })
@@ -831,15 +924,14 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
   }
 
   const professionalInfo: [string, ReactNode][] = [
-    ['Département', profile.departement || 'Non renseigné'],
+    ['Grade', `G${profile.grade}`],
+    ['Département', profile.departement || 'Non affecté'],
     ['Responsable hiérarchique', profile.responsable_hierarchique || 'Non renseigné'],
     ['Date d’embauche', profile.date_embauche ? formatDateNaissance(profile.date_embauche) : 'Non renseignée'],
     ['Type de contrat', TYPE_CONTRAT_LABELS[profile.type_contrat] ?? 'Non renseigné'],
     ['Période d’essai', PERIODE_ESSAI_LABELS[profile.periode_essai] ?? 'Non renseignée'],
     ['Ancienneté', profile.anciennete ?? 'Non renseignée'],
-    ['Lieu de travail', profile.lieu_travail || 'Non renseigné'],
     ['Temps de travail', TEMPS_TRAVAIL_LABELS[profile.temps_travail] ?? 'Non renseigné'],
-    ['Horaire', profile.horaire || 'Non renseigné'],
   ]
 
   const competencesPrincipales = splitSkills(profile.competences_principales)
@@ -873,10 +965,7 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
       ) : (
         <form className="salarie-form" onSubmit={handleSubmit}>
           {error && <p className="form-error">{error}</p>}
-          <div className="salarie-form-row">
-            <label>Département<input value={form.departement} onChange={handleChange('departement')} /></label>
-            <label>Responsable hiérarchique<input value={form.responsable_hierarchique} onChange={handleChange('responsable_hierarchique')} /></label>
-          </div>
+          <p className="salarie-note-inline">Grade, département et responsable hiérarchique sont gérés par votre organisation et ne sont pas modifiables ici.</p>
           <div className="salarie-form-row">
             <label>Date d’embauche<input type="date" value={form.date_embauche} onChange={handleChange('date_embauche')} /></label>
             <label>Type de contrat
@@ -898,9 +987,6 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
                 <option value="terminee">Terminée</option>
               </select>
             </label>
-            <label>Lieu de travail<input value={form.lieu_travail} onChange={handleChange('lieu_travail')} /></label>
-          </div>
-          <div className="salarie-form-row">
             <label>Temps de travail
               <select value={form.temps_travail} onChange={handleChange('temps_travail')}>
                 <option value="">Non renseigné</option>
@@ -908,7 +994,6 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
                 <option value="temps_partiel">Temps partiel</option>
               </select>
             </label>
-            <label>Horaire<input value={form.horaire} onChange={handleChange('horaire')} placeholder="Ex. 08h30 - 17h30 (Lun - Ven)" /></label>
           </div>
           <label>Compétences principales (séparées par des virgules)
             <input value={form.competences_principales} onChange={handleChange('competences_principales')} placeholder="Ex. Excel, SQL, Power BI" />

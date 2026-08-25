@@ -81,6 +81,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_naissance = models.DateField(null=True, blank=True)
     pays = models.CharField(max_length=100, blank=True)
     ville = models.CharField(max_length=100, blank=True)
+    profile_photo = models.ImageField(upload_to='documents/photos/', null=True, blank=True)
     cni_document = models.ImageField(upload_to='documents/cni/', null=True, blank=True)
     autre_piece_document = models.ImageField(upload_to='documents/autres/', null=True, blank=True)
     cv_document = models.FileField(
@@ -93,14 +94,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     # Informations professionnelles
-    departement = models.CharField(max_length=150, blank=True)
-    responsable_hierarchique = models.CharField(max_length=150, blank=True)
     date_embauche = models.DateField(null=True, blank=True)
     type_contrat = models.CharField(max_length=20, choices=TYPE_CONTRAT_CHOICES, blank=True)
     periode_essai = models.CharField(max_length=20, choices=PERIODE_ESSAI_CHOICES, blank=True)
-    lieu_travail = models.CharField(max_length=150, blank=True)
     temps_travail = models.CharField(max_length=20, choices=TEMPS_TRAVAIL_CHOICES, blank=True)
-    horaire = models.CharField(max_length=150, blank=True)
     competences_principales = models.CharField(max_length=500, blank=True)
     competences_secondaires = models.CharField(max_length=500, blank=True)
 

@@ -216,7 +216,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class EmployeeAdminUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'grade', 'is_active']
+        fields = ['id', 'grade', 'is_active', 'statut']
         read_only_fields = ['id']
 
     def validate(self, attrs):
@@ -230,20 +230,25 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
     organisation = OrganisationSearchSerializer(read_only=True)
     team = TeamSummarySerializer(read_only=True)
     anciennete = serializers.SerializerMethodField()
+    departement = serializers.SerializerMethodField()
+    responsable_hierarchique = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
-            'date_naissance', 'pays', 'ville', 'statut', 'role', 'organisation', 'team',
-            'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
+            'date_naissance', 'pays', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
+            'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
             'departement', 'responsable_hierarchique', 'date_embauche', 'type_contrat',
-            'periode_essai', 'lieu_travail', 'temps_travail', 'horaire', 'anciennete',
+            'periode_essai', 'temps_travail', 'anciennete',
             'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
             'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
         ]
-        read_only_fields = ['id', 'role', 'organisation', 'team', 'date_joined']
+        read_only_fields = [
+            'id', 'role', 'organisation', 'team', 'date_joined', 'statut', 'grade',
+            'departement', 'responsable_hierarchique',
+        ]
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
@@ -252,6 +257,14 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
 
     def get_anciennete(self, obj):
         return obj.anciennete()
+
+    def get_departement(self, obj):
+        return obj.team.name if obj.team else None
+
+    def get_responsable_hierarchique(self, obj):
+        if obj.team and obj.team.manager:
+            return f'{obj.team.manager.first_name} {obj.team.manager.last_name}'
+        return None
 
 
 class TeamSerializer(serializers.ModelSerializer):

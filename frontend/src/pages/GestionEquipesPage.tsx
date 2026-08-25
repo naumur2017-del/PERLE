@@ -32,6 +32,7 @@ interface Employe {
   initiales: string
   couleur: string
   statut: StatutLabel
+  statutValue: StatutEmploye
   fonction: string
   manager: string
   telephone: string
@@ -40,7 +41,6 @@ interface Employe {
   role: 'Manager' | 'Membre'
   equipeNom: string
   grade: number
-  isActive: boolean
   cniDocument: string | null
   autrePieceDocument: string | null
   cvDocument: string | null
@@ -69,6 +69,7 @@ const toEmploye = (employee: Employee, teams: Team[]): Employe => {
     initiales: initiales(employee.first_name, employee.last_name),
     couleur: couleurPour(employee.id),
     statut: STATUT_LABELS[employee.statut],
+    statutValue: employee.statut,
     fonction: employee.fonction || 'Non renseignée',
     manager: team?.manager ? `${team.manager.first_name} ${team.manager.last_name}` : '—',
     telephone: employee.phone || 'Non renseigné',
@@ -77,7 +78,6 @@ const toEmploye = (employee: Employee, teams: Team[]): Employe => {
     role: isManager ? 'Manager' : 'Membre',
     equipeNom: employee.team?.name ?? 'Non affecté',
     grade: employee.grade,
-    isActive: employee.is_active,
     cniDocument: employee.cni_document,
     autrePieceDocument: employee.autre_piece_document,
     cvDocument: employee.cv_document,
@@ -266,25 +266,51 @@ function GradeModal({ employe, onClose, onSave }: { employe: Employe; onClose: (
   )
 }
 
-function ActionsMenu({ employe, onToggleActive }: { employe: Employe; onToggleActive: () => void }) {
-  const [open, setOpen] = useState(false)
+const STATUT_MENU_OPTIONS: { value: StatutEmploye; label: string }[] = [
+  { value: 'actif', label: 'Actif' },
+  { value: 'conge', label: 'Congés' },
+  { value: 'inactif', label: 'Inactif' },
+]
+
+function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (statut: StatutEmploye) => Promise<void> }) {
+  const [saving, setSaving] = useState<StatutEmploye | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSelect = async (statut: StatutEmploye) => {
+    setSaving(statut)
+    setError(null)
+    try {
+      await onSave(statut)
+      onClose()
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(null)
+    }
+  }
 
   return (
-    <div className="ge-actions-menu-wrap">
-      <button type="button" className="ge-row-action" aria-label="Actions" title="Autres actions" onClick={() => setOpen((o) => !o)}>
-        <MoreVertical size={13} />
-      </button>
-      {open && (
-        <div className="ge-actions-menu" onMouseLeave={() => setOpen(false)}>
-          <button
-            type="button"
-            className={employe.isActive ? 'danger' : ''}
-            onClick={() => { setOpen(false); onToggleActive() }}
-          >
-            {employe.isActive ? 'Désactiver le compte' : 'Activer le compte'}
-          </button>
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Modifier le statut" onMouseDown={onClose}>
+      <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <h3>Modifier le statut</h3>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
-      )}
+        <p className="ge-modal-employee">{employe.nom}</p>
+        {error && <p className="ge-form-error">{error}</p>}
+        <div className="ge-statut-options">
+          {STATUT_MENU_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={option.value === employe.statutValue ? 'is-selected' : ''}
+              disabled={saving !== null}
+              onClick={() => handleSelect(option.value)}
+            >
+              {saving === option.value ? 'Enregistrement…' : option.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -337,7 +363,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
   const [equipeFiltre, setEquipeFiltre] = useState('Tous')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [gradeModalId, setGradeModalId] = useState<number | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [statutModalId, setStatutModalId] = useState<number | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EMPLOYE_COLUMNS)
 
   useEffect(() => {
@@ -356,17 +382,13 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
 
   const employes = useMemo(() => employees.map((e) => toEmploye(e, teams)), [employees, teams])
 
-  const applyEmployeeUpdate = (id: number, data: { grade?: number; is_active?: boolean }) =>
+  const applyEmployeeUpdate = (id: number, data: { grade?: number; statut?: StatutEmploye }) =>
     updateEmployee(id, data).then((updated) => {
-      setEmployees((prev) => prev.map((e) => e.id === id ? { ...e, grade: updated.grade, is_active: updated.is_active } : e))
+      setEmployees((prev) => prev.map((e) => e.id === id ? { ...e, grade: updated.grade, statut: updated.statut } : e))
     })
 
-  const handleToggleActive = (employe: Employe) => {
-    setActionError(null)
-    applyEmployeeUpdate(employe.id, { is_active: !employe.isActive }).catch((err) => setActionError(errorMessage(err)))
-  }
-
   const gradeModalEmploye = employes.find((e) => e.id === gradeModalId) ?? null
+  const statutModalEmploye = employes.find((e) => e.id === statutModalId) ?? null
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -446,7 +468,6 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         <button type="button" className="ge-reset" onClick={resetFilters}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
-      {actionError && <p className="ge-form-error">{actionError}</p>}
       {loading && <p className="ge-detail-empty">Chargement des employés…</p>}
       {loadError && <p className="ge-detail-empty">{loadError}</p>}
 
@@ -480,7 +501,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
                         <div className="ge-actions">
                           <button type="button" className="ge-row-action" aria-label="Voir le détail" onClick={() => setSelectedId(employe.id)}><Eye size={13} /></button>
                           <button type="button" className="ge-row-action" aria-label="Modifier le grade" title="Modifier le grade" onClick={() => setGradeModalId(employe.id)}><Pencil size={13} /></button>
-                          <ActionsMenu employe={employe} onToggleActive={() => handleToggleActive(employe)} />
+                          <button type="button" className="ge-row-action" aria-label="Modifier le statut" title="Modifier le statut" onClick={() => setStatutModalId(employe.id)}><MoreVertical size={13} /></button>
                         </div>
                       </td>
                     </tr>
@@ -532,6 +553,14 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
           employe={gradeModalEmploye}
           onClose={() => setGradeModalId(null)}
           onSave={(grade) => applyEmployeeUpdate(gradeModalEmploye.id, { grade })}
+        />
+      )}
+
+      {statutModalEmploye && (
+        <StatutModal
+          employe={statutModalEmploye}
+          onClose={() => setStatutModalId(null)}
+          onSave={(statut) => applyEmployeeUpdate(statutModalEmploye.id, { statut })}
         />
       )}
     </section>

@@ -54,8 +54,8 @@ export interface Team {
 
 export const fetchEmployees = () => apiGet<Employee[]>('/employees/')
 
-export const updateEmployee = (id: number, data: { grade?: number; is_active?: boolean }) =>
-  apiPatch<{ id: number; grade: number; is_active: boolean }>(`/employees/${id}/`, data)
+export const updateEmployee = (id: number, data: { grade?: number; is_active?: boolean; statut?: StatutEmploye }) =>
+  apiPatch<{ id: number; grade: number; is_active: boolean; statut: StatutEmploye }>(`/employees/${id}/`, data)
 
 export const fetchTeams = () => apiGet<Team[]>('/teams/')
 
@@ -93,22 +93,22 @@ export interface MeProfile {
   pays: string
   ville: string
   statut: StatutEmploye
+  grade: number
   role: string
   organisation: OrganisationSummary | null
   team: TeamSummary | null
+  profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null
   cv_document: string | null
   contrat_document: string | null
   date_joined: string
-  departement: string
-  responsable_hierarchique: string
+  departement: string | null
+  responsable_hierarchique: string | null
   date_embauche: string | null
   type_contrat: TypeContrat
   periode_essai: PeriodeEssai
-  lieu_travail: string
   temps_travail: TempsTravail
-  horaire: string
   anciennete: string | null
   competences_principales: string
   competences_secondaires: string
@@ -124,14 +124,14 @@ export interface MeProfile {
 
 export type MeProfileEditableFields = Pick<
   MeProfile,
-  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'matricule' | 'date_naissance' | 'pays' | 'ville' | 'statut'
-  | 'departement' | 'responsable_hierarchique' | 'date_embauche' | 'type_contrat' | 'periode_essai'
-  | 'lieu_travail' | 'temps_travail' | 'horaire' | 'competences_principales' | 'competences_secondaires'
+  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'matricule' | 'date_naissance' | 'pays' | 'ville'
+  | 'date_embauche' | 'type_contrat' | 'periode_essai'
+  | 'temps_travail' | 'competences_principales' | 'competences_secondaires'
   | 'cnps' | 'contribuable' | 'banque' | 'compte_bancaire' | 'groupe_sanguin'
   | 'contact_urgence_nom' | 'contact_urgence_telephone' | 'assurance_sante'
 >
 
-export type DocumentField = 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
+export type DocumentField = 'profile_photo' | 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
 
 export const fetchMe = () => apiGet<MeProfile>('/employees/me/')
 
