@@ -2,6 +2,12 @@ import type { UserRole } from './roles'
 
 const STORAGE_KEY = 'perle-auth'
 
+export type TeamSummary = {
+  id: number
+  code: string
+  name: string
+}
+
 export type Session = {
   token: string
   role: UserRole
@@ -15,6 +21,7 @@ export type Session = {
   dateNaissance: string | null
   pays: string
   ville: string
+  team: TeamSummary | null
 }
 
 export function saveSession(session: Session): void {

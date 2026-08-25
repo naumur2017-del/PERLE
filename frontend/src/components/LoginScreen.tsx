@@ -20,6 +20,7 @@ type UserSummary = {
   date_naissance: string | null
   pays: string
   ville: string
+  team: { id: number; code: string; name: string } | null
 }
 type AuthResponse = { token: string; user: UserSummary }
 
@@ -111,6 +112,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
       dateNaissance: response.user.date_naissance,
       pays: response.user.pays,
       ville: response.user.ville,
+      team: response.user.team,
     }
     saveSession(session)
     onLogin(session)

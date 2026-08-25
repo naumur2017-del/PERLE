@@ -101,12 +101,13 @@
 
 /* Onglet Mon profil */
 .salarie-profil { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
-.salarie-profil-row { display: grid; gap: 16px; align-items: start; }
-.salarie-profil-row.row-1 { grid-template-columns: 1.9fr 1fr; }
-.salarie-profil-row.row-2 { grid-template-columns: 1.4fr 1fr 1.3fr; }
+.salarie-profil-empty { margin-top: 16px; padding: 20px; border-radius: 10px; background: #f7f6fd; color: #6b6f8f; font-size: 12px; text-align: center; }
 .salarie-profil-card { padding: 20px; }
 .salarie-profil-card h3 { margin: 0 0 16px; color: #1a1a2e; font-size: 15px; }
 .salarie-profil-card h4 { margin: 0 0 10px; color: #3a3d63; font-size: 11px; font-weight: 700; }
+
+.salarie-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.salarie-card-head h3 { margin: 0; }
 
 .salarie-info-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f2f1fa; font-size: 11.5px; }
 .salarie-info-row:last-child { border-bottom: 0; }
@@ -127,7 +128,7 @@
 .salarie-info-columns { display: grid; grid-template-columns: 1fr 1fr; flex: 1; gap: 0 24px; }
 
 /* Documents officiels */
-.salarie-document-list { display: flex; flex-direction: column; gap: 14px; }
+.salarie-document-list { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .salarie-document { display: flex; gap: 12px; padding: 14px; border: 1px solid #ececf4; border-radius: 10px; }
 .salarie-document-thumb { display: grid; width: 68px; height: 68px; flex: 0 0 68px; place-items: center; border-radius: 10px; background: #ede9fe; color: #5b21b6; }
 .salarie-document-photo { width: 60px; height: 80px; flex: 0 0 60px; border-radius: 8px; object-fit: cover; border: 1px solid #ececf4; }
@@ -135,6 +136,10 @@
 .salarie-document-body strong { display: block; margin-bottom: 4px; color: #1a1a2e; font-size: 12px; }
 .salarie-document-body .salarie-info-row span { flex-basis: 120px; }
 .salarie-document .salarie-actions { flex: 0 0 auto; align-self: flex-start; }
+
+.salarie-actions .salarie-upload-btn { position: relative; display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; cursor: pointer; }
+.salarie-actions .salarie-upload-btn:hover { background: #f5f3ff; }
+.salarie-upload-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
 /* Informations professionnelles */
 .salarie-professional-body { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
@@ -144,6 +149,7 @@
 .salarie-skills li.checked { color: #1a1a2e; }
 .salarie-skills li.checked svg { color: #15803d; }
 .salarie-skills li:not(.checked) svg { color: #c3c6dc; }
+.salarie-empty-hint { margin: 0; color: #a5a8c2; font-size: 11px; font-style: italic; }
 
 /* CV à jour */
 .salarie-cv-file { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #ececf4; border-radius: 10px; }
@@ -161,6 +167,8 @@
 /* Aperçu (lightbox) */
 .salarie-lightbox-overlay { display: grid; position: fixed; inset: 0; place-items: center; z-index: 100; padding: 24px; background: rgba(26, 22, 56, .55); animation: salarie-fade-in 160ms ease-out; }
 .salarie-lightbox { width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; border-radius: 12px; background: #fff; box-shadow: 0 20px 50px rgba(20, 15, 60, .25); }
+.salarie-lightbox.salarie-lightbox-wide { max-width: 760px; }
+.salarie-pdf-frame { width: 100%; height: 70vh; border: 1px solid #ececf4; border-radius: 8px; }
 .salarie-lightbox-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #ececf4; }
 .salarie-lightbox-head h3 { margin: 0; color: #1a1a2e; font-size: 14px; }
 .salarie-lightbox-head button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #6b6f8f; cursor: pointer; }
@@ -340,9 +348,8 @@
 .salarie-livrable-icon { display: inline-grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; background: #dcfce7; color: #15803d; }
 
 @media (max-width: 1150px) {
-  .salarie-profil-row.row-1,
-  .salarie-profil-row.row-2 { grid-template-columns: 1fr; }
   .salarie-professional-body { grid-template-columns: 1fr; }
+  .salarie-document-list { grid-template-columns: 1fr; }
   .salarie-dash-stats { grid-template-columns: repeat(3, 1fr); }
   .salarie-dash-stats-bottom { grid-template-columns: repeat(2, 1fr); }
   .salarie-dash-panels { grid-template-columns: 1fr; }

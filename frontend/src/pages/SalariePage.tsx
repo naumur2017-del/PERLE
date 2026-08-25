@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowDownToLine,
@@ -28,6 +28,7 @@ import {
   Info,
   LayoutDashboard,
   ListChecks,
+  Pencil,
   Percent,
   Plus,
   RotateCcw,
@@ -43,8 +44,23 @@ import {
 import passportCover from '../assets/passport.jpg'
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
+import { ApiError } from '../api/client'
 import type { Session } from '../auth/session'
 import './SalariePage.css'
+
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué.'
+  }
+  return 'Impossible de contacter le serveur.'
+}
 
 type Statut = 'Approuvée' | 'En attente' | 'Refusée'
 
@@ -131,7 +147,7 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]['id']
 
-export default function SalariePage({ session }: { session: Session }) {
+export default function SalariePage({ session, onSessionUpdate }: { session: Session; onSessionUpdate: (patch: Partial<Session>) => void }) {
   const [activeTab, setActiveTab] = useState<TabId>('demandes')
   const activeLabel = tabs.find((tab) => tab.id === activeTab)!.label
 
@@ -152,7 +168,7 @@ export default function SalariePage({ session }: { session: Session }) {
         : activeTab === 'activites' ? <ActivitesTab />
         : activeTab === 'remuneration' ? <RemunerationTab />
         : activeTab === 'demandes' ? <DemandesTab />
-        : activeTab === 'profil' ? <ProfilTab session={session} />
+        : activeTab === 'profil' ? <ProfilTab onSessionUpdate={onSessionUpdate} />
         : <ComingSoon label={activeLabel} icon={tabs.find((tab) => tab.id === activeTab)!.icon} />}
     </section>
   )
@@ -191,10 +207,10 @@ function Note({ children }: { children: ReactNode }) {
   )
 }
 
-function Lightbox({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+function Lightbox({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return createPortal(
     <div className="salarie-lightbox-overlay" onClick={onClose}>
-      <div className="salarie-lightbox" onClick={(event) => event.stopPropagation()}>
+      <div className={`salarie-lightbox${wide ? ' salarie-lightbox-wide' : ''}`} onClick={(event) => event.stopPropagation()}>
         <div className="salarie-lightbox-head">
           <h3>{title}</h3>
           <button aria-label="Fermer l’aperçu" onClick={onClose}><X size={16} strokeWidth={2} /></button>
@@ -538,216 +554,513 @@ const formatDateNaissance = (value: string | null) => {
   return `${day}/${month}/${year}`
 }
 
-function PersonalInfoCard({ session }: { session: Session }) {
-  const fullName = `${session.firstName} ${session.lastName}`
+const STATUT_LABELS: Record<MeProfile['statut'], string> = { actif: 'Actif', conge: 'En congé', inactif: 'Inactif' }
+const STATUT_PILL_CLASS: Record<MeProfile['statut'], string> = { actif: 'approuvee', conge: 'attente', inactif: 'refusee' }
+
+type PersonalForm = {
+  first_name: string
+  last_name: string
+  matricule: string
+  date_naissance: string
+  pays: string
+  ville: string
+  phone: string
+  email: string
+  fonction: string
+  statut: MeProfile['statut']
+}
+
+const personalFormFrom = (profile: MeProfile): PersonalForm => ({
+  first_name: profile.first_name,
+  last_name: profile.last_name,
+  matricule: profile.matricule,
+  date_naissance: profile.date_naissance ?? '',
+  pays: profile.pays,
+  ville: profile.ville,
+  phone: profile.phone,
+  email: profile.email,
+  fonction: profile.fonction,
+  statut: profile.statut,
+})
+
+function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<PersonalForm>(() => personalFormFrom(profile))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fullName = `${profile.first_name} ${profile.last_name}`
+
+  const startEdit = () => {
+    setForm(personalFormFrom(profile))
+    setError(null)
+    setEditing(true)
+  }
+
+  const handleChange = (key: keyof PersonalForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateMe({ ...form, date_naissance: form.date_naissance || null })
+      onUpdated(updated)
+      setEditing(false)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const personalInfoLeft: [string, ReactNode][] = [
-    ['Matricule', session.matricule || 'Non renseigné'],
+    ['Matricule', profile.matricule || 'Non renseigné'],
     ['Nom complet', fullName],
-    ['Date de naissance', formatDateNaissance(session.dateNaissance)],
-    ['Lieu de naissance', session.ville && session.pays ? `${session.ville}, ${session.pays}` : 'Non renseigné'],
+    ['Date de naissance', formatDateNaissance(profile.date_naissance)],
+    ['Lieu de naissance', profile.ville && profile.pays ? `${profile.ville}, ${profile.pays}` : 'Non renseigné'],
   ]
 
   const personalInfoRight: [string, ReactNode][] = [
-    ['Téléphone', session.phone || 'Non renseigné'],
-    ['Email professionnel', session.email],
-    ['Organisation', session.organisationName || 'Non renseignée'],
-    ['Statut', <span className="salarie-pill approuvee">Actif</span>],
-    ['Poste', session.fonction || 'Non renseigné'],
+    ['Téléphone', profile.phone || 'Non renseigné'],
+    ['Email professionnel', profile.email],
+    ['Organisation', profile.organisation?.name ?? 'Non renseignée'],
+    ['Statut', <span className={`salarie-pill ${STATUT_PILL_CLASS[profile.statut]}`}>{STATUT_LABELS[profile.statut]}</span>],
+    ['Poste', profile.fonction || 'Non renseigné'],
   ]
 
   return (
     <section className="salarie-panel salarie-profil-card personal-card">
-      <h3>Informations personnelles</h3>
-      <div className="salarie-personal-body">
-        <div className="salarie-avatar-block">
-          <img src={profilePhoto} alt={fullName} className="salarie-avatar-photo" />
-          <button className="salarie-ghost-btn"><Camera size={13} strokeWidth={2} />Modifier la photo</button>
-        </div>
-        <div className="salarie-info-columns">
-          <div className="salarie-info-col">{personalInfoLeft.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-          <div className="salarie-info-col">{personalInfoRight.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-        </div>
+      <div className="salarie-card-head">
+        <h3>Informations personnelles</h3>
+        {!editing && <button type="button" className="salarie-ghost-btn" onClick={startEdit}><Pencil size={13} strokeWidth={2} />Modifier</button>}
       </div>
+
+      {!editing ? (
+        <div className="salarie-personal-body">
+          <div className="salarie-avatar-block">
+            <img src={profilePhoto} alt={fullName} className="salarie-avatar-photo" />
+            <button className="salarie-ghost-btn"><Camera size={13} strokeWidth={2} />Modifier la photo</button>
+          </div>
+          <div className="salarie-info-columns">
+            <div className="salarie-info-col">{personalInfoLeft.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+            <div className="salarie-info-col">{personalInfoRight.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+          </div>
+        </div>
+      ) : (
+        <form className="salarie-form" onSubmit={handleSubmit}>
+          {error && <p className="form-error">{error}</p>}
+          <div className="salarie-form-row">
+            <label>Prénom<input value={form.first_name} onChange={handleChange('first_name')} required /></label>
+            <label>Nom<input value={form.last_name} onChange={handleChange('last_name')} required /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Matricule<input value={form.matricule} onChange={handleChange('matricule')} /></label>
+            <label>Date de naissance<input type="date" value={form.date_naissance} onChange={handleChange('date_naissance')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Pays<input value={form.pays} onChange={handleChange('pays')} /></label>
+            <label>Ville<input value={form.ville} onChange={handleChange('ville')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Téléphone<input value={form.phone} onChange={handleChange('phone')} /></label>
+            <label>Email professionnel<input type="email" value={form.email} onChange={handleChange('email')} required /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Poste<input value={form.fonction} onChange={handleChange('fonction')} /></label>
+            <label>Statut
+              <select value={form.statut} onChange={handleChange('statut')}>
+                <option value="actif">Actif</option>
+                <option value="conge">En congé</option>
+                <option value="inactif">Inactif</option>
+              </select>
+            </label>
+          </div>
+          <div className="salarie-form-actions">
+            <button type="button" className="salarie-ghost-btn" disabled={saving} onClick={() => setEditing(false)}>Annuler</button>
+            <button type="submit" className="salarie-primary-btn" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          </div>
+        </form>
+      )}
     </section>
   )
 }
 
-const documents: { icon?: typeof IdCard; image?: string; title: string; rows: [string, ReactNode][] }[] = [
-  {
-    icon: IdCard,
-    title: 'Carte Nationale d’Identité (CNI)',
-    rows: [
-      ['Numéro', '010123456789'],
-      ['Date d’expiration', '20/11/2031'],
-      ['Statut', <span className="salarie-pill approuvee">Valide</span>],
-    ],
-  },
-  {
-    image: passportCover,
-    title: 'Autres pièces d’identité',
-    rows: [
-      ['Type', 'Passeport'],
-      ['Numéro', 'A12345678'],
-      ['Date d’expiration', '14/08/2028'],
-      ['Statut', <span className="salarie-pill approuvee">Valide</span>],
-    ],
-  },
+type DocField = 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
+
+const DOCUMENTS_META: { field: DocField; title: string; kind: 'image' | 'pdf'; placeholderIcon?: typeof IdCard; placeholderImage?: string }[] = [
+  { field: 'cni_document', title: 'Carte Nationale d’Identité (CNI)', kind: 'image', placeholderIcon: IdCard },
+  { field: 'autre_piece_document', title: 'Autres pièces d’identité', kind: 'image', placeholderImage: passportCover },
+  { field: 'cv_document', title: 'CV à jour', kind: 'pdf', placeholderIcon: FileText },
+  { field: 'contrat_document', title: 'Contrat de travail', kind: 'pdf', placeholderIcon: FileText },
 ]
 
-function DocumentsCard() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null)
-  const openDoc = openIndex !== null ? documents[openIndex] : null
+const documentFileName = (url: string) => decodeURIComponent(url.split('/').pop() ?? '')
+
+function DocumentsCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
+  const [openField, setOpenField] = useState<DocField | null>(null)
+  const [uploadingField, setUploadingField] = useState<DocField | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleUpload = async (field: DocField, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadingField(field)
+    setError(null)
+    try {
+      onUpdated(await uploadMyDocument(field, file))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploadingField(null)
+    }
+  }
+
+  const openDoc = DOCUMENTS_META.find((doc) => doc.field === openField) ?? null
+  const openDocUrl = openField ? profile[openField] : null
 
   return (
     <section className="salarie-panel salarie-profil-card documents-card">
       <h3>Documents officiels</h3>
+      {error && <p className="form-error">{error}</p>}
       <div className="salarie-document-list">
-        {documents.map((doc, index) => {
-          const Icon = doc.icon
+        {DOCUMENTS_META.map((doc) => {
+          const url = profile[doc.field]
+          const Icon = doc.placeholderIcon
           return (
-            <article key={doc.title} className="salarie-document">
-              {doc.image
-                ? <img src={doc.image} alt={doc.title} className="salarie-document-photo" />
-                : Icon && <span className="salarie-document-thumb"><Icon size={28} strokeWidth={1.6} /></span>}
+            <article key={doc.field} className="salarie-document">
+              {doc.kind === 'image' && url
+                ? <img src={url} alt={doc.title} className="salarie-document-photo" />
+                : doc.kind === 'image' && doc.placeholderImage
+                  ? <img src={doc.placeholderImage} alt={doc.title} className="salarie-document-photo" />
+                  : Icon && <span className="salarie-document-thumb"><Icon size={28} strokeWidth={1.6} /></span>}
               <div className="salarie-document-body">
                 <strong>{doc.title}</strong>
-                {doc.rows.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}
+                <InfoRow label="Statut" value={<span className={`salarie-pill ${url ? 'approuvee' : 'attente'}`}>{url ? 'Téléversé' : 'Non téléversé'}</span>} />
+                {url && doc.kind === 'pdf' && <InfoRow label="Fichier" value={documentFileName(url)} />}
               </div>
               <div className="salarie-actions">
-                <button aria-label="Voir le document" onClick={() => setOpenIndex(index)}><Eye size={14} strokeWidth={2} /></button>
-                <button aria-label="Télécharger le document"><Download size={14} strokeWidth={2} /></button>
+                {url && <button aria-label={`Voir ${doc.title}`} onClick={() => setOpenField(doc.field)}><Eye size={14} strokeWidth={2} /></button>}
+                <label className="salarie-upload-btn" aria-label={`Téléverser ${doc.title}`} title={url ? 'Remplacer le document' : 'Téléverser le document'}>
+                  <UploadCloud size={14} strokeWidth={2} />
+                  <input
+                    type="file"
+                    accept={doc.kind === 'pdf' ? 'application/pdf' : 'image/*'}
+                    className="salarie-upload-input"
+                    disabled={uploadingField !== null}
+                    onChange={(event) => handleUpload(doc.field, event)}
+                  />
+                </label>
               </div>
             </article>
           )
         })}
       </div>
-      <Note>Veuillez vous assurer que vos documents sont à jour. Les documents expirés peuvent impacter certains processus (contrat, missions, etc.).</Note>
+      <Note>Pièces d’identité : formats JPG ou PNG. CV et contrat : format PDF uniquement.</Note>
 
-      {openDoc && (
-        <Lightbox title={openDoc.title} onClose={() => setOpenIndex(null)}>
-          {openDoc.image
-            ? <img src={openDoc.image} alt={openDoc.title} className="salarie-lightbox-image" />
-            : (
-              <div className="salarie-lightbox-placeholder">
-                {openDoc.icon && <openDoc.icon size={40} strokeWidth={1.4} />}
-                <p>Aucun visuel n’est disponible pour ce document.</p>
-              </div>
-            )}
-          <div className="salarie-info-col">{openDoc.rows.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+      {openDoc && openDocUrl && (
+        <Lightbox title={openDoc.title} onClose={() => setOpenField(null)} wide={openDoc.kind === 'pdf'}>
+          {openDoc.kind === 'image'
+            ? <img src={openDocUrl} alt={openDoc.title} className="salarie-lightbox-image" />
+            : <iframe src={openDocUrl} title={openDoc.title} className="salarie-pdf-frame" />}
         </Lightbox>
       )}
     </section>
   )
 }
 
-const professionalInfo: [string, ReactNode][] = [
-  ['Département', 'Informatique'],
-  ['Responsable hiérarchique', 'Ajara LAMARE (Manager)'],
-  ['Date d’embauche', '05/01/2024'],
-  ['Type de contrat', 'CDI'],
-  ['Période d’essai', 'Terminée'],
-  ['Ancienneté', '1 an, 4 mois et 26 jours'],
-  ['Lieu de travail', 'Yaoundé - Siège'],
-  ['Temps de travail', 'Temps plein'],
-  ['Horaire', '08h30 - 17h30 (Lun - Ven)'],
-]
+const TYPE_CONTRAT_LABELS: Record<string, string> = { cdi: 'CDI', cdd: 'CDD', stage: 'Stage', alternance: 'Alternance', consultant: 'Consultant' }
+const PERIODE_ESSAI_LABELS: Record<string, string> = { en_cours: 'En cours', terminee: 'Terminée' }
+const TEMPS_TRAVAIL_LABELS: Record<string, string> = { temps_plein: 'Temps plein', temps_partiel: 'Temps partiel' }
 
-const competencesPrincipales = ['Analyse de données', 'Excel avancé', 'Tableau de bord & Reporting', 'SQL', 'Power BI']
-const competencesSecondaires = ['Python', 'Gestion de projet', 'Communication']
+const splitSkills = (value: string) => value.split(',').map((skill) => skill.trim()).filter(Boolean)
 
-function ProfessionalInfoCard() {
+type ProfessionalForm = Omit<
+  Pick<
+    MeProfileEditableFields,
+    'departement' | 'responsable_hierarchique' | 'date_embauche' | 'type_contrat' | 'periode_essai'
+    | 'lieu_travail' | 'temps_travail' | 'horaire' | 'competences_principales' | 'competences_secondaires'
+  >,
+  'date_embauche'
+> & { date_embauche: string }
+
+const professionalFormFrom = (profile: MeProfile): ProfessionalForm => ({
+  departement: profile.departement,
+  responsable_hierarchique: profile.responsable_hierarchique,
+  date_embauche: profile.date_embauche ?? '',
+  type_contrat: profile.type_contrat,
+  periode_essai: profile.periode_essai,
+  lieu_travail: profile.lieu_travail,
+  temps_travail: profile.temps_travail,
+  horaire: profile.horaire,
+  competences_principales: profile.competences_principales,
+  competences_secondaires: profile.competences_secondaires,
+})
+
+function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<ProfessionalForm>(() => professionalFormFrom(profile))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const startEdit = () => {
+    setForm(professionalFormFrom(profile))
+    setError(null)
+    setEditing(true)
+  }
+
+  const handleChange = (key: keyof ProfessionalForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      onUpdated(await updateMe({ ...form, date_embauche: form.date_embauche || null }))
+      setEditing(false)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const professionalInfo: [string, ReactNode][] = [
+    ['Département', profile.departement || 'Non renseigné'],
+    ['Responsable hiérarchique', profile.responsable_hierarchique || 'Non renseigné'],
+    ['Date d’embauche', profile.date_embauche ? formatDateNaissance(profile.date_embauche) : 'Non renseignée'],
+    ['Type de contrat', TYPE_CONTRAT_LABELS[profile.type_contrat] ?? 'Non renseigné'],
+    ['Période d’essai', PERIODE_ESSAI_LABELS[profile.periode_essai] ?? 'Non renseignée'],
+    ['Ancienneté', profile.anciennete ?? 'Non renseignée'],
+    ['Lieu de travail', profile.lieu_travail || 'Non renseigné'],
+    ['Temps de travail', TEMPS_TRAVAIL_LABELS[profile.temps_travail] ?? 'Non renseigné'],
+    ['Horaire', profile.horaire || 'Non renseigné'],
+  ]
+
+  const competencesPrincipales = splitSkills(profile.competences_principales)
+  const competencesSecondaires = splitSkills(profile.competences_secondaires)
+
   return (
     <section className="salarie-panel salarie-profil-card professional-card">
-      <h3>Informations professionnelles</h3>
-      <div className="salarie-professional-body">
-        <div className="salarie-info-col">{professionalInfo.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-        <div className="salarie-skills">
-          <div>
-            <h4>Compétences principales</h4>
-            <ul>{competencesPrincipales.map((skill) => <li key={skill} className="checked"><CheckCircle2 size={14} strokeWidth={2} />{skill}</li>)}</ul>
-          </div>
-          <div>
-            <h4>Compétences secondaires</h4>
-            <ul>{competencesSecondaires.map((skill) => <li key={skill}><Circle size={14} strokeWidth={2} />{skill}</li>)}</ul>
+      <div className="salarie-card-head">
+        <h3>Informations professionnelles</h3>
+        {!editing && <button type="button" className="salarie-ghost-btn" onClick={startEdit}><Pencil size={13} strokeWidth={2} />Modifier</button>}
+      </div>
+
+      {!editing ? (
+        <div className="salarie-professional-body">
+          <div className="salarie-info-col">{professionalInfo.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+          <div className="salarie-skills">
+            <div>
+              <h4>Compétences principales</h4>
+              {competencesPrincipales.length
+                ? <ul>{competencesPrincipales.map((skill) => <li key={skill} className="checked"><CheckCircle2 size={14} strokeWidth={2} />{skill}</li>)}</ul>
+                : <p className="salarie-empty-hint">Non renseignées</p>}
+            </div>
+            <div>
+              <h4>Compétences secondaires</h4>
+              {competencesSecondaires.length
+                ? <ul>{competencesSecondaires.map((skill) => <li key={skill}><Circle size={14} strokeWidth={2} />{skill}</li>)}</ul>
+                : <p className="salarie-empty-hint">Non renseignées</p>}
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  )
-}
-
-function CvCard({ session }: { session: Session }) {
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const cvFileName = `${session.firstName}_${session.lastName}_CV.pdf`
-
-  return (
-    <section className="salarie-panel salarie-profil-card cv-card">
-      <h3>CV à jour</h3>
-      <div className="salarie-cv-file">
-        <span className="salarie-cv-icon"><FileText size={20} strokeWidth={1.8} /></span>
-        <div>
-          <strong>{cvFileName}</strong>
-          <small>Dernière mise à jour : 10/05/2025</small>
-          <small>Taille : 512 Ko</small>
-        </div>
-        <div className="salarie-actions">
-          <button aria-label="Voir le CV" onClick={() => setPreviewOpen(true)}><Eye size={14} strokeWidth={2} /></button>
-          <button aria-label="Télécharger le CV"><Download size={14} strokeWidth={2} /></button>
-        </div>
-      </div>
-      <div className="salarie-dropzone">
-        <UploadCloud size={26} strokeWidth={1.6} />
-        <strong>Remplacer le CV</strong>
-        <span>Glissez-déposez votre fichier ici ou</span>
-        <button type="button" className="salarie-primary-btn">Parcourir vos fichiers</button>
-        <small>Formats acceptés : PDF (Max. 5 Mo)</small>
-      </div>
-      <Note>Veuillez maintenir votre CV à jour pour faciliter les opportunités internes et externes.</Note>
-
-      {previewOpen && (
-        <Lightbox title={cvFileName} onClose={() => setPreviewOpen(false)}>
-          <div className="salarie-lightbox-placeholder">
-            <FileText size={40} strokeWidth={1.4} />
-            <p>Aperçu indisponible : aucun fichier PDF n’a encore été téléversé pour ce CV de démonstration.</p>
+      ) : (
+        <form className="salarie-form" onSubmit={handleSubmit}>
+          {error && <p className="form-error">{error}</p>}
+          <div className="salarie-form-row">
+            <label>Département<input value={form.departement} onChange={handleChange('departement')} /></label>
+            <label>Responsable hiérarchique<input value={form.responsable_hierarchique} onChange={handleChange('responsable_hierarchique')} /></label>
           </div>
-        </Lightbox>
+          <div className="salarie-form-row">
+            <label>Date d’embauche<input type="date" value={form.date_embauche} onChange={handleChange('date_embauche')} /></label>
+            <label>Type de contrat
+              <select value={form.type_contrat} onChange={handleChange('type_contrat')}>
+                <option value="">Non renseigné</option>
+                <option value="cdi">CDI</option>
+                <option value="cdd">CDD</option>
+                <option value="stage">Stage</option>
+                <option value="alternance">Alternance</option>
+                <option value="consultant">Consultant</option>
+              </select>
+            </label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Période d’essai
+              <select value={form.periode_essai} onChange={handleChange('periode_essai')}>
+                <option value="">Non renseignée</option>
+                <option value="en_cours">En cours</option>
+                <option value="terminee">Terminée</option>
+              </select>
+            </label>
+            <label>Lieu de travail<input value={form.lieu_travail} onChange={handleChange('lieu_travail')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Temps de travail
+              <select value={form.temps_travail} onChange={handleChange('temps_travail')}>
+                <option value="">Non renseigné</option>
+                <option value="temps_plein">Temps plein</option>
+                <option value="temps_partiel">Temps partiel</option>
+              </select>
+            </label>
+            <label>Horaire<input value={form.horaire} onChange={handleChange('horaire')} placeholder="Ex. 08h30 - 17h30 (Lun - Ven)" /></label>
+          </div>
+          <label>Compétences principales (séparées par des virgules)
+            <input value={form.competences_principales} onChange={handleChange('competences_principales')} placeholder="Ex. Excel, SQL, Power BI" />
+          </label>
+          <label>Compétences secondaires (séparées par des virgules)
+            <input value={form.competences_secondaires} onChange={handleChange('competences_secondaires')} placeholder="Ex. Python, Communication" />
+          </label>
+          <div className="salarie-form-actions">
+            <button type="button" className="salarie-ghost-btn" disabled={saving} onClick={() => setEditing(false)}>Annuler</button>
+            <button type="submit" className="salarie-primary-btn" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          </div>
+        </form>
       )}
     </section>
   )
 }
 
-const autresInfo: [string, ReactNode][] = [
-  ['N° CNPS', '123 4567890 1A'],
-  ['N° Contribuable', 'M092012345678A'],
-  ['Banque', 'Afriland First Bank'],
-  ['N° Compte bancaire', '10033 02001 00123456789 45'],
-  ['Groupe sanguin', 'O+'],
-  ['Personne à contacter en cas d’urgence', <>Ebongue Marie (Sœur)<br />+237 6 71 23 45 67</>],
-  ['Assurance santé', <span className="salarie-pill approuvee">Actif (AFH Assurances)</span>],
-]
+type OtherForm = Pick<
+  MeProfileEditableFields,
+  'cnps' | 'contribuable' | 'banque' | 'compte_bancaire' | 'groupe_sanguin' | 'contact_urgence_nom' | 'contact_urgence_telephone' | 'assurance_sante'
+>
 
-function OtherInfoCard() {
+const otherFormFrom = (profile: MeProfile): OtherForm => ({
+  cnps: profile.cnps,
+  contribuable: profile.contribuable,
+  banque: profile.banque,
+  compte_bancaire: profile.compte_bancaire,
+  groupe_sanguin: profile.groupe_sanguin,
+  contact_urgence_nom: profile.contact_urgence_nom,
+  contact_urgence_telephone: profile.contact_urgence_telephone,
+  assurance_sante: profile.assurance_sante,
+})
+
+function OtherInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<OtherForm>(() => otherFormFrom(profile))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const startEdit = () => {
+    setForm(otherFormFrom(profile))
+    setError(null)
+    setEditing(true)
+  }
+
+  const handleChange = (key: keyof OtherForm) => (event: ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      onUpdated(await updateMe(form))
+      setEditing(false)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const autresInfo: [string, ReactNode][] = [
+    ['N° CNPS', profile.cnps || 'Non renseigné'],
+    ['N° Contribuable', profile.contribuable || 'Non renseigné'],
+    ['Banque', profile.banque || 'Non renseignée'],
+    ['N° Compte bancaire', profile.compte_bancaire || 'Non renseigné'],
+    ['Groupe sanguin', profile.groupe_sanguin || 'Non renseigné'],
+    ['Personne à contacter en cas d’urgence', profile.contact_urgence_nom || profile.contact_urgence_telephone
+      ? <>{profile.contact_urgence_nom}{profile.contact_urgence_nom && profile.contact_urgence_telephone && <br />}{profile.contact_urgence_telephone}</>
+      : 'Non renseignée'],
+    ['Assurance santé', profile.assurance_sante || 'Non renseignée'],
+  ]
+
   return (
     <section className="salarie-panel salarie-profil-card other-card">
-      <h3>Autres informations</h3>
-      <div className="salarie-info-col">{autresInfo.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-      <Note>Si une information est incorrecte, veuillez soumettre une demande de correction dans l’onglet « Demandes ».</Note>
+      <div className="salarie-card-head">
+        <h3>Autres informations</h3>
+        {!editing && <button type="button" className="salarie-ghost-btn" onClick={startEdit}><Pencil size={13} strokeWidth={2} />Modifier</button>}
+      </div>
+
+      {!editing ? (
+        <div className="salarie-info-col">{autresInfo.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+      ) : (
+        <form className="salarie-form" onSubmit={handleSubmit}>
+          {error && <p className="form-error">{error}</p>}
+          <div className="salarie-form-row">
+            <label>N° CNPS<input value={form.cnps} onChange={handleChange('cnps')} /></label>
+            <label>N° Contribuable<input value={form.contribuable} onChange={handleChange('contribuable')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Banque<input value={form.banque} onChange={handleChange('banque')} /></label>
+            <label>N° Compte bancaire<input value={form.compte_bancaire} onChange={handleChange('compte_bancaire')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Groupe sanguin<input value={form.groupe_sanguin} onChange={handleChange('groupe_sanguin')} placeholder="Ex. O+" /></label>
+            <label>Assurance santé<input value={form.assurance_sante} onChange={handleChange('assurance_sante')} /></label>
+          </div>
+          <div className="salarie-form-row">
+            <label>Contact d’urgence — Nom<input value={form.contact_urgence_nom} onChange={handleChange('contact_urgence_nom')} placeholder="Ex. Marie Ebongue (Sœur)" /></label>
+            <label>Contact d’urgence — Téléphone<input value={form.contact_urgence_telephone} onChange={handleChange('contact_urgence_telephone')} /></label>
+          </div>
+          <div className="salarie-form-actions">
+            <button type="button" className="salarie-ghost-btn" disabled={saving} onClick={() => setEditing(false)}>Annuler</button>
+            <button type="submit" className="salarie-primary-btn" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          </div>
+        </form>
+      )}
+      <Note>Ces informations restent visibles uniquement par vous et les Ressources Humaines.</Note>
     </section>
   )
 }
 
-function ProfilTab({ session }: { session: Session }) {
+function ProfilTab({ onSessionUpdate }: { onSessionUpdate: (patch: Partial<Session>) => void }) {
+  const [profile, setProfile] = useState<MeProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((data) => { if (!cancelled) setProfile(data) })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger votre profil.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const handleProfileUpdate = (updated: MeProfile) => {
+    setProfile(updated)
+    onSessionUpdate({
+      firstName: updated.first_name,
+      lastName: updated.last_name,
+      email: updated.email,
+      phone: updated.phone,
+      fonction: updated.fonction,
+      matricule: updated.matricule,
+      dateNaissance: updated.date_naissance,
+      pays: updated.pays,
+      ville: updated.ville,
+    })
+  }
+
+  if (loading) return <p className="salarie-profil-empty">Chargement de votre profil…</p>
+  if (loadError || !profile) return <p className="salarie-profil-empty">{loadError ?? 'Profil introuvable.'}</p>
+
   return (
     <div className="salarie-profil">
-      <div className="salarie-profil-row row-1">
-        <PersonalInfoCard session={session} />
-        <DocumentsCard />
-      </div>
-      <div className="salarie-profil-row row-2">
-        <ProfessionalInfoCard />
-        <CvCard session={session} />
-        <OtherInfoCard />
-      </div>
+      <PersonalInfoCard profile={profile} onUpdated={handleProfileUpdate} />
+      <DocumentsCard profile={profile} onUpdated={handleProfileUpdate} />
+      <ProfessionalInfoCard profile={profile} onUpdated={handleProfileUpdate} />
+      <OtherInfoCard profile={profile} onUpdated={handleProfileUpdate} />
     </div>
   )
 }

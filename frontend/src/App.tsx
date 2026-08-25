@@ -28,7 +28,7 @@ import ParametresPage from './pages/ParametresPage'
 import ModulePage from './pages/ModulePage'
 import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
-import { clearSession, getSession, type Session } from './auth/session'
+import { clearSession, getSession, saveSession, type Session } from './auth/session'
 
 interface Module {
   id: number
@@ -228,6 +228,15 @@ function App() {
     if (window.location.pathname !== '/') window.history.pushState({}, '', '/')
   }
 
+  const updateSession = (patch: Partial<Session>) => {
+    setSession((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...patch }
+      saveSession(next)
+      return next
+    })
+  }
+
   const icons = {
     accueil: <AppIcon><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></AppIcon>,
     pilotage: <AppIcon><path d="M5 21v-6" /><path d="M12 21V9" /><path d="M19 21V3" /></AppIcon>,
@@ -387,7 +396,7 @@ function App() {
       case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />
       case 'tresorerie-rapports': return <JournalTresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
-      case 'salarie': return <SalariePage session={session!} />
+      case 'salarie': return <SalariePage session={session!} onSessionUpdate={updateSession} />
       case 'architecture': return <ArchitecturePage />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
@@ -427,6 +436,12 @@ function App() {
       </>
     )
   }
+
+  /* Compte organisation (directeur) : la fonction saisie à l'inscription reste affichée.
+     Autres salariés : leur équipe prime sur leur fonction, tant qu'ils y sont affectés. */
+  const navProfileLabel = session.role === 'directeur'
+    ? (session.fonction || 'Équipe Pilotage')
+    : (session.team?.name || session.fonction || 'Équipe Pilotage')
 
   return (
     <>
@@ -561,9 +576,9 @@ function App() {
                   )}
                 </div>
                 <div className="user-profile">
-                  <span className="avatar">{initials(session.fonction || 'Équipe Pilotage')}</span>
+                  <span className="avatar">{initials(navProfileLabel)}</span>
                   <div className="user-info">
-                    <span className="user-name">{session.fonction || 'Équipe Pilotage'}</span>
+                    <span className="user-name">{navProfileLabel}</span>
                     <button className="profile-dropdown">▼</button>
                   </div>
                 </div>

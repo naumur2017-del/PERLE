@@ -42,3 +42,14 @@ export const apiPost = <T>(path: string, body: unknown): Promise<T> =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+
+export const apiPatch = <T>(path: string, body: unknown): Promise<T> =>
+  request<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+/* Pas de Content-Type explicite : le navigateur fixe lui-même la limite multipart. */
+export const apiUpload = <T>(path: string, formData: FormData): Promise<T> =>
+  request<T>(path, { method: 'PATCH', body: formData })

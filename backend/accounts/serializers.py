@@ -17,14 +17,21 @@ class OrganisationSearchSerializer(serializers.ModelSerializer):
         return obj.members.count()
 
 
+class TeamSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ['id', 'code', 'name']
+
+
 class UserSummarySerializer(serializers.ModelSerializer):
     organisation = OrganisationSearchSerializer(read_only=True)
+    team = TeamSummarySerializer(read_only=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role', 'organisation',
-            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'ville',
+            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'ville', 'team',
         ]
 
 
@@ -182,12 +189,6 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
-class TeamSummarySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Team
-        fields = ['id', 'code', 'name']
-
-
 class TeamMemberSerializer(serializers.ModelSerializer):
     is_manager = serializers.SerializerMethodField()
 
@@ -208,6 +209,34 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
             'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'team', 'date_joined',
         ]
+
+
+class EmployeeMeSerializer(serializers.ModelSerializer):
+    organisation = OrganisationSearchSerializer(read_only=True)
+    team = TeamSummarySerializer(read_only=True)
+    anciennete = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
+            'date_naissance', 'pays', 'ville', 'statut', 'role', 'organisation', 'team',
+            'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
+            'departement', 'responsable_hierarchique', 'date_embauche', 'type_contrat',
+            'periode_essai', 'lieu_travail', 'temps_travail', 'horaire', 'anciennete',
+            'competences_principales', 'competences_secondaires',
+            'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
+            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
+        ]
+        read_only_fields = ['id', 'role', 'organisation', 'team', 'date_joined']
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError('Un compte existe déjà avec cet e-mail.')
+        return value
+
+    def get_anciennete(self, obj):
+        return obj.anciennete()
 
 
 class TeamSerializer(serializers.ModelSerializer):

@@ -2,12 +2,14 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Organisation, Team, User
 from .serializers import (
+    EmployeeMeSerializer,
     EmployeeSerializer,
     LoginSerializer,
     OrganisationSearchSerializer,
@@ -79,6 +81,15 @@ class EmployeeListView(generics.ListAPIView):
         if not organisation:
             return User.objects.none()
         return User.objects.filter(organisation=organisation).select_related('team').order_by('first_name', 'last_name')
+
+
+class EmployeeMeView(generics.RetrieveUpdateAPIView):
+    serializer_class = EmployeeMeSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_object(self):
+        return self.request.user
 
 
 class TeamListCreateView(generics.ListCreateAPIView):
