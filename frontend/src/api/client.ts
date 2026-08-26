@@ -50,6 +50,11 @@ export const apiPatch = <T>(path: string, body: unknown): Promise<T> =>
     body: JSON.stringify(body),
   })
 
+export const apiDelete = (path: string): Promise<void> => request<void>(path, { method: 'DELETE' })
+
 /* Pas de Content-Type explicite : le navigateur fixe lui-même la limite multipart. */
 export const apiUpload = <T>(path: string, formData: FormData): Promise<T> =>
   request<T>(path, { method: 'PATCH', body: formData })
+
+export const apiPostUpload = <T>(path: string, formData: FormData): Promise<T> =>
+  request<T>(path, { method: 'POST', body: formData })

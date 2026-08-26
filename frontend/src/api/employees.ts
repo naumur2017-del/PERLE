@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, apiUpload } from './client'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostUpload, apiUpload } from './client'
 
 export type StatutEmploye = 'actif' | 'conge' | 'inactif'
 
@@ -6,6 +6,22 @@ export interface TeamSummary {
   id: number
   code: string
   name: string
+}
+
+export interface GradeHistoryEntry {
+  id: number
+  ancien_grade: number | null
+  nouveau_grade: number
+  changed_at: string
+  changed_by: string | null
+}
+
+export interface AffectationHistoryEntry {
+  id: number
+  ancienne_equipe: TeamSummary | null
+  nouvelle_equipe: TeamSummary | null
+  changed_at: string
+  changed_by: string | null
 }
 
 export interface Employee {
@@ -26,10 +42,26 @@ export interface Employee {
   team: TeamSummary | null
   date_joined: string
   date_embauche: string | null
+  profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null
   cv_document: string | null
   contrat_document: string | null
+  type_contrat: TypeContrat
+  periode_essai: PeriodeEssai
+  temps_travail: TempsTravail
+  competences_principales: string
+  competences_secondaires: string
+  cnps: string
+  contribuable: string
+  banque: string
+  compte_bancaire: string
+  groupe_sanguin: string
+  contact_urgence_nom: string
+  contact_urgence_telephone: string
+  assurance_sante: string
+  grade_history: GradeHistoryEntry[]
+  affectation_history: AffectationHistoryEntry[]
 }
 
 export interface TeamMember {
@@ -49,18 +81,29 @@ export interface Team {
   name: string
   manager: TeamMember | null
   members: TeamMember[]
+  parent: TeamSummary | null
+  is_protected: boolean
   created_at: string
 }
 
 export const fetchEmployees = () => apiGet<Employee[]>('/employees/')
 
+export const createEmployee = (data: FormData) => apiPostUpload<Employee>('/employees/', data)
+
 export const updateEmployee = (id: number, data: { grade?: number; is_active?: boolean; statut?: StatutEmploye }) =>
-  apiPatch<{ id: number; grade: number; is_active: boolean; statut: StatutEmploye }>(`/employees/${id}/`, data)
+  apiPatch<Employee>(`/employees/${id}/`, data)
+
+export const editEmployee = (id: number, data: FormData) => apiUpload<Employee>(`/employees/${id}/edit/`, data)
 
 export const fetchTeams = () => apiGet<Team[]>('/teams/')
 
 export const createTeam = (name: string, managerId: number | null) =>
   apiPost<Team>('/teams/', managerId ? { name, manager_id: managerId } : { name })
+
+export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null }) =>
+  apiPatch<Team>(`/teams/${id}/`, data)
+
+export const deleteTeam = (id: number) => apiDelete(`/teams/${id}/`)
 
 export const addTeamMember = (teamId: number, userId: number) =>
   apiPost<Team>(`/teams/${teamId}/add-member/`, { user_id: userId })

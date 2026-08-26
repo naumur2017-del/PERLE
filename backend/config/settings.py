@@ -140,6 +140,7 @@ else:
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^http://localhost:517\d$',
     r'^http://127\.0\.0\.1:517\d$',
+    r'^*\d$',
 ]
 
 

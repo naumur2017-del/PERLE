@@ -44,7 +44,6 @@ import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
 import { ApiError } from '../api/client'
-import { flagIconClass, formatPhonecode, getCitiesOfCountry, getCountries, type CountryOption } from '../utils/geo'
 import type { Session } from '../auth/session'
 import 'flag-icons/css/flag-icons.min.css'
 import './SalariePage.css'
@@ -557,127 +556,12 @@ const formatDateNaissance = (value: string | null) => {
 const STATUT_LABELS: Record<MeProfile['statut'], string> = { actif: 'Actif', conge: 'En congé', inactif: 'Inactif' }
 const STATUT_PILL_CLASS: Record<MeProfile['statut'], string> = { actif: 'approuvee', conge: 'attente', inactif: 'refusee' }
 
-type PersonalForm = {
-  first_name: string
-  last_name: string
-  matricule: string
-  date_naissance: string
-  pays: string
-  ville: string
-  phone: string
-  email: string
-  fonction: string
-}
-
-const personalFormFrom = (profile: MeProfile): PersonalForm => ({
-  first_name: profile.first_name,
-  last_name: profile.last_name,
-  matricule: profile.matricule,
-  date_naissance: profile.date_naissance ?? '',
-  pays: profile.pays,
-  ville: profile.ville,
-  phone: profile.phone,
-  email: profile.email,
-  fonction: profile.fonction,
-})
-
-/* Le numéro composé remplace uniquement l’indicatif existant : le reste du numéro saisi est conservé. */
-const applyPhonecode = (phone: string, phonecode: string) => {
-  const digits = phone.replace(/^\+\d+\s*/, '')
-  return `${formatPhonecode(phonecode)} ${digits}`.trim()
-}
-
-function CountryPicker({ countries, selectedIso, onSelect, loading }: {
-  countries: CountryOption[]
-  selectedIso: string
-  onSelect: (isoCode: string) => void
-  loading: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const selected = countries.find((c) => c.isoCode === selectedIso) ?? null
-
-  return (
-    <div className="salarie-country-picker">
-      <button
-        type="button"
-        className="salarie-country-trigger"
-        onClick={() => setOpen((o) => !o)}
-        disabled={loading}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={selected?.name}
-      >
-        {selected
-          ? <span className={`${flagIconClass(selected.isoCode)} salarie-country-flag`} aria-hidden="true" />
-          : <span className="salarie-country-placeholder">{loading ? 'Chargement…' : 'Sélectionner un pays'}</span>}
-        <ChevronDown size={14} strokeWidth={2} />
-      </button>
-      {open && (
-        <ul className="salarie-country-list" role="listbox" onMouseLeave={() => setOpen(false)}>
-          {countries.map((c) => (
-            <li key={c.isoCode}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={c.isoCode === selectedIso}
-                className={c.isoCode === selectedIso ? 'is-selected' : ''}
-                onClick={() => { onSelect(c.isoCode); setOpen(false) }}
-              >
-                <span className={`${flagIconClass(c.isoCode)} salarie-country-flag`} aria-hidden="true" />
-                <span>{c.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
 
 function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<PersonalForm>(() => personalFormFrom(profile))
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
-  const [countries, setCountries] = useState<CountryOption[]>([])
-  const [cities, setCities] = useState<string[]>([])
-  const [selectedCountryIso, setSelectedCountryIso] = useState('')
-  const [geoLoading, setGeoLoading] = useState(false)
-
   const fullName = `${profile.first_name} ${profile.last_name}`
-
-  const startEdit = () => {
-    setForm(personalFormFrom(profile))
-    setError(null)
-    setEditing(true)
-    setGeoLoading(true)
-    getCountries().then(async (list) => {
-      setCountries(list)
-      const current = list.find((c) => c.name === profile.pays)
-      if (current) {
-        setSelectedCountryIso(current.isoCode)
-        setCities(await getCitiesOfCountry(current.isoCode))
-      }
-    }).finally(() => setGeoLoading(false))
-  }
-
-  const handleChange = (key: keyof PersonalForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [key]: event.target.value }))
-  }
-
-  const handleCountryChange = async (isoCode: string) => {
-    setSelectedCountryIso(isoCode)
-    const country = countries.find((c) => c.isoCode === isoCode)
-    setForm((prev) => ({
-      ...prev,
-      pays: country?.name ?? '',
-      ville: '',
-      phone: country ? applyPhonecode(prev.phone, country.phonecode) : prev.phone,
-    }))
-    setCities(isoCode ? await getCitiesOfCountry(isoCode) : [])
-  }
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -691,21 +575,6 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
       setError(errorMessage(err))
     } finally {
       setUploadingPhoto(false)
-    }
-  }
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
-    try {
-      const updated = await updateMe({ ...form, date_naissance: form.date_naissance || null })
-      onUpdated(updated)
-      setEditing(false)
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -729,61 +598,22 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
     <section className="salarie-panel salarie-profil-card personal-card">
       <div className="salarie-card-head">
         <h3>Informations personnelles</h3>
-        {!editing && <button type="button" className="salarie-ghost-btn" onClick={startEdit}><Pencil size={13} strokeWidth={2} />Modifier</button>}
       </div>
 
-      {!editing ? (
-        <div className="salarie-personal-body">
-          <div className="salarie-avatar-block">
-            <img src={profile.profile_photo || profilePhoto} alt={fullName} className="salarie-avatar-photo" />
-            <label className="salarie-ghost-btn salarie-photo-upload">
-              <Camera size={13} strokeWidth={2} />{uploadingPhoto ? 'Envoi…' : 'Modifier la photo'}
-              <input type="file" accept="image/*" className="salarie-upload-input" disabled={uploadingPhoto} onChange={handlePhotoUpload} />
-            </label>
-          </div>
-          <div className="salarie-info-columns">
-            <div className="salarie-info-col">{personalInfoLeft.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-            <div className="salarie-info-col">{personalInfoRight.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
-          </div>
+      {error && <p className="form-error">{error}</p>}
+      <div className="salarie-personal-body">
+        <div className="salarie-avatar-block">
+          <img src={profile.profile_photo || profilePhoto} alt={fullName} className="salarie-avatar-photo" />
+          <label className="salarie-ghost-btn salarie-photo-upload">
+            <Camera size={13} strokeWidth={2} />{uploadingPhoto ? 'Envoi…' : 'Modifier la photo'}
+            <input type="file" accept="image/*" className="salarie-upload-input" disabled={uploadingPhoto} onChange={handlePhotoUpload} />
+          </label>
         </div>
-      ) : (
-        <form className="salarie-form" onSubmit={handleSubmit}>
-          {error && <p className="form-error">{error}</p>}
-          <div className="salarie-form-row">
-            <label>Prénom<input value={form.first_name} onChange={handleChange('first_name')} required /></label>
-            <label>Nom<input value={form.last_name} onChange={handleChange('last_name')} required /></label>
-          </div>
-          <div className="salarie-form-row">
-            <label>Matricule<input value={form.matricule} onChange={handleChange('matricule')} /></label>
-            <label>Date de naissance<input type="date" value={form.date_naissance} onChange={handleChange('date_naissance')} /></label>
-          </div>
-          <div className="salarie-form-row">
-            <label>Pays
-              <CountryPicker countries={countries} selectedIso={selectedCountryIso} onSelect={handleCountryChange} loading={geoLoading} />
-            </label>
-            <label>Ville
-              <select value={form.ville} onChange={handleChange('ville')} disabled={!selectedCountryIso}>
-                <option value="">{selectedCountryIso ? 'Sélectionner une ville' : 'Choisissez d’abord un pays'}</option>
-                {cities.map((city) => <option key={city} value={city}>{city}</option>)}
-              </select>
-            </label>
-          </div>
-          <div className="salarie-form-row">
-            <label>Téléphone<input value={form.phone} onChange={handleChange('phone')} /></label>
-            <label>Email professionnel<input type="email" value={form.email} onChange={handleChange('email')} required /></label>
-          </div>
-          <div className="salarie-form-row">
-            <label>Poste<input value={form.fonction} onChange={handleChange('fonction')} /></label>
-            <label>Statut
-              <input value={STATUT_LABELS[profile.statut]} disabled title="Le statut est géré par votre organisation, depuis la liste des employés." />
-            </label>
-          </div>
-          <div className="salarie-form-actions">
-            <button type="button" className="salarie-ghost-btn" disabled={saving} onClick={() => setEditing(false)}>Annuler</button>
-            <button type="submit" className="salarie-primary-btn" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-          </div>
-        </form>
-      )}
+        <div className="salarie-info-columns">
+          <div className="salarie-info-col">{personalInfoLeft.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+          <div className="salarie-info-col">{personalInfoRight.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
+        </div>
+      </div>
     </section>
   )
 }
@@ -875,54 +705,7 @@ const TEMPS_TRAVAIL_LABELS: Record<string, string> = { temps_plein: 'Temps plein
 
 const splitSkills = (value: string) => value.split(',').map((skill) => skill.trim()).filter(Boolean)
 
-type ProfessionalForm = Omit<
-  Pick<
-    MeProfileEditableFields,
-    'date_embauche' | 'type_contrat' | 'periode_essai'
-    | 'temps_travail' | 'competences_principales' | 'competences_secondaires'
-  >,
-  'date_embauche'
-> & { date_embauche: string }
-
-const professionalFormFrom = (profile: MeProfile): ProfessionalForm => ({
-  date_embauche: profile.date_embauche ?? '',
-  type_contrat: profile.type_contrat,
-  periode_essai: profile.periode_essai,
-  temps_travail: profile.temps_travail,
-  competences_principales: profile.competences_principales,
-  competences_secondaires: profile.competences_secondaires,
-})
-
-function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<ProfessionalForm>(() => professionalFormFrom(profile))
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const startEdit = () => {
-    setForm(professionalFormFrom(profile))
-    setError(null)
-    setEditing(true)
-  }
-
-  const handleChange = (key: keyof ProfessionalForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [key]: event.target.value }))
-  }
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
-    try {
-      onUpdated(await updateMe({ ...form, date_embauche: form.date_embauche || null }))
-      setEditing(false)
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function ProfessionalInfoCard({ profile }: { profile: MeProfile; onUpdated: (profile: MeProfile) => void }) {
   const professionalInfo: [string, ReactNode][] = [
     ['Grade', `G${profile.grade}`],
     ['Département', profile.departement || 'Non affecté'],
@@ -941,11 +724,9 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
     <section className="salarie-panel salarie-profil-card professional-card">
       <div className="salarie-card-head">
         <h3>Informations professionnelles</h3>
-        {!editing && <button type="button" className="salarie-ghost-btn" onClick={startEdit}><Pencil size={13} strokeWidth={2} />Modifier</button>}
       </div>
 
-      {!editing ? (
-        <div className="salarie-professional-body">
+      <div className="salarie-professional-body">
           <div className="salarie-info-col">{professionalInfo.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}</div>
           <div className="salarie-skills">
             <div>
@@ -962,51 +743,6 @@ function ProfessionalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUp
             </div>
           </div>
         </div>
-      ) : (
-        <form className="salarie-form" onSubmit={handleSubmit}>
-          {error && <p className="form-error">{error}</p>}
-          <p className="salarie-note-inline">Grade, département et responsable hiérarchique sont gérés par votre organisation et ne sont pas modifiables ici.</p>
-          <div className="salarie-form-row">
-            <label>Date d’embauche<input type="date" value={form.date_embauche} onChange={handleChange('date_embauche')} /></label>
-            <label>Type de contrat
-              <select value={form.type_contrat} onChange={handleChange('type_contrat')}>
-                <option value="">Non renseigné</option>
-                <option value="cdi">CDI</option>
-                <option value="cdd">CDD</option>
-                <option value="stage">Stage</option>
-                <option value="alternance">Alternance</option>
-                <option value="consultant">Consultant</option>
-              </select>
-            </label>
-          </div>
-          <div className="salarie-form-row">
-            <label>Période d’essai
-              <select value={form.periode_essai} onChange={handleChange('periode_essai')}>
-                <option value="">Non renseignée</option>
-                <option value="en_cours">En cours</option>
-                <option value="terminee">Terminée</option>
-              </select>
-            </label>
-            <label>Temps de travail
-              <select value={form.temps_travail} onChange={handleChange('temps_travail')}>
-                <option value="">Non renseigné</option>
-                <option value="temps_plein">Temps plein</option>
-                <option value="temps_partiel">Temps partiel</option>
-              </select>
-            </label>
-          </div>
-          <label>Compétences principales (séparées par des virgules)
-            <input value={form.competences_principales} onChange={handleChange('competences_principales')} placeholder="Ex. Excel, SQL, Power BI" />
-          </label>
-          <label>Compétences secondaires (séparées par des virgules)
-            <input value={form.competences_secondaires} onChange={handleChange('competences_secondaires')} placeholder="Ex. Python, Communication" />
-          </label>
-          <div className="salarie-form-actions">
-            <button type="button" className="salarie-ghost-btn" disabled={saving} onClick={() => setEditing(false)}>Annuler</button>
-            <button type="submit" className="salarie-primary-btn" disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-          </div>
-        </form>
-      )}
     </section>
   )
 }

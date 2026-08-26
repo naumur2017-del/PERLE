@@ -150,14 +150,30 @@ class User(AbstractBaseUser, PermissionsMixin):
         if days or not parts: parts.append(f"{days} jour{'s' if days > 1 else ''}")
         return ', '.join(parts[:-1]) + (' et ' + parts[-1] if len(parts) > 1 else parts[0])
 
-    def move_to_team(self, team):
-        """Reassign this user's team, clearing them as manager of any team they're leaving."""
+    def move_to_team(self, team, changed_by=None):
+        """Reassign this user's team, clearing them as manager of any team they're leaving, and log the change."""
         previous_team = self.team
+        if (previous_team.id if previous_team else None) == (team.id if team else None):
+            return
         if previous_team and previous_team.manager_id == self.id and previous_team != team:
             previous_team.manager = None
             previous_team.save(update_fields=['manager'])
         self.team = team
         self.save(update_fields=['team'])
+        AffectationHistory.objects.create(
+            employee=self, ancienne_equipe=previous_team, nouvelle_equipe=team, changed_by=changed_by,
+        )
+
+    def change_grade(self, new_grade, changed_by=None):
+        """Update this user's grade and log the change."""
+        if self.grade == new_grade:
+            return
+        ancien_grade = self.grade
+        self.grade = new_grade
+        self.save(update_fields=['grade'])
+        GradeHistory.objects.create(
+            employee=self, ancien_grade=ancien_grade, nouveau_grade=new_grade, changed_by=changed_by,
+        )
 
 
 class Team(models.Model):
@@ -167,6 +183,10 @@ class Team(models.Model):
     manager = models.ForeignKey(
         User, on_delete=models.SET_NULL, related_name='teams_managed', null=True, blank=True
     )
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, related_name='sub_teams', null=True, blank=True
+    )
+    is_protected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -175,3 +195,57 @@ class Team(models.Model):
 
     def __str__(self):
         return f'{self.code} — {self.name}'
+
+
+DEFAULT_TEAMS = (
+    ('DG', 'Direction Générale'),
+    ('PIL', 'Pilotage'),
+    ('RES', 'Ressources'),
+)
+
+
+def create_default_teams(organisation, dg_user):
+    """Seed the 3 protected default teams (Direction Générale > Pilotage > Ressources)
+    for a newly created organisation, and make dg_user the DG (manager of Direction Générale)."""
+    parent = None
+    direction = None
+    for code, name in DEFAULT_TEAMS:
+        team = Team.objects.create(
+            organisation=organisation, code=code, name=name, parent=parent, is_protected=True,
+        )
+        if direction is None:
+            direction = team
+        parent = team
+    direction.manager = dg_user
+    direction.save(update_fields=['manager'])
+    dg_user.team = direction
+    dg_user.save(update_fields=['team'])
+
+
+class GradeHistory(models.Model):
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='grade_history')
+    ancien_grade = models.PositiveIntegerField(null=True, blank=True)
+    nouveau_grade = models.PositiveIntegerField()
+    changed_at = models.DateTimeField(auto_now_add=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['-changed_at']
+
+    def __str__(self):
+        return f'{self.employee} : G{self.ancien_grade} → G{self.nouveau_grade}'
+
+
+class AffectationHistory(models.Model):
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='affectation_history')
+    ancienne_equipe = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    nouvelle_equipe = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    changed_at = models.DateTimeField(auto_now_add=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['-changed_at']
+        verbose_name_plural = 'Affectation histories'
+
+    def __str__(self):
+        return f'{self.employee} : {self.ancienne_equipe} → {self.nouvelle_equipe}'

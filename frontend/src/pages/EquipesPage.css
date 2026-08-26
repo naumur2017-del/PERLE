@@ -24,6 +24,7 @@
 
 .eq-code { color: #6b46c1; font-weight: 700; }
 .eq-name { color: #14123a; font-weight: 600; }
+.eq-protected-icon { margin-left: 6px; color: #b45309; vertical-align: middle; }
 
 .eq-manager-cell { display: flex; align-items: center; gap: 9px; }
 .eq-manager-avatar { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; color: #ffffff; font-size: 10px; font-weight: 700; }
@@ -37,6 +38,39 @@
 .eq-row-actions { display: flex; align-items: center; }
 .eq-row-action { display: grid; place-items: center; width: 28px; height: 28px; border: none; border-radius: 7px; background: none; color: #8f8fa6; cursor: pointer; }
 .eq-row-action:hover { background: #f0eef8; color: #6b46c1; }
+
+.eq-row-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.eq-row-menu-list {
+  position: fixed;
+  z-index: 41;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid #e5e1f5;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(30, 20, 80, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eq-row-menu-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #2b2b4a;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.eq-row-menu-list button:hover { background: #f4f1ff; color: #6b46c1; }
+.eq-row-menu-danger { color: #b91c1c !important; }
+.eq-row-menu-danger:hover { background: #fee2e2 !important; color: #b91c1c !important; }
+.eq-row-menu-hint { display: flex; align-items: center; gap: 6px; padding: 8px 9px; color: #8f8fa6; font-size: 11px; font-weight: 600; }
 
 /* =============== EXPANDED MEMBER PANEL =============== */
 .eq-detail-row td { padding: 0; background: #faf9ff; border-bottom: 1px solid #eae7f6; }

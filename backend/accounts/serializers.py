@@ -3,7 +3,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Organisation, Team, User
+from .models import AffectationHistory, GradeHistory, Organisation, Team, User, create_default_teams
 
 
 class OrganisationSearchSerializer(serializers.ModelSerializer):
@@ -74,6 +74,7 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
             role='directeur',
             organisation=organisation,
         )
+        create_default_teams(organisation, user)
         return user
 
 
@@ -135,6 +136,7 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
             role='directeur',
             organisation=organisation,
         )
+        create_default_teams(organisation, user)
         return user
 
 
@@ -200,8 +202,34 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         return obj.team_id is not None and obj.team.manager_id == obj.id
 
 
+class GradeHistorySerializer(serializers.ModelSerializer):
+    changed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GradeHistory
+        fields = ['id', 'ancien_grade', 'nouveau_grade', 'changed_at', 'changed_by']
+
+    def get_changed_by(self, obj):
+        return f'{obj.changed_by.first_name} {obj.changed_by.last_name}' if obj.changed_by else None
+
+
+class AffectationHistorySerializer(serializers.ModelSerializer):
+    ancienne_equipe = TeamSummarySerializer(read_only=True)
+    nouvelle_equipe = TeamSummarySerializer(read_only=True)
+    changed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AffectationHistory
+        fields = ['id', 'ancienne_equipe', 'nouvelle_equipe', 'changed_at', 'changed_by']
+
+    def get_changed_by(self, obj):
+        return f'{obj.changed_by.first_name} {obj.changed_by.last_name}' if obj.changed_by else None
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     team = TeamSummarySerializer(read_only=True)
+    grade_history = GradeHistorySerializer(many=True, read_only=True)
+    affectation_history = AffectationHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -209,8 +237,58 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
             'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'is_active',
             'team', 'date_joined', 'date_embauche',
-            'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
+            'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
+            'type_contrat', 'periode_essai', 'temps_travail',
+            'competences_principales', 'competences_secondaires',
+            'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
+            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
+            'grade_history', 'affectation_history',
         ]
+
+
+class EmployeeCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    team_id = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), source='team', required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
+            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'team_id',
+            'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
+            'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
+            'temps_travail', 'competences_principales', 'competences_secondaires',
+            'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
+            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
+        ]
+        read_only_fields = ['id']
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('Un compte existe déjà avec cet e-mail.')
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate_team_id(self, value):
+        request = self.context['request']
+        if value is not None and value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        request = self.context['request']
+        return User.objects.create_user(
+            password=password,
+            role='salarie',
+            organisation=request.user.organisation,
+            **validated_data,
+        )
 
 
 class EmployeeAdminUpdateSerializer(serializers.ModelSerializer):
@@ -224,6 +302,70 @@ class EmployeeAdminUpdateSerializer(serializers.ModelSerializer):
         if attrs.get('is_active') is False and request and self.instance == request.user:
             raise serializers.ValidationError({'is_active': 'Vous ne pouvez pas désactiver votre propre compte.'})
         return attrs
+
+    def update(self, instance, validated_data):
+        grade = validated_data.pop('grade', None)
+        request = self.context.get('request')
+        changed_by = request.user if request else None
+        instance = super().update(instance, validated_data)
+        if grade is not None:
+            instance.change_grade(grade, changed_by=changed_by)
+        return instance
+
+
+class EmployeeAdminEditSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    team_id = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), source='team', required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
+            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'team_id',
+            'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
+            'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
+            'temps_travail', 'competences_principales', 'competences_secondaires',
+            'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
+            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
+        ]
+        read_only_fields = ['id']
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError('Un compte existe déjà avec cet e-mail.')
+        return value
+
+    def validate_password(self, value):
+        if value:
+            validate_password(value)
+        return value
+
+    def validate_team_id(self, value):
+        request = self.context['request']
+        if value is not None and value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+        return value
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        grade = validated_data.pop('grade', None)
+        team_provided = 'team' in validated_data
+        team = validated_data.pop('team', None)
+        request = self.context.get('request')
+        changed_by = request.user if request else None
+
+        instance = super().update(instance, validated_data)
+
+        if password:
+            instance.set_password(password)
+            instance.save(update_fields=['password'])
+        if grade is not None:
+            instance.change_grade(grade, changed_by=changed_by)
+        if team_provided:
+            instance.move_to_team(team, changed_by=changed_by)
+        return instance
 
 
 class EmployeeMeSerializer(serializers.ModelSerializer):
@@ -273,11 +415,12 @@ class TeamSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
     )
     members = TeamMemberSerializer(many=True, read_only=True, source='team_members')
+    parent = TeamSummarySerializer(read_only=True)
 
     class Meta:
         model = Team
-        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'created_at']
-        read_only_fields = ['id', 'code', 'created_at']
+        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'parent', 'is_protected', 'created_at']
+        read_only_fields = ['id', 'code', 'is_protected', 'created_at']
 
     def validate_manager_id(self, value):
         request = self.context['request']
@@ -285,9 +428,14 @@ class TeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Ce manager n’appartient pas à votre organisation.')
         return value
 
+    def validate_name(self, value):
+        if self.instance and self.instance.is_protected and value != self.instance.name:
+            raise serializers.ValidationError('Cette équipe est protégée : son nom ne peut pas être modifié.')
+        return value
+
     def create(self, validated_data):
         organisation = self.context['request'].user.organisation
-        last = Team.objects.filter(organisation=organisation).order_by('-id').first()
+        last = Team.objects.filter(organisation=organisation, code__startswith='EQ-').order_by('-id').first()
         next_num = int(last.code.replace('EQ-', '')) + 1 if last else 1
         team = Team.objects.create(organisation=organisation, code=f'EQ-{next_num:03d}', **validated_data)
         manager = validated_data.get('manager')

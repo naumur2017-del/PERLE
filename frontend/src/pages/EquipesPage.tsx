@@ -1,9 +1,13 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  ArrowUpDown, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ChevronLeft, MoreVertical,
-  Network, Plus, Search, UserPlus, Users, Users2, X,
+  ArrowUpDown, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ChevronLeft, Lock, MoreVertical,
+  Network, Pencil, Plus, Search, Trash2, UserPlus, Users, Users2, X,
 } from 'lucide-react'
-import { addTeamMember, createTeam, fetchEmployees, fetchTeams, removeTeamMember, type Employee, type Team, type TeamMember } from '../api/employees'
+import {
+  addTeamMember, createTeam, deleteTeam, fetchEmployees, fetchTeams, removeTeamMember, updateTeam,
+  type Employee, type Team, type TeamMember,
+} from '../api/employees'
 import { ApiError } from '../api/client'
 import './GestionEquipesPage.css'
 import './EquipesPage.css'
@@ -140,6 +144,130 @@ function CreateEquipeModal({ employees, onClose, onCreate }: { employees: Employ
   )
 }
 
+function EditEquipeModal({ team, employees, onClose, onSave }: {
+  team: Team
+  employees: Employee[]
+  onClose: () => void
+  onSave: (name: string, managerId: number | null) => Promise<void>
+}) {
+  const [nom, setNom] = useState(team.name)
+  const [managerId, setManagerId] = useState<number | null>(team.manager?.id ?? null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSave = nom.trim() !== '' && !submitting
+
+  const handleSubmit = async () => {
+    if (!canSave) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await onSave(nom.trim(), managerId)
+    } catch (err) {
+      setError(errorMessage(err))
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="eq-modal-overlay" role="dialog" aria-modal="true" aria-label="Modifier l'équipe" onMouseDown={onClose}>
+      <div className="eq-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="eq-modal-head">
+          <div>
+            <h3>Modifier l'équipe</h3>
+            <p>{team.is_protected ? 'Équipe protégée : seul le manager peut être modifié.' : 'Mettez à jour son nom et son manager.'}</p>
+          </div>
+          <button type="button" className="eq-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+
+        <label className="eq-modal-field">Nom de l'équipe *
+          <input
+            autoFocus={!team.is_protected}
+            value={nom}
+            onChange={(event) => setNom(event.target.value)}
+            disabled={team.is_protected}
+            title={team.is_protected ? 'Le nom de cette équipe protégée ne peut pas être modifié.' : undefined}
+          />
+        </label>
+
+        <label className="eq-modal-field">Manager
+          <select value={managerId ?? ''} onChange={(event) => setManagerId(event.target.value ? Number(event.target.value) : null)}>
+            <option value="">Non assigné</option>
+            {employees.map((p) => <option key={p.id} value={p.id}>{nomComplet(p)} — {p.fonction || 'Sans fonction'}</option>)}
+          </select>
+        </label>
+
+        <div className="eq-modal-actions">
+          <button type="button" className="eq-modal-cancel" onClick={onClose}>Annuler</button>
+          <button type="button" className="eq-modal-submit" disabled={!canSave} onClick={handleSubmit}>{submitting ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TeamRowMenu({ team, onEdit, onDelete }: { team: Team; onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  const toggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setPosition({ top: rect.bottom + 6, left: rect.right - 190 })
+    }
+    setOpen((value) => !value)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={buttonRef}
+        className="eq-row-action"
+        aria-label="Autres actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Autres actions"
+        onClick={toggle}
+      >
+        <MoreVertical size={14} />
+      </button>
+      {open && position && createPortal(
+        <>
+          <div className="eq-row-menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="eq-row-menu-list" role="menu" style={{ top: position.top, left: position.left }}>
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onEdit() }}>
+              <Pencil size={13} strokeWidth={2} />Modifier
+            </button>
+            {team.is_protected ? (
+              <span className="eq-row-menu-hint"><Lock size={12} strokeWidth={2} />Équipe protégée</span>
+            ) : (
+              <button type="button" role="menuitem" className="eq-row-menu-danger" onClick={() => { setOpen(false); onDelete() }}>
+                <Trash2 size={13} strokeWidth={2} />Supprimer
+              </button>
+            )}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  )
+}
+
 function AddMemberPicker({ employees, onAdd, onCancel }: { employees: Employee[]; onAdd: (id: number) => void; onCancel: () => void }) {
   return (
     <div className="eq-add-member-picker">
@@ -164,6 +292,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [addingMemberFor, setAddingMemberFor] = useState<number | null>(null)
+  const [editingTeamId, setEditingTeamId] = useState<number | null>(null)
 
   const loadData = () => Promise.all([fetchTeams(), fetchEmployees()]).then(([teamsData, employeesData]) => {
     setEquipes(teamsData)
@@ -214,6 +343,18 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     await loadData()
   }
 
+  const handleUpdateEquipe = async (teamId: number, nom: string, managerId: number | null) => {
+    await updateTeam(teamId, { name: nom, manager_id: managerId })
+    await loadData()
+    setEditingTeamId(null)
+  }
+
+  const handleDeleteEquipe = async (team: Team) => {
+    if (!window.confirm(`Supprimer l'équipe « ${team.name} » ? Ses membres seront désaffectés.`)) return
+    await deleteTeam(team.id)
+    await loadData()
+  }
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     const list = equipes.filter((equipe) => (
@@ -232,6 +373,8 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     })
     return sorted
   }, [equipes, search, managerFiltre, sort])
+
+  const editingTeam = equipes.find((equipe) => equipe.id === editingTeamId) ?? null
 
   return (
     <section className="ge-page">
@@ -301,7 +444,10 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                           </button>
                         </td>
                         <td className="eq-code">{equipe.code}</td>
-                        <td className="eq-name">{equipe.name}</td>
+                        <td className="eq-name">
+                          {equipe.name}
+                          {equipe.is_protected && <Lock size={11} strokeWidth={2} className="eq-protected-icon" aria-label="Équipe protégée" />}
+                        </td>
                         <td>
                           {equipe.manager ? (
                             <div className="eq-manager-cell">
@@ -319,7 +465,11 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                         <td className={`eq-count ${actifs < equipe.members.length ? 'eq-count-warn' : ''}`}>{actifs}</td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <div className="eq-row-actions">
-                            <button type="button" className="eq-row-action" aria-label="Autres actions" title="Autres actions"><MoreVertical size={14} /></button>
+                            <TeamRowMenu
+                              team={equipe}
+                              onEdit={() => setEditingTeamId(equipe.id)}
+                              onDelete={() => handleDeleteEquipe(equipe)}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -403,6 +553,15 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
           employees={employees}
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateEquipe}
+        />
+      )}
+
+      {editingTeam && (
+        <EditEquipeModal
+          team={editingTeam}
+          employees={employees}
+          onClose={() => setEditingTeamId(null)}
+          onSave={(nom, managerId) => handleUpdateEquipe(editingTeam.id, nom, managerId)}
         />
       )}
     </section>
