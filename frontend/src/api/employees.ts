@@ -81,7 +81,7 @@ export interface Team {
   name: string
   manager: TeamMember | null
   members: TeamMember[]
-  parent: TeamSummary | null
+  niveau: number
   is_protected: boolean
   created_at: string
 }
@@ -100,7 +100,7 @@ export const fetchTeams = () => apiGet<Team[]>('/teams/')
 export const createTeam = (name: string, managerId: number | null) =>
   apiPost<Team>('/teams/', managerId ? { name, manager_id: managerId } : { name })
 
-export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null }) =>
+export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null; niveau?: number }) =>
   apiPatch<Team>(`/teams/${id}/`, data)
 
 export const deleteTeam = (id: number) => apiDelete(`/teams/${id}/`)

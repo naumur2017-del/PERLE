@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('organisations/search/', views.OrganisationSearchView.as_view()),
+    path('organisations/levels/', views.OrganisationLevelsView.as_view()),
     path('organisations/register/personal/', views.RegisterPersonalOrganisationView.as_view()),
     path('organisations/register/company/', views.RegisterCompanyOrganisationView.as_view()),
     path('organisations/register/member/', views.RegisterMemberView.as_view()),

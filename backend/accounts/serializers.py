@@ -17,6 +17,27 @@ class OrganisationSearchSerializer(serializers.ModelSerializer):
         return obj.members.count()
 
 
+class OrganisationLevelsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organisation
+        fields = ['team_levels_count']
+
+    def validate_team_levels_count(self, value):
+        current = self.instance.team_levels_count
+        if value == current:
+            return value
+        if value < 4:
+            raise serializers.ValidationError('Il doit toujours y avoir au moins 4 niveaux (3 équipes par défaut + 1).')
+        if value > current + 1:
+            raise serializers.ValidationError('Vous ne pouvez ajouter qu’un seul niveau à la fois.')
+        if value < current:
+            if value != current - 1:
+                raise serializers.ValidationError('Vous ne pouvez retirer que le dernier niveau.')
+            if self.instance.teams.filter(niveau=current).exists():
+                raise serializers.ValidationError('Ce niveau contient encore des équipes : déplacez-les avant de le retirer.')
+        return value
+
+
 class TeamSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
@@ -415,11 +436,10 @@ class TeamSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
     )
     members = TeamMemberSerializer(many=True, read_only=True, source='team_members')
-    parent = TeamSummarySerializer(read_only=True)
 
     class Meta:
         model = Team
-        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'parent', 'is_protected', 'created_at']
+        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'niveau', 'is_protected', 'created_at']
         read_only_fields = ['id', 'code', 'is_protected', 'created_at']
 
     def validate_manager_id(self, value):
@@ -433,11 +453,22 @@ class TeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Cette équipe est protégée : son nom ne peut pas être modifié.')
         return value
 
+    def validate_niveau(self, value):
+        if self.instance and self.instance.is_protected and value != self.instance.niveau:
+            raise serializers.ValidationError('Cette équipe est protégée : son niveau ne peut pas être modifié.')
+        request = self.context['request']
+        organisation = request.user.organisation
+        max_niveau = organisation.team_levels_count if organisation else 4
+        if value < 1 or value > max_niveau:
+            raise serializers.ValidationError(f'Le niveau doit être compris entre 1 et {max_niveau}.')
+        return value
+
     def create(self, validated_data):
         organisation = self.context['request'].user.organisation
         last = Team.objects.filter(organisation=organisation, code__startswith='EQ-').order_by('-id').first()
         next_num = int(last.code.replace('EQ-', '')) + 1 if last else 1
-        team = Team.objects.create(organisation=organisation, code=f'EQ-{next_num:03d}', **validated_data)
+        validated_data.pop('niveau', None)
+        team = Team.objects.create(organisation=organisation, code=f'EQ-{next_num:03d}', niveau=4, **validated_data)
         manager = validated_data.get('manager')
         if manager is not None:
             manager.move_to_team(team)

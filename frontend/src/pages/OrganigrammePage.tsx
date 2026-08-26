@@ -24,10 +24,8 @@ function MemberCard({ member }: { member: TeamMember }) {
   )
 }
 
-function TeamBranch({ team, allTeams }: { team: Team; allTeams: Team[] }) {
+function TeamCard({ team }: { team: Team }) {
   const orderedMembers = [...team.members].sort((a, b) => Number(b.is_manager) - Number(a.is_manager))
-  const children = allTeams.filter((candidate) => candidate.parent?.id === team.id)
-
   return (
     <div className="og-branch">
       <div className={`og-card og-card-team ${team.is_protected ? 'is-protected' : ''}`}>
@@ -39,15 +37,6 @@ function TeamBranch({ team, allTeams }: { team: Team; allTeams: Team[] }) {
           ? orderedMembers.map((member) => <MemberCard key={member.id} member={member} />)
           : <p className="og-empty-hint">Aucun membre</p>}
       </div>
-
-      {children.length > 0 && (
-        <>
-          <div className="og-connector" />
-          <div className="og-branches">
-            {children.map((child) => <TeamBranch key={child.id} team={child} allTeams={allTeams} />)}
-          </div>
-        </>
-      )}
     </div>
   )
 }
@@ -72,50 +61,78 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
   }, [])
 
   const unassigned = useMemo(() => employees.filter((employee) => !employee.team), [employees])
-  const rootTeams = useMemo(() => teams.filter((team) => !team.parent), [teams])
+
+  /* Chaque niveau d'équipe forme une ligne de l'organigramme : les équipes qui partagent
+     un niveau apparaissent côte à côte sur cette même ligne, triées par niveau croissant. */
+  const levels = useMemo(() => {
+    const byNiveau = new Map<number, Team[]>()
+    for (const team of teams) {
+      const bucket = byNiveau.get(team.niveau) ?? []
+      bucket.push(team)
+      byNiveau.set(team.niveau, bucket)
+    }
+    return Array.from(byNiveau.entries()).sort(([a], [b]) => a - b)
+  }, [teams])
+
+  const isEmpty = !loading && !loadError && levels.length === 0 && unassigned.length === 0
 
   return (
     <section className="og-page">
+      <div className="og-legend">
+        <span className="og-legend-item"><span className="og-legend-swatch og-legend-manager" /><Crown size={11} strokeWidth={2.5} />Manager d'équipe</span>
+        <span className="og-legend-item"><Lock size={11} strokeWidth={2.5} />Équipe protégée</span>
+        <span className="og-legend-item"><span className="og-legend-swatch og-legend-actif" />Actif</span>
+        <span className="og-legend-item"><span className="og-legend-swatch og-legend-conge" />En congé</span>
+        <span className="og-legend-item"><span className="og-legend-swatch og-legend-inactif" />Inactif</span>
+      </div>
+
       {loading && <p className="og-empty-state">Chargement de l’organigramme…</p>}
       {loadError && <p className="og-empty-state">{loadError}</p>}
+      {isEmpty && <p className="og-empty-state">Aucun employé pour le moment.</p>}
 
-      {!loading && !loadError && (
+      {!loading && !loadError && !isEmpty && (
         <div className="og-chart">
-          <div className="og-node-root">
-            <div className="og-card og-card-root"><Building2 size={16} strokeWidth={2} />{session.organisationName}</div>
-          </div>
-          <div className="og-connector" />
+          <div className="og-tree">
+            <div className="og-tree-root">
+              <div className="og-card og-card-root"><Building2 size={16} strokeWidth={2} />{session.organisationName}</div>
+            </div>
 
-          <div className="og-branches">
-            {rootTeams.map((team) => <TeamBranch key={team.id} team={team} allTeams={teams} />)}
+            {levels.map(([niveau, teamsInLevel]) => (
+              <div className="og-tree-level" key={niveau}>
+                <div className="og-tree-connector"><span className="og-level-tag">Niveau {niveau}</span></div>
+                <div className="og-branches">
+                  {teamsInLevel.map((team) => <TeamCard key={team.id} team={team} />)}
+                </div>
+              </div>
+            ))}
 
             {unassigned.length > 0 && (
-              <div className="og-branch">
-                <div className="og-card og-card-team og-card-unassigned"><UserX size={13} strokeWidth={2} />Non affectés</div>
-                <div className="og-branch-members">
-                  {unassigned.map((employee) => (
-                    <MemberCard
-                      key={employee.id}
-                      member={{
-                        id: employee.id,
-                        first_name: employee.first_name,
-                        last_name: employee.last_name,
-                        email: employee.email,
-                        fonction: employee.fonction,
-                        matricule: employee.matricule,
-                        statut: employee.statut,
-                        is_manager: false,
-                      }}
-                    />
-                  ))}
+              <div className="og-tree-level">
+                <div className="og-tree-connector"><span className="og-level-tag og-level-tag-muted"><UserX size={11} strokeWidth={2} />Non affectés</span></div>
+                <div className="og-branches">
+                  <div className="og-branch">
+                    <div className="og-branch-members">
+                      {unassigned.map((employee) => (
+                        <MemberCard
+                          key={employee.id}
+                          member={{
+                            id: employee.id,
+                            first_name: employee.first_name,
+                            last_name: employee.last_name,
+                            email: employee.email,
+                            fonction: employee.fonction,
+                            matricule: employee.matricule,
+                            statut: employee.statut,
+                            is_manager: false,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-
-          {teams.length === 0 && unassigned.length === 0 && (
-            <p className="og-empty-state">Aucun employé pour le moment.</p>
-          )}
         </div>
       )}
     </section>

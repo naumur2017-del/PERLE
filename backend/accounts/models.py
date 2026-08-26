@@ -29,6 +29,9 @@ class Organisation(models.Model):
     website = models.URLField(blank=True)
     registration_number = models.CharField(max_length=100, blank=True)
     headcount = models.CharField(max_length=20, choices=HEADCOUNT_CHOICES, blank=True)
+    # Nombre de niveaux d’organigramme disponibles pour les équipes : au moins les 3 niveaux
+    # protégés (Direction, Pilotage, Ressources) + 1 niveau libre pour les équipes créées ensuite.
+    team_levels_count = models.PositiveIntegerField(default=4)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -183,9 +186,8 @@ class Team(models.Model):
     manager = models.ForeignKey(
         User, on_delete=models.SET_NULL, related_name='teams_managed', null=True, blank=True
     )
-    parent = models.ForeignKey(
-        'self', on_delete=models.SET_NULL, related_name='sub_teams', null=True, blank=True
-    )
+    # Le niveau détermine la ligne de l’équipe dans l’organigramme (1 = le plus haut).
+    niveau = models.PositiveIntegerField(default=4)
     is_protected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -205,17 +207,16 @@ DEFAULT_TEAMS = (
 
 
 def create_default_teams(organisation, dg_user):
-    """Seed the 3 protected default teams (Direction Générale > Pilotage > Ressources)
-    for a newly created organisation, and make dg_user the DG (manager of Direction Générale)."""
-    parent = None
+    """Seed the 3 protected default teams on their own levels (Direction Générale=1,
+    Pilotage=2, Ressources=3) for a newly created organisation, and make dg_user the DG
+    (manager of Direction Générale)."""
     direction = None
-    for code, name in DEFAULT_TEAMS:
+    for niveau, (code, name) in enumerate(DEFAULT_TEAMS, start=1):
         team = Team.objects.create(
-            organisation=organisation, code=code, name=name, parent=parent, is_protected=True,
+            organisation=organisation, code=code, name=name, niveau=niveau, is_protected=True,
         )
         if direction is None:
             direction = team
-        parent = team
     direction.manager = dg_user
     direction.save(update_fields=['manager'])
     dg_user.team = direction

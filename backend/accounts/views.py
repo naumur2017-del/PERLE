@@ -16,6 +16,7 @@ from .serializers import (
     EmployeeMeSerializer,
     EmployeeSerializer,
     LoginSerializer,
+    OrganisationLevelsSerializer,
     OrganisationSearchSerializer,
     RegisterCompanyOrganisationSerializer,
     RegisterMemberSerializer,
@@ -36,6 +37,17 @@ class OrganisationSearchView(generics.ListAPIView):
         return Organisation.objects.filter(
             Q(name__icontains=query) | Q(email__icontains=query)
         ).order_by('name')
+
+
+class OrganisationLevelsView(generics.RetrieveUpdateAPIView):
+    serializer_class = OrganisationLevelsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        return organisation
 
 
 class _RegisterView(APIView):

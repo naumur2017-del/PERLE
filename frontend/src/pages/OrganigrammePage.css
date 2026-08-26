@@ -1,6 +1,7 @@
 .og-page {
   display: flex;
   flex-direction: column;
+  gap: 18px;
   flex: 1;
   width: 100%;
   padding: 20px 32px 28px;
@@ -12,17 +13,74 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
-.og-empty-state { text-align: center; color: #8f8fa6; font-weight: 600; padding: 40px 10px; }
+/* =============== LEGEND =============== */
+.og-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border: 1px solid #eae7f6;
+  border-radius: 10px;
+  background: #faf9fe;
+}
+.og-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #6c6c85; }
+.og-legend-item svg { color: #6b46c1; flex-shrink: 0; }
+.og-legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.og-legend-manager { background: #f0c419; }
+.og-legend-actif { background: #22c55e; }
+.og-legend-conge { background: #f59e0b; }
+.og-legend-inactif { background: #ef4444; }
 
-.og-chart { display: flex; flex-direction: column; align-items: center; overflow-x: auto; padding-bottom: 8px; }
+.og-empty-state { text-align: center; color: #8f8fa6; font-weight: 600; padding: 48px 10px; }
 
-.og-node-root { display: flex; justify-content: center; }
+/* =============== CHART / TREE =============== */
+.og-chart { display: flex; justify-content: center; overflow-x: auto; padding-bottom: 8px; }
 
-.og-connector { width: 2px; height: 24px; background: #ddd8f2; }
+.og-tree { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 1100px; }
 
-.og-branches { display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; width: 100%; }
+.og-tree-root { display: flex; justify-content: center; }
 
-.og-branch { position: relative; display: flex; flex-direction: column; align-items: center; padding-top: 24px; min-width: 240px; }
+.og-tree-level { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+/* Trait vertical porteur de l'étiquette de niveau, entre une rangée et la suivante. */
+.og-tree-connector { position: relative; display: flex; align-items: center; justify-content: center; height: 34px; }
+.og-tree-connector::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: #ddd8f2;
+  transform: translateX(-50%);
+}
+
+.og-level-tag {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border: 1px solid #ddd8f2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b46c1;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.og-level-tag-muted { color: #8f8fa6; }
+.og-level-tag-muted svg { color: #8f8fa6; }
+
+/* Rangée d'équipes d'un même niveau : chaque carte se raccorde au tronc commun par une
+   ligne verticale ; une barre horizontale relie les cartes entre elles pour former les branches. */
+.og-branches { display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 6px; }
+
+.og-branch { position: relative; display: flex; flex-direction: column; min-width: 230px; margin: 0 16px; padding-top: 20px; }
 
 .og-branch::before {
   content: '';
@@ -30,23 +88,26 @@
   top: 0;
   left: 50%;
   width: 2px;
-  height: 24px;
+  height: 20px;
   background: #ddd8f2;
   transform: translateX(-50%);
 }
 
-.og-branch-members {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
-  width: 100%;
+.og-branches:has(.og-branch + .og-branch) .og-branch::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -16px;
+  right: -16px;
+  height: 2px;
+  background: #ddd8f2;
 }
+.og-branches:has(.og-branch + .og-branch) .og-branch:first-child::after { left: 50%; }
+.og-branches:has(.og-branch + .og-branch) .og-branch:last-child::after { right: 50%; }
+
+.og-branch-members { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%; }
 
 .og-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   border: 1px solid #eae7f6;
   border-radius: 10px;
   background: #ffffff;
@@ -54,31 +115,38 @@
 }
 
 .og-card-root {
-  padding: 10px 20px;
-  border-color: #6b46c1;
-  background: #6b46c1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 22px;
+  border-color: #14123a;
+  background: linear-gradient(135deg, #14123a, #2b2359);
   color: #ffffff;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .og-card-team {
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 10px 18px;
-  min-width: 160px;
-  text-align: center;
+  padding: 10px 16px;
+  text-align: left;
+  transition: box-shadow 150ms ease, transform 150ms ease;
 }
-.og-card-team strong { display: flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 800; color: #6b46c1; }
+.og-card-team:hover { box-shadow: 0 6px 16px rgba(30, 20, 80, 0.09); transform: translateY(-1px); }
+.og-card-team.is-protected { border-color: #e9d9b8; background: #fffdf7; }
+.og-card-team strong { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: #6b46c1; letter-spacing: 0.02em; }
 .og-protected-icon { color: #b45309; }
-.og-card-team span { font-size: 11px; font-weight: 700; color: #14123a; }
+.og-card-team span { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 700; color: #14123a; }
 
-.og-card-unassigned { flex-direction: row; gap: 6px; color: #8f8fa6; }
-.og-card-unassigned strong, .og-card-unassigned span { color: #8f8fa6; }
-
-.og-card-member { padding: 8px 10px; }
-.og-card-member.is-manager { border-color: #f0c419; background: #fffbea; }
+.og-card-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  transition: box-shadow 150ms ease;
+}
+.og-card-member:hover { box-shadow: 0 4px 12px rgba(30, 20, 80, 0.08); }
+.og-card-member.is-manager { border-color: #f0c419; background: linear-gradient(90deg, #fffbea, #ffffff); }
 
 .og-avatar {
   display: grid;
@@ -102,10 +170,10 @@
 .og-pill-conge { background: #fef1d8; color: #b45309; }
 .og-pill-inactif { background: #fee2e2; color: #b91c1c; }
 
-.og-empty-hint { font-size: 11px; color: #8f8fa6; text-align: center; padding: 6px 0; }
+.og-empty-hint { font-size: 11px; color: #8f8fa6; padding: 6px 2px; }
 
 @media (max-width: 720px) {
-  .og-page { padding: 16px; }
-  .og-branches { gap: 18px; }
-  .og-branch { min-width: 200px; }
+  .og-page { padding: 16px; gap: 14px; }
+  .og-legend { gap: 10px; }
+  .og-branch { min-width: 200px; margin: 0 10px; }
 }

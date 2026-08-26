@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ArrowUpDown, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ChevronLeft, Lock, MoreVertical,
+  ArrowUpDown, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ChevronLeft, Layers, Lock, Minus, MoreVertical,
   Network, Pencil, Plus, Search, Trash2, UserPlus, Users, Users2, X,
 } from 'lucide-react'
 import {
   addTeamMember, createTeam, deleteTeam, fetchEmployees, fetchTeams, removeTeamMember, updateTeam,
   type Employee, type Team, type TeamMember,
 } from '../api/employees'
+import { fetchOrganisationLevels, updateOrganisationLevels } from '../api/organisation'
 import { ApiError } from '../api/client'
 import './GestionEquipesPage.css'
 import './EquipesPage.css'
@@ -34,6 +35,9 @@ type SortKey = 'code' | 'nom' | 'manager' | 'membres' | 'membresActifs'
 type SortDir = 'asc' | 'desc'
 
 const nbActifs = (equipe: Team) => equipe.members.filter((m) => m.statut === 'actif').length
+
+const orderedMembers = (equipe: Team) =>
+  [...equipe.members].sort((a, b) => Number(b.is_manager) - Number(a.is_manager) || nomComplet(a).localeCompare(nomComplet(b)))
 
 function SortHeader({ sortKey, label, activeKey, onSort }: { sortKey: SortKey; label: string; activeKey: SortKey; onSort: (key: SortKey) => void }) {
   return (
@@ -293,10 +297,14 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [addingMemberFor, setAddingMemberFor] = useState<number | null>(null)
   const [editingTeamId, setEditingTeamId] = useState<number | null>(null)
+  const [levelsCount, setLevelsCount] = useState(4)
+  const [levelsError, setLevelsError] = useState<string | null>(null)
+  const [levelsBusy, setLevelsBusy] = useState(false)
 
-  const loadData = () => Promise.all([fetchTeams(), fetchEmployees()]).then(([teamsData, employeesData]) => {
+  const loadData = () => Promise.all([fetchTeams(), fetchEmployees(), fetchOrganisationLevels()]).then(([teamsData, employeesData, levels]) => {
     setEquipes(teamsData)
     setEmployees(employeesData)
+    setLevelsCount(levels.team_levels_count)
   })
 
   useEffect(() => {
@@ -355,6 +363,43 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     await loadData()
   }
 
+  const handleMoveTeamLevel = async (teamId: number, niveau: number) => {
+    await updateTeam(teamId, { niveau })
+    await loadData()
+  }
+
+  const teamsOnTopLevel = equipes.filter((equipe) => equipe.niveau === levelsCount).length
+
+  const handleAddLevel = async () => {
+    setLevelsBusy(true)
+    setLevelsError(null)
+    try {
+      const result = await updateOrganisationLevels(levelsCount + 1)
+      setLevelsCount(result.team_levels_count)
+    } catch (err) {
+      setLevelsError(errorMessage(err))
+    } finally {
+      setLevelsBusy(false)
+    }
+  }
+
+  const handleRemoveLevel = async () => {
+    if (teamsOnTopLevel > 0) {
+      setLevelsError(`Déplacez d'abord les ${teamsOnTopLevel} équipe(s) du niveau ${levelsCount} avant de le retirer.`)
+      return
+    }
+    setLevelsBusy(true)
+    setLevelsError(null)
+    try {
+      const result = await updateOrganisationLevels(levelsCount - 1)
+      setLevelsCount(result.team_levels_count)
+    } catch (err) {
+      setLevelsError(errorMessage(err))
+    } finally {
+      setLevelsBusy(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     const list = equipes.filter((equipe) => (
@@ -363,6 +408,9 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     ))
 
     const sorted = [...list].sort((a, b) => {
+      /* Le niveau prime toujours : les équipes se lisent de haut en bas comme dans l'organigramme.
+         À niveau égal, le tri choisi par l'utilisateur départage. */
+      if (a.niveau !== b.niveau) return a.niveau - b.niveau
       let cmp: number
       if (sort.key === 'membres') cmp = a.members.length - b.members.length
       else if (sort.key === 'membresActifs') cmp = nbActifs(a) - nbActifs(b)
@@ -395,6 +443,19 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
         <button type="button" className="ge-btn-primary" onClick={() => setShowCreateModal(true)}><Plus size={14} />Créer une équipe</button>
       </div>
 
+      <div className="eq-levels-bar">
+        <span className="eq-levels-label"><Layers size={14} />Niveaux dans l'organigramme : <strong>{levelsCount}</strong></span>
+        <div className="eq-levels-actions">
+          <button type="button" className="eq-levels-btn" onClick={handleRemoveLevel} disabled={levelsBusy || levelsCount <= 4} title="Retirer le dernier niveau">
+            <Minus size={13} />Retirer un niveau
+          </button>
+          <button type="button" className="eq-levels-btn" onClick={handleAddLevel} disabled={levelsBusy} title="Ajouter un niveau">
+            <Plus size={13} />Ajouter un niveau
+          </button>
+        </div>
+        {levelsError && <p className="eq-levels-error">{levelsError}</p>}
+      </div>
+
       <div className="ge-filters">
         <label>Manager
           <select value={managerFiltre} onChange={(e) => setManagerFiltre(e.target.value)}>
@@ -424,12 +485,13 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                   <SortHeader sortKey="manager" label="Manager" activeKey={sort.key} onSort={toggleSort} />
                   <SortHeader sortKey="membres" label="Membres" activeKey={sort.key} onSort={toggleSort} />
                   <SortHeader sortKey="membresActifs" label="Membres actifs" activeKey={sort.key} onSort={toggleSort} />
+                  <th>Niveau</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={7} className="eq-empty-row">Aucune équipe ne correspond à votre recherche.</td></tr>
+                  <tr><td colSpan={8} className="eq-empty-row">Aucune équipe ne correspond à votre recherche.</td></tr>
                 )}
                 {filtered.map((equipe) => {
                   const isExpanded = expanded.has(equipe.id)
@@ -464,6 +526,23 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                         <td className="eq-count">{equipe.members.length}</td>
                         <td className={`eq-count ${actifs < equipe.members.length ? 'eq-count-warn' : ''}`}>{actifs}</td>
                         <td onClick={(e) => e.stopPropagation()}>
+                          {equipe.is_protected ? (
+                            <span className="eq-level-locked" title="Le niveau de cette équipe protégée ne peut pas être modifié.">
+                              <Lock size={11} strokeWidth={2} />Niveau {equipe.niveau}
+                            </span>
+                          ) : (
+                            <select
+                              className="eq-level-select"
+                              value={equipe.niveau}
+                              onChange={(event) => handleMoveTeamLevel(equipe.id, Number(event.target.value))}
+                            >
+                              {Array.from({ length: levelsCount }, (_, i) => i + 1).map((niveau) => (
+                                <option key={niveau} value={niveau}>Niveau {niveau}</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="eq-row-actions">
                             <TeamRowMenu
                               team={equipe}
@@ -475,7 +554,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                       </tr>
                       {isExpanded && (
                         <tr className="eq-detail-row">
-                          <td colSpan={7}>
+                          <td colSpan={8}>
                             <div className="eq-detail-panel">
                               <div className="eq-detail-panel-head">
                                 <span className="eq-detail-panel-title"><Users2 size={14} />Membres de l'équipe</span>
@@ -497,7 +576,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {equipe.members.map((m) => (
+                                    {orderedMembers(equipe).map((m) => (
                                       <tr key={m.id}>
                                         <td className="eq-matricule">{m.matricule || '—'}</td>
                                         <td>
