@@ -250,3 +250,66 @@ class AffectationHistory(models.Model):
 
     def __str__(self):
         return f'{self.employee} : {self.ancienne_equipe} → {self.nouvelle_equipe}'
+
+
+DEMANDE_STATUT_CHOICES = [
+    ('attente', 'En attente'),
+    ('approuvee', 'Approuvée'),
+    ('refusee', 'Refusée'),
+]
+
+
+class CongeDemande(models.Model):
+    TYPE_CHOICES = [
+        ('annuel', 'Congé annuel payé'),
+        ('exceptionnel', 'Congé exceptionnel'),
+        ('maladie', 'Congé maladie'),
+        ('sans_solde', 'Congé sans solde'),
+    ]
+
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conge_demandes')
+    type_conge = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    motif = models.TextField(blank=True)
+    statut = models.CharField(max_length=20, choices=DEMANDE_STATUT_CHOICES, default='attente')
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    # Le salarié a déclaré reprendre le service avant (ou à) la date de fin prévue.
+    cloture = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.employee} : {self.type_conge} ({self.date_debut} → {self.date_fin})'
+
+    @property
+    def duree(self):
+        """Nombre de jours ouvrés (hors samedis et dimanches) entre date_debut et date_fin, inclus."""
+        from datetime import timedelta
+        days = (self.date_fin - self.date_debut).days + 1
+        full_weeks, remainder = divmod(days, 7)
+        total = full_weeks * 5
+        for i in range(remainder):
+            if (self.date_debut + timedelta(days=full_weeks * 7 + i)).weekday() < 5:
+                total += 1
+        return total
+
+
+class AvanceDemande(models.Model):
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='avance_demandes')
+    montant = models.PositiveIntegerField()
+    motif = models.TextField(blank=True)
+    nombre_mois = models.PositiveIntegerField(default=1)
+    statut = models.CharField(max_length=20, choices=DEMANDE_STATUT_CHOICES, default='attente')
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.employee} : {self.montant} FCFA'

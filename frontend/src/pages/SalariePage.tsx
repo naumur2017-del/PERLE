@@ -43,6 +43,11 @@ import {
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
+import {
+  createAvanceDemande, createCongeDemande, deleteAvanceDemande, deleteCongeDemande, endCongeDemande,
+  fetchMyAvanceDemandes, fetchMyCongeDemandes,
+  type AvanceDemande as ApiAvanceDemande, type CongeDemande as ApiCongeDemande, type TypeConge,
+} from '../api/demandes'
 import { ApiError } from '../api/client'
 import type { Session } from '../auth/session'
 import 'flag-icons/css/flag-icons.min.css'
@@ -65,6 +70,7 @@ type Statut = 'Approuvée' | 'En attente' | 'Refusée'
 
 interface CongeDemande {
   id: string
+  rawId: number
   dateDemande: string
   type: string
   dateDebut: string
@@ -75,10 +81,12 @@ interface CongeDemande {
   approuvePar: string
   approuveRole: string
   dateReponse: string
+  peutEtreTerminee: boolean
 }
 
 interface AvanceDemande {
   id: string
+  rawId: number
   dateDemande: string
   montant: number
   motif: string
@@ -90,33 +98,64 @@ interface AvanceDemande {
   dateReponse: string
 }
 
-const initialCongeDemandes: CongeDemande[] = [
-  { id: 'CONG-2025-005', dateDemande: '15/05/2025', type: 'Congé annuel payé', dateDebut: '02/06/2025', dateFin: '06/06/2025', duree: 5, motif: 'Vacances personnelles', statut: 'Approuvée', approuvePar: 'Ajara LAMARE', approuveRole: 'Manager', dateReponse: '17/05/2025' },
-  { id: 'CONG-2025-004', dateDemande: '05/05/2025', type: 'Congé exceptionnel', dateDebut: '20/05/2025', dateFin: '21/05/2025', duree: 2, motif: 'Événement familial', statut: 'En attente', approuvePar: 'Ajara LAMARE', approuveRole: 'Manager', dateReponse: '-' },
-]
+const TYPE_CONGE_LABELS: Record<TypeConge, string> = {
+  annuel: 'Congé annuel payé',
+  exceptionnel: 'Congé exceptionnel',
+  maladie: 'Congé maladie',
+  sans_solde: 'Congé sans solde',
+}
 
-const initialAvanceDemandes: AvanceDemande[] = [
-  { id: 'AVC-2025-003', dateDemande: '12/05/2025', montant: 150000, motif: 'Frais médicaux', remboursement: 'Prélèvement sur 3 salaires', remboursementDetail: '(50 000 FCFA / mois)', statut: 'En attente', approuvePar: 'Théodore BESSALA', approuveRole: 'Responsable des Ressources (RE)', dateReponse: '-' },
-]
+const TYPE_CONGE_KEYS: Record<string, TypeConge> = {
+  'Congé annuel payé': 'annuel',
+  'Congé exceptionnel': 'exceptionnel',
+  'Congé maladie': 'maladie',
+  'Congé sans solde': 'sans_solde',
+}
 
-const formatDateFr = (date: Date) => date.toLocaleDateString('fr-FR')
+const STATUT_FROM_API: Record<ApiCongeDemande['statut'], Statut> = {
+  attente: 'En attente',
+  approuvee: 'Approuvée',
+  refusee: 'Refusée',
+}
+
+const formatDateFr = (value: string) => new Date(value).toLocaleDateString('fr-FR')
 
 const formatInputDate = (value: string) => {
   const [year, month, day] = value.split('-')
   return `${day}/${month}/${year}`
 }
 
-const daysBetween = (startValue: string, endValue: string) => {
-  const start = new Date(startValue)
-  const end = new Date(endValue)
-  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
-}
+const todayIso = () => new Date().toLocaleDateString('sv-SE')
 
-const nextId = (prefix: string, items: { id: string }[]) => {
-  const numbers = items.map((item) => parseInt(item.id.split('-').pop() ?? '0', 10)).filter((value) => !Number.isNaN(value))
-  const next = (numbers.length ? Math.max(...numbers) : 0) + 1
-  return `${prefix}-${String(next).padStart(3, '0')}`
-}
+const toDisplayConge = (item: ApiCongeDemande): CongeDemande => ({
+  id: `CONG-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
+  rawId: item.id,
+  dateDemande: formatDateFr(item.created_at),
+  type: TYPE_CONGE_LABELS[item.type_conge],
+  dateDebut: formatInputDate(item.date_debut),
+  dateFin: formatInputDate(item.date_fin),
+  duree: item.duree,
+  motif: item.motif || 'Aucun motif renseigné',
+  statut: STATUT_FROM_API[item.statut],
+  approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
+  approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
+  dateReponse: item.reviewed_at ? formatDateFr(item.reviewed_at) : '-',
+  peutEtreTerminee: item.statut === 'approuvee' && !item.cloture && item.date_debut <= todayIso(),
+})
+
+const toDisplayAvance = (item: ApiAvanceDemande): AvanceDemande => ({
+  id: `AVC-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
+  rawId: item.id,
+  dateDemande: formatDateFr(item.created_at),
+  montant: item.montant,
+  motif: item.motif || 'Aucun motif renseigné',
+  remboursement: `Prélèvement sur ${item.nombre_mois} salaire${item.nombre_mois > 1 ? 's' : ''}`,
+  remboursementDetail: `(${Math.round(item.montant / item.nombre_mois).toLocaleString('fr-FR')} FCFA / mois)`,
+  statut: STATUT_FROM_API[item.statut],
+  approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
+  approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
+  dateReponse: item.reviewed_at ? formatDateFr(item.reviewed_at) : '-',
+})
 
 function countByStatut<T extends { statut: Statut }>(items: T[], statut: Statut) {
   return items.filter((item) => item.statut === statut).length
@@ -268,7 +307,7 @@ function CongeForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (va
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!dateDebut || !dateFin || !motif.trim()) return
+    if (!dateDebut || !dateFin) return
     onCreate({ type, dateDebut, dateFin, motif: motif.trim() })
   }
 
@@ -286,7 +325,7 @@ function CongeForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (va
         <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
         <label>Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
       </div>
-      <label>Motif<textarea required rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
+      <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
       <div className="salarie-form-actions">
         <button type="button" className="salarie-ghost-btn" onClick={onCancel}>Annuler</button>
         <button type="submit" className="salarie-primary-btn"><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
@@ -309,14 +348,14 @@ function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (v
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     const montantValue = Number(montant)
-    if (!montantValue || montantValue <= 0 || !motif.trim()) return
+    if (!montantValue || montantValue <= 0) return
     onCreate({ montant: montantValue, motif: motif.trim(), mois: Number(mois) })
   }
 
   return (
     <form className="salarie-form" onSubmit={handleSubmit}>
       <label>Montant demandé (FCFA)<input type="number" required min={1000} step={1000} value={montant} placeholder="Ex. 150000" onChange={(event) => setMontant(event.target.value)} /></label>
-      <label>Motif<textarea required rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
+      <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
       <label>Remboursement proposé
         <select value={mois} onChange={(event) => setMois(event.target.value)}>
           <option value="1">Prélèvement sur 1 salaire</option>
@@ -335,47 +374,80 @@ function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (v
 
 function DemandesTab() {
   const [periode, setPeriode] = useState(PERIODES[0])
-  const [congeDemandes, setCongeDemandes] = useState<CongeDemande[]>(initialCongeDemandes)
-  const [avanceDemandes, setAvanceDemandes] = useState<AvanceDemande[]>(initialAvanceDemandes)
+  const [congeDemandesApi, setCongeDemandesApi] = useState<ApiCongeDemande[]>([])
+  const [avanceDemandesApi, setAvanceDemandesApi] = useState<ApiAvanceDemande[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [viewConge, setViewConge] = useState<CongeDemande | null>(null)
   const [viewAvance, setViewAvance] = useState<AvanceDemande | null>(null)
   const [showCongeForm, setShowCongeForm] = useState(false)
   const [showAvanceForm, setShowAvanceForm] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
-  const handleCreateConge = (values: CongeFormValues) => {
-    const newDemande: CongeDemande = {
-      id: nextId('CONG-2025', congeDemandes),
-      dateDemande: formatDateFr(new Date()),
-      type: values.type,
-      dateDebut: formatInputDate(values.dateDebut),
-      dateFin: formatInputDate(values.dateFin),
-      duree: daysBetween(values.dateDebut, values.dateFin),
-      motif: values.motif,
-      statut: 'En attente',
-      approuvePar: 'Ajara LAMARE',
-      approuveRole: 'Manager',
-      dateReponse: '-',
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchMyCongeDemandes(), fetchMyAvanceDemandes()])
+      .then(([congesData, avancesData]) => {
+        if (cancelled) return
+        setCongeDemandesApi(congesData)
+        setAvanceDemandesApi(avancesData)
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger vos demandes.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const congeDemandes = congeDemandesApi.map(toDisplayConge)
+  const avanceDemandes = avanceDemandesApi.map(toDisplayAvance)
+
+  const handleCreateConge = async (values: CongeFormValues) => {
+    setFormError(null)
+    try {
+      const created = await createCongeDemande({
+        type_conge: TYPE_CONGE_KEYS[values.type],
+        date_debut: values.dateDebut,
+        date_fin: values.dateFin,
+        motif: values.motif,
+      })
+      setCongeDemandesApi((prev) => [created, ...prev])
+      setShowCongeForm(false)
+    } catch (err) {
+      setFormError(errorMessage(err))
     }
-    setCongeDemandes((prev) => [newDemande, ...prev])
-    setShowCongeForm(false)
   }
 
-  const handleCreateAvance = (values: AvanceFormValues) => {
-    const monthly = Math.round(values.montant / values.mois)
-    const newDemande: AvanceDemande = {
-      id: nextId('AVC-2025', avanceDemandes),
-      dateDemande: formatDateFr(new Date()),
-      montant: values.montant,
-      motif: values.motif,
-      remboursement: `Prélèvement sur ${values.mois} salaire${values.mois > 1 ? 's' : ''}`,
-      remboursementDetail: `(${monthly.toLocaleString('fr-FR')} FCFA / mois)`,
-      statut: 'En attente',
-      approuvePar: 'Théodore BESSALA',
-      approuveRole: 'Responsable des Ressources (RE)',
-      dateReponse: '-',
+  const handleCreateAvance = async (values: AvanceFormValues) => {
+    setFormError(null)
+    try {
+      const created = await createAvanceDemande({ montant: values.montant, motif: values.motif, nombre_mois: values.mois })
+      setAvanceDemandesApi((prev) => [created, ...prev])
+      setShowAvanceForm(false)
+    } catch (err) {
+      setFormError(errorMessage(err))
     }
-    setAvanceDemandes((prev) => [newDemande, ...prev])
-    setShowAvanceForm(false)
+  }
+
+  const handleDeleteConge = async (rawId: number) => {
+    if (!window.confirm('Supprimer cette demande de congé ?')) return
+    await deleteCongeDemande(rawId)
+    setCongeDemandesApi((prev) => prev.filter((item) => item.id !== rawId))
+  }
+
+  const handleDeleteAvance = async (rawId: number) => {
+    if (!window.confirm('Supprimer cette demande d’avance ?')) return
+    await deleteAvanceDemande(rawId)
+    setAvanceDemandesApi((prev) => prev.filter((item) => item.id !== rawId))
+  }
+
+  const handleEndConge = async (rawId: number) => {
+    if (!window.confirm('Reprendre le service maintenant et mettre fin à ce congé ?')) return
+    setFormError(null)
+    try {
+      const updated = await endCongeDemande(rawId)
+      setCongeDemandesApi((prev) => prev.map((item) => item.id === rawId ? updated : item))
+    } catch (err) {
+      setFormError(errorMessage(err))
+    }
   }
 
   const congeAttente = countByStatut(congeDemandes, 'En attente')
@@ -386,12 +458,17 @@ function DemandesTab() {
   const avanceApprouvee = countByStatut(avanceDemandes, 'Approuvée')
   const avanceRefusee = countByStatut(avanceDemandes, 'Refusée')
 
+  if (loading) return <p className="salarie-empty-hint">Chargement de vos demandes…</p>
+  if (loadError) return <p className="salarie-empty-hint">{loadError}</p>
+
   return (
     <div className="salarie-demandes">
       <div className="salarie-heading">
         <h2>Mes demandes</h2>
         <p>Consultez et suivez l’état de vos demandes.</p>
       </div>
+
+      {formError && <p className="form-error">{formError}</p>}
 
       <div className="salarie-tab-filter-row">
         <PeriodeFilter value={periode} onChange={setPeriode} />
@@ -438,7 +515,8 @@ function DemandesTab() {
                   <td>{demande.dateReponse}</td>
                   <td className="salarie-actions">
                     <button aria-label="Voir la demande" onClick={() => setViewConge(demande)}><Eye size={14} strokeWidth={2} /></button>
-                    {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger"><Trash2 size={14} strokeWidth={2} /></button>}
+                    {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger" onClick={() => handleDeleteConge(demande.rawId)}><Trash2 size={14} strokeWidth={2} /></button>}
+                    {demande.peutEtreTerminee && <button aria-label="Terminer le congé" title="Reprendre le service" onClick={() => handleEndConge(demande.rawId)}><Briefcase size={14} strokeWidth={2} /></button>}
                   </td>
                 </tr>
               ))}
@@ -477,7 +555,7 @@ function DemandesTab() {
                   <td>{demande.dateReponse}</td>
                   <td className="salarie-actions">
                     <button aria-label="Voir la demande" onClick={() => setViewAvance(demande)}><Eye size={14} strokeWidth={2} /></button>
-                    {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger"><Trash2 size={14} strokeWidth={2} /></button>}
+                    {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger" onClick={() => handleDeleteAvance(demande.rawId)}><Trash2 size={14} strokeWidth={2} /></button>}
                   </td>
                 </tr>
               ))}
@@ -512,9 +590,16 @@ function DemandesTab() {
             <InfoRow label="Durée" value={`${viewConge.duree} jour${viewConge.duree > 1 ? 's' : ''}`} />
             <InfoRow label="Motif" value={viewConge.motif} />
             <InfoRow label="Statut" value={<StatutPill statut={viewConge.statut} />} />
-            <InfoRow label="Approuvé par" value={`${viewConge.approuvePar} (${viewConge.approuveRole})`} />
+            <InfoRow label="Approuvé par" value={viewConge.approuveRole ? `${viewConge.approuvePar} (${viewConge.approuveRole})` : viewConge.approuvePar} />
             <InfoRow label="Date de réponse" value={viewConge.dateReponse} />
           </div>
+          {viewConge.peutEtreTerminee && (
+            <div className="salarie-form-actions">
+              <button type="button" className="salarie-primary-btn" onClick={() => { handleEndConge(viewConge.rawId); setViewConge(null) }}>
+                <Briefcase size={14} strokeWidth={2.4} />Terminer mon congé et reprendre le service
+              </button>
+            </div>
+          )}
         </Lightbox>
       )}
 
@@ -526,7 +611,7 @@ function DemandesTab() {
             <InfoRow label="Motif" value={viewAvance.motif} />
             <InfoRow label="Remboursement proposé" value={`${viewAvance.remboursement} ${viewAvance.remboursementDetail}`} />
             <InfoRow label="Statut" value={<StatutPill statut={viewAvance.statut} />} />
-            <InfoRow label="Approuvé par" value={`${viewAvance.approuvePar} (${viewAvance.approuveRole})`} />
+            <InfoRow label="Approuvé par" value={viewAvance.approuveRole ? `${viewAvance.approuvePar} (${viewAvance.approuveRole})` : viewAvance.approuvePar} />
             <InfoRow label="Date de réponse" value={viewAvance.dateReponse} />
           </div>
         </Lightbox>

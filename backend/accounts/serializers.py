@@ -3,7 +3,16 @@ from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import AffectationHistory, GradeHistory, Organisation, Team, User, create_default_teams
+from .models import (
+    AffectationHistory,
+    AvanceDemande,
+    CongeDemande,
+    GradeHistory,
+    Organisation,
+    Team,
+    User,
+    create_default_teams,
+)
 
 
 class OrganisationSearchSerializer(serializers.ModelSerializer):
@@ -480,3 +489,85 @@ class TeamSerializer(serializers.ModelSerializer):
         if manager is not None and manager.team_id != team.id:
             manager.move_to_team(team)
         return team
+
+
+class CongeDemandeSerializer(serializers.ModelSerializer):
+    employee_nom = serializers.SerializerMethodField()
+    employee_fonction = serializers.CharField(source='employee.fonction', read_only=True)
+    reviewed_by_nom = serializers.SerializerMethodField()
+    reviewed_by_role = serializers.SerializerMethodField()
+    duree = serializers.ReadOnlyField()
+
+    class Meta:
+        model = CongeDemande
+        fields = [
+            'id', 'employee', 'employee_nom', 'employee_fonction', 'type_conge', 'date_debut', 'date_fin', 'duree',
+            'motif', 'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
+        ]
+        read_only_fields = [
+            'id', 'employee', 'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
+        ]
+
+    def get_employee_nom(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'
+
+    def get_reviewed_by_nom(self, obj):
+        return f'{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}' if obj.reviewed_by else None
+
+    def get_reviewed_by_role(self, obj):
+        return obj.reviewed_by.get_role_display() if obj.reviewed_by else None
+
+    def validate(self, attrs):
+        date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
+        date_fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))
+        if date_debut and date_fin and date_fin < date_debut:
+            raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
+        return attrs
+
+
+class CongeDemandeReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CongeDemande
+        fields = ['id', 'statut']
+        read_only_fields = ['id']
+
+    def validate_statut(self, value):
+        if value not in ('approuvee', 'refusee'):
+            raise serializers.ValidationError('Le statut doit être « approuvée » ou « refusée ».')
+        return value
+
+
+class AvanceDemandeSerializer(serializers.ModelSerializer):
+    employee_nom = serializers.SerializerMethodField()
+    employee_fonction = serializers.CharField(source='employee.fonction', read_only=True)
+    reviewed_by_nom = serializers.SerializerMethodField()
+    reviewed_by_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AvanceDemande
+        fields = [
+            'id', 'employee', 'employee_nom', 'employee_fonction', 'montant', 'motif', 'nombre_mois',
+            'statut', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
+        ]
+        read_only_fields = ['id', 'employee', 'statut', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at']
+
+    def get_employee_nom(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'
+
+    def get_reviewed_by_nom(self, obj):
+        return f'{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}' if obj.reviewed_by else None
+
+    def get_reviewed_by_role(self, obj):
+        return obj.reviewed_by.get_role_display() if obj.reviewed_by else None
+
+
+class AvanceDemandeReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AvanceDemande
+        fields = ['id', 'statut']
+        read_only_fields = ['id']
+
+    def validate_statut(self, value):
+        if value not in ('approuvee', 'refusee'):
+            raise serializers.ValidationError('Le statut doit être « approuvée » ou « refusée ».')
+        return value

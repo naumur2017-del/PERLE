@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent,
 import { createPortal } from 'react-dom'
 import {
   Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Download, Eye, EyeOff, FileText,
-  History, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Users, Users2, X, MoreVertical,
+  History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, type Employee, type StatutEmploye, type Team } from '../api/employees'
@@ -941,6 +941,7 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
         </label>
         <button type="button" className="ge-reset" onClick={resetFilters}><RotateCcw size={14} />Réinitialiser</button>
         <button type="button" className="ge-reset" onClick={() => navigateTo('gestion-historique')}><History size={14} />Historique</button>
+        <button type="button" className="ge-reset" onClick={() => navigateTo('gestion-demandes')}><Inbox size={14} />Demandes</button>
       </div>
 
       {loading && <p className="ge-detail-empty">Chargement des employés…</p>}

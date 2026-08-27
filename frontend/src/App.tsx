@@ -21,6 +21,7 @@ import SuiviStaffingPage from './pages/SuiviStaffingPage'
 import { TACHES_INITIAL, type TacheWrike } from './data/staffing'
 import GestionEquipesPage from './pages/GestionEquipesPage'
 import HistoriqueEmployesPage from './pages/HistoriqueEmployesPage'
+import DemandesEmployesPage from './pages/DemandesEmployesPage'
 import OrganigrammePage from './pages/OrganigrammePage'
 import EquipesPage from './pages/EquipesPage'
 import TresoreriePage from './pages/TresoreriePage'
@@ -52,6 +53,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'gestion-equipes': { path: '/gestion-equipes/equipes', title: 'Équipes', description: 'Consultez et organisez les équipes de l’entreprise.' },
   'gestion-organigramme': { path: '/gestion-equipes/organigramme', title: 'Organigramme', description: 'Visualisez la hiérarchie et les rattachements de l’entreprise.' },
   'gestion-historique': { path: '/gestion-equipes/historique', title: 'Historique des employés', description: 'Consultez l’historique des changements de grade et d’affectation de tous les employés.' },
+  'gestion-demandes': { path: '/gestion-equipes/demandes', title: 'Demandes des employés', description: 'Consultez et traitez les demandes de congé et d’avance sur salaire de tous les employés.' },
   tresorerie: { path: '/tresorerie', title: 'Ordonnances des paiements', description: 'Gestion des paiements et suivi des validations.' },
   'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Exécutions des paiements', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-operations', title: 'Comptes et opérations', description: "Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent." },
@@ -280,6 +282,7 @@ function App() {
         { id: 'gestion-equipes', label: 'Équipes' },
         { id: 'gestion-organigramme', label: 'Organigramme' },
         { id: 'gestion-historique', label: 'Historique' },
+        { id: 'gestion-demandes', label: 'Demandes' },
       ],
     },
     {
@@ -396,6 +399,7 @@ function App() {
       case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} />
       case 'gestion-organigramme': return <OrganigrammePage navigateTo={navigateTo} session={session!} />
       case 'gestion-historique': return <HistoriqueEmployesPage navigateTo={navigateTo} />
+      case 'gestion-demandes': return <DemandesEmployesPage navigateTo={navigateTo} />
       case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
       case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
       case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />

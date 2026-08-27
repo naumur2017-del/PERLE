@@ -1,0 +1,80 @@
+@import './GestionEquipesPage.css';
+
+.de-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.de-section-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #eae7f6;
+  border-radius: 9px;
+  background: #faf9fe;
+}
+.de-section-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #6c6c85;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.de-section-tabs button:hover { color: #35335c; }
+.de-section-tabs button.active { background: #ffffff; color: #6b46c1; box-shadow: 0 1px 4px rgba(30, 20, 80, 0.1); }
+.de-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #eae7f6;
+  color: #6c6c85;
+  font-size: 10px;
+  font-weight: 800;
+}
+.de-section-tabs button.active .de-section-count { background: #ede8fb; color: #6b46c1; }
+
+/* Une seule section (Nouvelle / Historique) est affichée à la fois : même avec des dizaines de
+   lignes, l'utilisateur défile dans le tableau plutôt que dans toute la page. */
+.de-table-scroll { max-height: 62vh; overflow-y: auto; }
+.de-table-scroll thead th { position: sticky; top: 0; z-index: 1; }
+
+.de-motif { max-width: 260px; white-space: normal; }
+
+.de-actions { display: flex; align-items: center; gap: 6px; }
+
+.de-approve, .de-refuse {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.de-approve { background: #dcfce7; color: #15803d; }
+.de-approve:hover:not(:disabled) { background: #bbf7d0; }
+.de-refuse { background: #fee2e2; color: #b91c1c; }
+.de-refuse:hover:not(:disabled) { background: #fecaca; }
+.de-approve:disabled, .de-refuse:disabled { opacity: .5; cursor: not-allowed; }

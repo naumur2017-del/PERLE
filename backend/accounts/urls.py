@@ -17,4 +17,13 @@ urlpatterns = [
     path('teams/<int:pk>/', views.TeamDetailView.as_view()),
     path('teams/<int:pk>/add-member/', views.TeamAddMemberView.as_view()),
     path('teams/<int:pk>/remove-member/', views.TeamRemoveMemberView.as_view()),
+    path('demandes/conges/', views.CongeDemandeListCreateView.as_view()),
+    path('demandes/conges/organisation/', views.OrganisationCongeDemandeListView.as_view()),
+    path('demandes/conges/<int:pk>/', views.CongeDemandeDetailView.as_view()),
+    path('demandes/conges/<int:pk>/review/', views.CongeDemandeReviewView.as_view()),
+    path('demandes/conges/<int:pk>/end/', views.CongeDemandeEndView.as_view()),
+    path('demandes/avances/', views.AvanceDemandeListCreateView.as_view()),
+    path('demandes/avances/organisation/', views.OrganisationAvanceDemandeListView.as_view()),
+    path('demandes/avances/<int:pk>/', views.AvanceDemandeDetailView.as_view()),
+    path('demandes/avances/<int:pk>/review/', views.AvanceDemandeReviewView.as_view()),
 ]
