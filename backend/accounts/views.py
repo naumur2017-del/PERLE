@@ -11,7 +11,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AvanceDemande, CongeDemande, CongeType, FermetureTechnique, Organisation, Team, User
+from .models import (
+    AvanceDemande, CongeDemande, CongeType, FermetureTechnique, LigneBudgetaire, Organisation,
+    Project, ProjectLigne, Team, User,
+)
 from .serializers import (
     AvanceDemandeReviewSerializer,
     AvanceDemandeSerializer,
@@ -24,9 +27,13 @@ from .serializers import (
     EmployeeCreateSerializer,
     EmployeeMeSerializer,
     EmployeeSerializer,
+    LigneBudgetaireCreateSerializer,
+    LigneBudgetaireSerializer,
     LoginSerializer,
     OrganisationLevelsSerializer,
     OrganisationSearchSerializer,
+    ProjectLigneSerializer,
+    ProjectSerializer,
     RegisterCompanyOrganisationSerializer,
     RegisterMemberSerializer,
     RegisterPersonalOrganisationSerializer,
@@ -273,6 +280,8 @@ class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if instance.is_protected:
             raise PermissionDenied('Cette équipe est protégée et ne peut pas être supprimée.')
+        if instance.lignes_budgetaires.exists():
+            raise ValidationError({'detail': 'Cette équipe est utilisée par des lignes budgétaires : réaffectez-les avant de supprimer l’équipe.'})
         instance.delete()
 
 
@@ -622,3 +631,146 @@ class FermetureTechniqueDetailView(generics.RetrieveDestroyAPIView):
         instance.delete()
         if concernes:
             User.objects.filter(id__in=concernes, statut='conge').update(statut='actif', conge_technique_source=None)
+
+
+class LigneBudgetaireListCreateView(generics.ListCreateAPIView):
+    """Référentiel des lignes budgétaires (Architecture monétaire) : consulté par tous les
+    membres de l'organisation, géré par admin/directeur."""
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        return LigneBudgetaireCreateSerializer if self.request.method == 'POST' else LigneBudgetaireSerializer
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return LigneBudgetaire.objects.none()
+        return LigneBudgetaire.objects.filter(organisation=organisation).select_related('equipe', 'parent')
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
+        if not self.request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        ligne = LigneBudgetaireSerializer(serializer.instance, context=self.get_serializer_context())
+        return Response(ligne.data, status=status.HTTP_201_CREATED)
+
+
+class LigneBudgetaireDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification (nom, équipe, déclinaison, actif) et suppression d'une ligne budgétaire.
+    Une ligne ayant des sous-lignes ne peut pas être supprimée."""
+    serializer_class = LigneBudgetaireSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return LigneBudgetaire.objects.none()
+        return LigneBudgetaire.objects.filter(organisation=organisation).select_related('equipe', 'parent')
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
+        if instance.enfants.exists():
+            raise ValidationError({'detail': 'Cette ligne a des sous-lignes : supprimez-les d’abord.'})
+        instance.delete()
+
+
+class ProjectListCreateView(generics.ListCreateAPIView):
+    """Projets de l'organisation (Création de projet). « brouillon » et « définitif » sont le
+    même modèle, filtrable via ?statut=brouillon|definitif (Brouillon / Historique)."""
+    serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return Project.objects.none()
+        qs = Project.objects.filter(organisation=organisation).prefetch_related('lignes')
+        statut = self.request.query_params.get('statut')
+        if statut in ('brouillon', 'definitif'):
+            qs = qs.filter(statut=statut)
+        return qs
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à créer un projet.')
+        if not self.request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        serializer.save()
+
+
+class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Consultation, modification (informations générales) et suppression d'un projet."""
+    serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return Project.objects.none()
+        return Project.objects.filter(organisation=organisation).prefetch_related('lignes')
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à supprimer ce projet.')
+        instance.delete()
+
+
+class ProjectLigneListCreateView(generics.ListCreateAPIView):
+    """Lignes budgétaires/tâches rattachées à un projet donné."""
+    serializer_class = ProjectLigneSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_project(self):
+        organisation = self.request.user.organisation
+        return get_object_or_404(Project, pk=self.kwargs['project_id'], organisation=organisation)
+
+    def get_queryset(self):
+        return ProjectLigne.objects.filter(project=self.get_project())
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), 'project': self.get_project()}
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
+        serializer.save()
+
+
+class ProjectLigneDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification/suppression d'une ligne budgétaire d'un projet."""
+    serializer_class = ProjectLigneSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return ProjectLigne.objects.none()
+        return ProjectLigne.objects.filter(project__organisation=organisation)
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
+        instance.delete()

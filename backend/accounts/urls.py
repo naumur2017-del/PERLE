@@ -31,4 +31,10 @@ urlpatterns = [
     path('demandes/avances/organisation/', views.OrganisationAvanceDemandeListView.as_view()),
     path('demandes/avances/<int:pk>/', views.AvanceDemandeDetailView.as_view()),
     path('demandes/avances/<int:pk>/review/', views.AvanceDemandeReviewView.as_view()),
+    path('architecture-monetaire/lignes/', views.LigneBudgetaireListCreateView.as_view()),
+    path('architecture-monetaire/lignes/<int:pk>/', views.LigneBudgetaireDetailView.as_view()),
+    path('projects/', views.ProjectListCreateView.as_view()),
+    path('projects/<int:pk>/', views.ProjectDetailView.as_view()),
+    path('projects/<int:project_id>/lignes/', views.ProjectLigneListCreateView.as_view()),
+    path('projects/<int:project_id>/lignes/<int:pk>/', views.ProjectLigneDetailView.as_view()),
 ]

@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.db.models import Sum
 from rest_framework import serializers
 
 from .models import (
@@ -10,11 +11,17 @@ from .models import (
     CongeType,
     FermetureTechnique,
     GradeHistory,
+    LigneBudgetaire,
     Organisation,
+    Project,
+    ProjectLigne,
     Team,
     User,
     create_default_conge_types,
     create_default_teams,
+    next_ligne_budgetaire_code,
+    next_project_code,
+    next_project_ligne_code,
 )
 
 
@@ -672,6 +679,59 @@ class AvanceDemandeSerializer(serializers.ModelSerializer):
         return obj.reviewed_by.get_role_display() if obj.reviewed_by else None
 
 
+class LigneBudgetaireSerializer(serializers.ModelSerializer):
+    """Lecture et modification limitée (nom, équipe, déclinaison, actif) d'une ligne existante :
+    la structure (parent, niveau, code) ne se modifie pas depuis ce formulaire."""
+    equipe_nom = serializers.CharField(source='equipe.name', read_only=True)
+    equipe_code = serializers.CharField(source='equipe.code', read_only=True)
+
+    class Meta:
+        model = LigneBudgetaire
+        fields = [
+            'id', 'code', 'nom', 'niveau', 'parent', 'equipe', 'equipe_nom', 'equipe_code',
+            'declinaison', 'montant_prevu', 'actif', 'created_at',
+        ]
+        read_only_fields = ['id', 'code', 'niveau', 'parent', 'created_at']
+
+    def validate_equipe(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+        return value
+
+
+class LigneBudgetaireCreateSerializer(serializers.ModelSerializer):
+    """Création d'une ligne (racine si parent est vide, sous-ligne sinon) : le code et le niveau
+    sont calculés automatiquement à partir du parent."""
+    class Meta:
+        model = LigneBudgetaire
+        fields = ['id', 'nom', 'equipe', 'declinaison', 'montant_prevu', 'parent']
+        read_only_fields = ['id']
+
+    def validate_equipe(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+        return value
+
+    def validate_parent(self, value):
+        if value is None:
+            return value
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette ligne parente n’appartient pas à votre organisation.')
+        if value.niveau >= 3:
+            raise serializers.ValidationError('Impossible d’ajouter une sous-ligne à une ligne de niveau 3.')
+        return value
+
+    def create(self, validated_data):
+        organisation = self.context['request'].user.organisation
+        parent = validated_data.pop('parent', None)
+        niveau = (parent.niveau + 1) if parent else 1
+        code = next_ligne_budgetaire_code(organisation, parent)
+        return LigneBudgetaire.objects.create(organisation=organisation, parent=parent, niveau=niveau, code=code, **validated_data)
+
+
 class AvanceDemandeReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvanceDemande
@@ -682,3 +742,94 @@ class AvanceDemandeReviewSerializer(serializers.ModelSerializer):
         if value not in ('approuvee', 'refusee'):
             raise serializers.ValidationError('Le statut doit être « approuvée » ou « refusée ».')
         return value
+
+
+class ProjectLigneSerializer(serializers.ModelSerializer):
+    """Attribution d'une ligne budgétaire réelle (Architecture monétaire) à un projet, avec le
+    montant que ce projet va y consommer. Le montant est plafonné par le montant_prevu de la
+    ligne, propre à chaque projet (voir validate)."""
+    ligne_budgetaire_nom = serializers.CharField(source='ligne_budgetaire.nom', read_only=True)
+    ligne_budgetaire_code = serializers.CharField(source='ligne_budgetaire.code', read_only=True)
+    ligne_budgetaire_declinaison = serializers.CharField(source='ligne_budgetaire.declinaison', read_only=True)
+    ligne_budgetaire_montant_prevu = serializers.DecimalField(source='ligne_budgetaire.montant_prevu', max_digits=16, decimal_places=2, read_only=True, allow_null=True)
+    equipe = serializers.IntegerField(source='ligne_budgetaire.equipe_id', read_only=True)
+    equipe_nom = serializers.CharField(source='ligne_budgetaire.equipe.name', read_only=True)
+    equipe_code = serializers.CharField(source='ligne_budgetaire.equipe.code', read_only=True)
+
+    class Meta:
+        model = ProjectLigne
+        fields = [
+            'id', 'code', 'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
+            'ligne_budgetaire_declinaison', 'ligne_budgetaire_montant_prevu', 'equipe', 'equipe_nom',
+            'equipe_code', 'montant', 'date_debut', 'date_fin', 'created_at',
+        ]
+        read_only_fields = ['id', 'code', 'created_at']
+
+    def get_project(self):
+        return self.context['project'] if self.instance is None else self.instance.project
+
+    def validate_ligne_budgetaire(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
+        return value
+
+    def validate(self, attrs):
+        ligne_budgetaire = attrs.get('ligne_budgetaire', getattr(self.instance, 'ligne_budgetaire', None))
+        montant = attrs.get('montant', getattr(self.instance, 'montant', None)) or 0
+        if self.instance is None and ligne_budgetaire and ProjectLigne.objects.filter(project=self.get_project(), ligne_budgetaire=ligne_budgetaire).exists():
+            raise serializers.ValidationError({
+                'ligne_budgetaire': 'Cette ligne budgétaire est déjà attribuée à ce projet : modifiez l’attribution existante plutôt que d’en créer une nouvelle.',
+            })
+        if ligne_budgetaire and ligne_budgetaire.montant_prevu is not None:
+            qs = ProjectLigne.objects.filter(project=self.get_project(), ligne_budgetaire=ligne_budgetaire)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            deja_attribue = qs.aggregate(total=Sum('montant'))['total'] or 0
+            if deja_attribue + montant > ligne_budgetaire.montant_prevu:
+                disponible = ligne_budgetaire.montant_prevu - deja_attribue
+                raise serializers.ValidationError({
+                    'montant': f'Ce montant dépasse ce qui est prévu pour cette ligne budgétaire dans ce projet. Disponible : {disponible} FCFA.',
+                })
+        return attrs
+
+    def create(self, validated_data):
+        project = self.context['project']
+        code = next_project_ligne_code(project)
+        return ProjectLigne.objects.create(project=project, code=code, **validated_data)
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    lignes = ProjectLigneSerializer(many=True, read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+    montant_marge = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    montant_charges = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    montant_tva = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    montant_ir = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+    budget_execution = serializers.DecimalField(max_digits=16, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Project
+        fields = [
+            'id', 'code', 'nom', 'client', 'description', 'montant', 'type_montant', 'marge_pct',
+            'charges_transversales_pct', 'tva_pct', 'ir_pct', 'reserve_montant', 'date_debut', 'date_fin',
+            'statut', 'created_by_nom', 'created_at', 'updated_at', 'lignes',
+            'montant_marge', 'montant_charges', 'montant_tva', 'montant_ir', 'budget_execution',
+        ]
+        read_only_fields = ['id', 'code', 'created_at', 'updated_at']
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def validate(self, attrs):
+        date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
+        date_fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))
+        if date_debut and date_fin and date_fin < date_debut:
+            raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        organisation = request.user.organisation
+        code = next_project_code(organisation)
+        return Project.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)

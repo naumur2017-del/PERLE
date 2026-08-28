@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import FileExtensionValidator
 from django.db import models
@@ -435,3 +437,136 @@ class FermetureTechnique(models.Model):
 
     def __str__(self):
         return f'Fermeture technique {self.date_debut} → {self.date_fin} ({self.organisation})'
+
+
+class LigneBudgetaire(models.Model):
+    """Référentiel des lignes budgétaires (Architecture monétaire), organisé en arborescence sur
+    3 niveaux maximum : niveau 1 = grande catégorie (ex. RENTREES FINANCIERES), niveau 2 = poste,
+    niveau 3 = ligne de détail. Le code (A, AA, AA01…) est généré automatiquement à la création,
+    voir next_ligne_budgetaire_code."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='lignes_budgetaires')
+    code = models.CharField(max_length=20)
+    nom = models.CharField(max_length=200)
+    niveau = models.PositiveSmallIntegerField()
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='enfants')
+    equipe = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='lignes_budgetaires')
+    declinaison = models.CharField(max_length=255, blank=True)
+    # Plafond consommable par un projet donné sur cette ligne (voir ProjectLigne) — vide = pas de
+    # plafond. Ce n'est pas un budget global partagé entre projets : chaque projet peut, chacun de
+    # son côté, attribuer jusqu'à ce montant sur la ligne.
+    montant_prevu = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    actif = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['code']
+        unique_together = ('organisation', 'code')
+
+    def __str__(self):
+        return f'{self.code} — {self.nom}'
+
+
+def next_ligne_budgetaire_code(organisation, parent):
+    """A, B, C… pour une ligne de niveau 1 ; AA, AB… pour une sous-ligne de niveau 1 ;
+    AA01, AA02… pour une sous-ligne de niveau 2."""
+    if parent is None:
+        count = LigneBudgetaire.objects.filter(organisation=organisation, niveau=1).count()
+        return chr(65 + count)
+    siblings = LigneBudgetaire.objects.filter(parent=parent).count()
+    if parent.niveau == 1:
+        return parent.code + chr(65 + siblings)
+    return parent.code + str(siblings + 1).zfill(2)
+
+
+class Project(models.Model):
+    """Un projet créé depuis Création de projet : informations générales + budget, plus ses
+    lignes budgétaires/tâches (voir ProjectLigne). « brouillon » et « définitif » sont le même
+    enregistrement, distingué uniquement par le statut — les onglets Brouillon/Historique de la
+    page ne sont qu'un filtre sur ce statut."""
+    STATUT_CHOICES = [
+        ('brouillon', 'Brouillon'),
+        ('definitif', 'Définitif'),
+    ]
+    TYPE_MONTANT_CHOICES = [
+        ('HT', 'HT'),
+        ('TTC', 'TTC'),
+    ]
+
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='projects')
+    code = models.CharField(max_length=30)
+    nom = models.CharField(max_length=255)
+    client = models.CharField(max_length=200, blank=True)
+    description = models.TextField(blank=True)
+    montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    type_montant = models.CharField(max_length=5, choices=TYPE_MONTANT_CHOICES, default='HT')
+    marge_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    charges_transversales_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tva_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    ir_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    reserve_montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    date_debut = models.DateField(null=True, blank=True)
+    date_fin = models.DateField(null=True, blank=True)
+    statut = models.CharField(max_length=10, choices=STATUT_CHOICES, default='brouillon')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        unique_together = ('organisation', 'code')
+
+    def __str__(self):
+        return f'{self.code} — {self.nom}'
+
+    @property
+    def montant_marge(self):
+        return (self.montant * self.marge_pct / 100).quantize(Decimal('0.01'))
+
+    @property
+    def montant_charges(self):
+        return (self.montant * self.charges_transversales_pct / 100).quantize(Decimal('0.01'))
+
+    @property
+    def montant_tva(self):
+        return (self.montant * self.tva_pct / 100).quantize(Decimal('0.01'))
+
+    @property
+    def montant_ir(self):
+        return (self.montant * self.ir_pct / 100).quantize(Decimal('0.01'))
+
+    @property
+    def budget_execution(self):
+        return self.montant - self.montant_marge - self.montant_charges
+
+
+def next_project_code(organisation):
+    """PRJ-<année>-<numéro séquentiel dans l'organisation pour cette année>."""
+    year = timezone.localdate().year
+    prefix = f'PRJ-{year}-'
+    count = Project.objects.filter(organisation=organisation, code__startswith=prefix).count()
+    return f'{prefix}{str(count + 1).zfill(3)}'
+
+
+class ProjectLigne(models.Model):
+    """Attribution d'une ligne budgétaire réelle (Architecture monétaire, tout niveau confondu) à
+    un projet : combien d'argent ce projet va consommer sur cette ligne. Le montant est plafonné
+    par LigneBudgetaire.montant_prevu, propre à chaque projet (pas un pot partagé entre projets) —
+    voir ProjectLigneSerializer.validate."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lignes')
+    code = models.CharField(max_length=20)
+    ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, related_name='project_lignes')
+    montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    date_debut = models.DateField(null=True, blank=True)
+    date_fin = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['code']
+        unique_together = [('project', 'code'), ('project', 'ligne_budgetaire')]
+
+    def __str__(self):
+        return f'{self.code} — {self.ligne_budgetaire.nom}'
+
+
+def next_project_ligne_code(project):
+    return f'PRJ.{str(project.lignes.count() + 1).zfill(3)}'

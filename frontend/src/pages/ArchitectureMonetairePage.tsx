@@ -1,287 +1,74 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ArrowDown, ArrowUp, Ban, CheckCircle2, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
+  Ban, CheckCircle2, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
   FolderClosed, FolderOpen, Layers, MoreVertical, Pencil, Plus, RotateCcw, Search, Trash2, X,
 } from 'lucide-react'
+import {
+  createLigneBudgetaire, deleteLigneBudgetaire, fetchLignesBudgetaires, updateLigneBudgetaire,
+  type LigneBudgetaire,
+} from '../api/architectureMonetaire'
+import { fetchTeams, type Team } from '../api/employees'
+import { ApiError } from '../api/client'
 import './ArchitectureMonetairePage.css'
 
-type LigneType = 'recette' | 'depense'
-
-interface LigneBudgetaire {
-  id: number
-  code: string
-  nom: string
-  equipe: string
-  niveau: 1 | 2 | 3
-  type: LigneType
-  declinaison: string | null
-  actif: boolean
-  parentId: number | null
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué.'
+  }
+  return 'Impossible de contacter le serveur.'
 }
-
-interface SeedLeaf { nom: string; equipe?: string; declinaison?: string; actif?: boolean }
-interface SeedNiveau2 { nom: string; equipe?: string; leaves: SeedLeaf[] }
-interface SeedNiveau1 { nom: string; equipe: string; type: LigneType; enfants: SeedNiveau2[] }
-
-const SEED: SeedNiveau1[] = [
-  {
-    nom: 'RENTREES FINANCIERES', equipe: 'RE', type: 'recette',
-    enfants: [
-      {
-        nom: 'Paiement des programmes et projets', leaves: [
-          { nom: 'Paiement des programmes et projets' },
-          { nom: 'Autres paiement' },
-          { nom: 'Avance sur Paiement des programmes et projets' },
-        ],
-      },
-      {
-        nom: 'Décaissement de prêt', leaves: [
-          { nom: 'Décaissement prêt DG' },
-          { nom: 'Décaissement prêt salariés' },
-          { nom: 'Décaissement prêt Banque' },
-          { nom: 'Décaissement prêt Prêtataires' },
-        ],
-      },
-      {
-        nom: 'Subventions reçues', leaves: [
-          { nom: 'Subvention bailleur principal' },
-          { nom: 'Subvention partenaire local' },
-          { nom: 'Don ponctuel' },
-        ],
-      },
-      {
-        nom: 'Produits financiers', leaves: [
-          { nom: 'Intérêts bancaires' },
-          { nom: 'Plus-value de change' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES DG', equipe: 'DG', type: 'depense',
-    enfants: [
-      { nom: 'Parentaux', leaves: [{ nom: 'Parentaux', declinaison: 'Parentaux BMN national' }] },
-      {
-        nom: 'Relations publiques', equipe: 'DIR', leaves: [
-          { nom: 'Restaurants' },
-          { nom: 'Cadeaux' },
-          { nom: 'Relations publiques - autres' },
-        ],
-      },
-      {
-        nom: 'Déplacements DG', leaves: [
-          { nom: "Billets d'avion" },
-          { nom: 'Hôtel' },
-          { nom: 'Per diem' },
-        ],
-      },
-      {
-        nom: 'Frais de représentation', leaves: [
-          { nom: 'Réceptions officielles' },
-          { nom: 'Dons institutionnels', actif: false },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES RESSOURCES HUMAINES', equipe: 'RH', type: 'depense',
-    enfants: [
-      {
-        nom: 'Salaires et charges', leaves: [
-          { nom: 'Salaires bruts' },
-          { nom: 'Charges sociales' },
-          { nom: 'Primes' },
-        ],
-      },
-      {
-        nom: 'Recrutement', leaves: [
-          { nom: 'Annonces de recrutement' },
-          { nom: 'Tests et évaluations' },
-        ],
-      },
-      {
-        nom: 'Formation', leaves: [
-          { nom: 'Formation interne' },
-          { nom: 'Formation externe' },
-          { nom: 'Certifications' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES OPERATIONS', equipe: 'OPS', type: 'depense',
-    enfants: [
-      {
-        nom: 'Logistique terrain', leaves: [
-          { nom: 'Carburant' },
-          { nom: 'Location véhicules' },
-          { nom: 'Entretien véhicules' },
-        ],
-      },
-      {
-        nom: 'Achats matériel', leaves: [
-          { nom: 'Équipements EHS' },
-          { nom: 'Consommables de bureau' },
-          { nom: 'Petit matériel' },
-        ],
-      },
-      {
-        nom: 'Missions terrain', leaves: [
-          { nom: 'Transport mission' },
-          { nom: 'Hébergement mission' },
-          { nom: 'Per diem mission' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES COMMUNICATION', equipe: 'COM', type: 'depense',
-    enfants: [
-      {
-        nom: 'Supports de communication', leaves: [
-          { nom: 'Impression brochures' },
-          { nom: 'Supports numériques' },
-        ],
-      },
-      {
-        nom: 'Événementiel', leaves: [
-          { nom: 'Location salle' },
-          { nom: 'Traiteur' },
-          { nom: 'Location matériel audiovisuel' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES INFORMATIQUE', equipe: 'IT', type: 'depense',
-    enfants: [
-      {
-        nom: 'Licences et abonnements', leaves: [
-          { nom: 'Licences logicielles' },
-          { nom: 'Hébergement cloud' },
-          { nom: 'Abonnements SaaS' },
-        ],
-      },
-      {
-        nom: 'Matériel informatique', leaves: [
-          { nom: 'Ordinateurs' },
-          { nom: 'Imprimantes' },
-          { nom: 'Accessoires informatiques' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES FINANCE', equipe: 'FIN', type: 'depense',
-    enfants: [
-      {
-        nom: 'Frais bancaires', leaves: [
-          { nom: 'Frais de tenue de compte' },
-          { nom: 'Frais de virement' },
-        ],
-      },
-      {
-        nom: 'Audit et conformité', leaves: [
-          { nom: 'Audit externe' },
-          { nom: 'Conseil fiscal' },
-        ],
-      },
-    ],
-  },
-  {
-    nom: 'DEPENSES TRESORERIE', equipe: 'FIN', type: 'depense',
-    enfants: [
-      {
-        nom: "Remboursement d'emprunt", leaves: [
-          { nom: 'Remboursement capital' },
-          { nom: 'Remboursement intérêts' },
-        ],
-      },
-      {
-        nom: 'Avances internes', leaves: [
-          { nom: 'Avance sur salaire' },
-          { nom: 'Avance sur frais de mission' },
-        ],
-      },
-    ],
-  },
-]
-
-function buildLignes(seed: SeedNiveau1[]): LigneBudgetaire[] {
-  const out: LigneBudgetaire[] = []
-  let id = 1
-  seed.forEach((n1, i1) => {
-    const code1 = String.fromCharCode(65 + i1)
-    const id1 = id++
-    out.push({ id: id1, code: code1, nom: n1.nom, equipe: n1.equipe, niveau: 1, type: n1.type, declinaison: null, actif: true, parentId: null })
-    n1.enfants.forEach((n2, i2) => {
-      const code2 = code1 + String.fromCharCode(65 + i2)
-      const id2 = id++
-      const equipe2 = n2.equipe ?? n1.equipe
-      out.push({ id: id2, code: code2, nom: n2.nom, equipe: equipe2, niveau: 2, type: n1.type, declinaison: null, actif: true, parentId: id1 })
-      n2.leaves.forEach((leaf, i3) => {
-        const code3 = code2 + String(i3 + 1).padStart(2, '0')
-        out.push({
-          id: id++, code: code3, nom: leaf.nom, equipe: leaf.equipe ?? equipe2, niveau: 3, type: n1.type,
-          declinaison: leaf.declinaison ?? null, actif: leaf.actif ?? true, parentId: id2,
-        })
-      })
-    })
-  })
-  return out
-}
-
-const INITIAL_LIGNES = buildLignes(SEED)
-
-const TYPE_LABELS: Record<LigneType, string> = { recette: 'Recette', depense: 'Dépense' }
 
 interface VisibleRow extends LigneBudgetaire {
   depth: number
 }
 
-function nextCode(lignes: LigneBudgetaire[], parent: LigneBudgetaire | null): string {
-  if (!parent) {
-    const count = lignes.filter((l) => l.niveau === 1).length
-    return String.fromCharCode(65 + count)
-  }
-  const siblings = lignes.filter((l) => l.parentId === parent.id)
-  if (parent.niveau === 1) return parent.code + String.fromCharCode(65 + siblings.length)
-  return parent.code + String(siblings.length + 1).padStart(2, '0')
-}
-
 interface LigneFormValues {
   nom: string
-  equipe: string
+  equipe: number
   declinaison: string
-  type: LigneType
+  montant_prevu: number | null
 }
 
-function LigneBudgetaireModal({ mode, parent, initial, onClose, onSubmit }: {
+function LigneBudgetaireModal({ mode, teams, parent, initial, onClose, onSubmit }: {
   mode: 'create' | 'edit'
+  teams: Team[]
   parent?: LigneBudgetaire | null
   initial?: LigneBudgetaire
   onClose: () => void
-  onSubmit: (values: LigneFormValues) => void
+  onSubmit: (values: LigneFormValues) => Promise<void>
 }) {
   const [nom, setNom] = useState(initial?.nom ?? '')
-  const [equipe, setEquipe] = useState(initial?.equipe ?? parent?.equipe ?? '')
+  const [equipe, setEquipe] = useState<number>(initial?.equipe ?? parent?.equipe ?? teams[0]?.id ?? 0)
   const [declinaison, setDeclinaison] = useState(initial?.declinaison ?? '')
-  const [type, setType] = useState<LigneType>(initial?.type ?? parent?.type ?? 'depense')
+  const [montantPrevu, setMontantPrevu] = useState(initial?.montant_prevu != null ? String(initial.montant_prevu) : '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const niveau = initial?.niveau ?? (parent ? parent.niveau + 1 : 1)
-  const typeIsEditable = mode === 'create' && !parent
+  const canSave = nom.trim() !== '' && !!equipe && !saving
 
-  const canSave = nom.trim() !== '' && equipe.trim() !== ''
-
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!canSave) return
-    onSubmit({ nom: nom.trim(), equipe: equipe.trim().toUpperCase(), declinaison: declinaison.trim(), type })
+    setSaving(true)
+    setError(null)
+    try {
+      await onSubmit({ nom: nom.trim(), equipe, declinaison: declinaison.trim(), montant_prevu: montantPrevu.trim() === '' ? null : Number(montantPrevu) })
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label={mode === 'edit' ? 'Modifier la ligne budgétaire' : 'Nouvelle ligne budgétaire'} onMouseDown={onClose}>
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label={mode === 'edit' ? 'Modifier la ligne budgétaire' : 'Nouvelle ligne budgétaire'} onMouseDown={() => { if (!saving) onClose() }}>
       <div className="ge-modal param-modal" onMouseDown={(event) => event.stopPropagation()}>
         <div className="ge-modal-head">
           <div>
@@ -290,37 +77,41 @@ function LigneBudgetaireModal({ mode, parent, initial, onClose, onSubmit }: {
               {parent ? <>Sous-ligne de <strong>{parent.code} — {parent.nom}</strong> (niveau {niveau})</> : `Ligne de niveau ${niveau}`}
             </p>
           </div>
-          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
         </div>
 
         <form className="param-form" onSubmit={handleSubmit}>
+          {error && <p className="ge-form-error">{error}</p>}
+
           <label className="param-field">Nom de la ligne budgétaire *
             <input required value={nom} placeholder="Ex. Carburant" onChange={(event) => setNom(event.target.value)} />
           </label>
 
-          <div className="param-form-row">
-            <label className="param-field">Équipe *
-              <input required value={equipe} placeholder="Ex. RE, DG, IT..." onChange={(event) => setEquipe(event.target.value)} />
-            </label>
-            <label className="param-field">Type
-              {typeIsEditable ? (
-                <select value={type} onChange={(event) => setType(event.target.value as LigneType)}>
-                  <option value="recette">Recette</option>
-                  <option value="depense">Dépense</option>
-                </select>
-              ) : (
-                <input value={TYPE_LABELS[type]} disabled />
-              )}
-            </label>
-          </div>
+          <label className="param-field">Équipe *
+            <select required value={equipe} onChange={(event) => setEquipe(Number(event.target.value))}>
+              {teams.length === 0 && <option value={0}>Aucune équipe disponible</option>}
+              {teams.map((team) => <option key={team.id} value={team.id}>{team.code} — {team.name}</option>)}
+            </select>
+          </label>
 
           <label className="param-field">Déclinaison (facultatif)
             <input value={declinaison} placeholder="Ex. Parentaux BMN national" onChange={(event) => setDeclinaison(event.target.value)} />
           </label>
 
+          {niveau === 3 && (
+            <label className="param-field">Montant prévu (facultatif)
+              <input type="number" min={0} value={montantPrevu} placeholder="Ex. 1 000 000" onChange={(event) => setMontantPrevu(event.target.value)} />
+            </label>
+          )}
+          {niveau === 3 && (
+            <p className="param-hint">
+              Plafond consommable par chaque projet qui attribue cette ligne (indépendant pour chaque projet). Laisser vide pour ne fixer aucune limite.
+            </p>
+          )}
+
           <div className="ge-modal-actions">
-            <button type="button" className="ge-btn-outline" onClick={onClose}>Annuler</button>
-            <button type="submit" className="ge-btn-primary" disabled={!canSave}>Enregistrer</button>
+            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+            <button type="submit" className="ge-btn-primary" disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
           </div>
         </form>
       </div>
@@ -402,27 +193,40 @@ function RowActionsMenu({ ligne, canAddChild, onEdit, onAddChild, onToggleActif,
 const PER_PAGE_OPTIONS = [10, 25, 50, 100]
 
 export default function ArchitectureMonetairePage() {
-  const [lignes, setLignes] = useState<LigneBudgetaire[]>(INITIAL_LIGNES)
+  const [lignes, setLignes] = useState<LigneBudgetaire[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'tous' | LigneType>('tous')
-  const [equipeFilter, setEquipeFilter] = useState('toutes')
+  const [equipeFilter, setEquipeFilter] = useState<'toutes' | number>('toutes')
   const [niveauFilter, setNiveauFilter] = useState<'tous' | '1' | '2' | '3'>('tous')
   const [statutFilter, setStatutFilter] = useState<'tous' | 'actif' | 'inactif'>('actif')
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(
-    () => new Set(INITIAL_LIGNES.filter((l) => l.niveau === 1).map((l) => l.id)),
-  )
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
   const [createFor, setCreateFor] = useState<{ parent: LigneBudgetaire | null } | null>(null)
   const [editingLigne, setEditingLigne] = useState<LigneBudgetaire | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
 
-  const equipes = Array.from(new Set(lignes.map((l) => l.equipe))).sort()
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchLignesBudgetaires(), fetchTeams()])
+      .then(([lignesData, teamsData]) => {
+        if (cancelled) return
+        setLignes(lignesData)
+        setTeams(teamsData)
+        setExpandedIds(new Set(lignesData.filter((l) => l.niveau === 1).map((l) => l.id)))
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger l’architecture monétaire.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
-  const treeMode = search.trim() === '' && typeFilter === 'tous' && equipeFilter === 'toutes' && niveauFilter === 'tous'
+  const treeMode = search.trim() === '' && equipeFilter === 'toutes' && niveauFilter === 'tous'
 
   const matchesStatut = (l: LigneBudgetaire) => statutFilter === 'tous' || (statutFilter === 'actif') === l.actif
-  const hasChildren = (id: number) => lignes.some((l) => l.parentId === id)
+  const hasChildren = (id: number) => lignes.some((l) => l.parent === id)
 
   const toggleExpand = (id: number) => {
     setExpandedIds((prev) => {
@@ -437,7 +241,7 @@ export default function ArchitectureMonetairePage() {
   if (treeMode) {
     visible = []
     const walk = (parentId: number | null, depth: number) => {
-      const kids = lignes.filter((l) => l.parentId === parentId && matchesStatut(l)).sort((a, b) => a.code.localeCompare(b.code))
+      const kids = lignes.filter((l) => l.parent === parentId && matchesStatut(l)).sort((a, b) => a.code.localeCompare(b.code))
       for (const kid of kids) {
         visible.push({ ...kid, depth })
         if (hasChildren(kid.id) && expandedIds.has(kid.id)) walk(kid.id, depth + 1)
@@ -449,7 +253,6 @@ export default function ArchitectureMonetairePage() {
     visible = lignes
       .filter((l) =>
         matchesStatut(l)
-        && (typeFilter === 'tous' || l.type === typeFilter)
         && (equipeFilter === 'toutes' || l.equipe === equipeFilter)
         && (niveauFilter === 'tous' || String(l.niveau) === niveauFilter)
         && (!q || l.code.toLowerCase().includes(q) || l.nom.toLowerCase().includes(q)),
@@ -463,56 +266,49 @@ export default function ArchitectureMonetairePage() {
   const pageRows = visible.slice((currentPage - 1) * perPage, currentPage * perPage)
 
   const setSearchAndResetPage = (value: string) => { setSearch(value); setPage(1) }
-  const setTypeFilterAndResetPage = (value: typeof typeFilter) => { setTypeFilter(value); setPage(1) }
-  const setEquipeFilterAndResetPage = (value: string) => { setEquipeFilter(value); setPage(1) }
+  const setEquipeFilterAndResetPage = (value: 'toutes' | number) => { setEquipeFilter(value); setPage(1) }
   const setNiveauFilterAndResetPage = (value: typeof niveauFilter) => { setNiveauFilter(value); setPage(1) }
   const setStatutFilterAndResetPage = (value: typeof statutFilter) => { setStatutFilter(value); setPage(1) }
   const setPerPageAndResetPage = (value: number) => { setPerPage(value); setPage(1) }
 
   const resetFilters = () => {
-    setSearch(''); setTypeFilter('tous'); setEquipeFilter('toutes'); setNiveauFilter('tous'); setStatutFilter('tous'); setPage(1)
+    setSearch(''); setEquipeFilter('toutes'); setNiveauFilter('tous'); setStatutFilter('tous'); setPage(1)
   }
 
-  const handleCreate = (values: LigneFormValues) => {
+  const handleCreate = async (values: LigneFormValues) => {
     const parent = createFor?.parent ?? null
-    const niveau = (parent ? parent.niveau + 1 : 1) as 1 | 2 | 3
-    const type = parent ? parent.type : values.type
-    const newLigne: LigneBudgetaire = {
-      id: Math.max(0, ...lignes.map((l) => l.id)) + 1,
-      code: nextCode(lignes, parent),
-      nom: values.nom,
-      equipe: values.equipe,
-      niveau,
-      type,
-      declinaison: values.declinaison || null,
-      actif: true,
-      parentId: parent?.id ?? null,
-    }
-    setLignes((prev) => [...prev, newLigne])
+    const created = await createLigneBudgetaire({ nom: values.nom, equipe: values.equipe, declinaison: values.declinaison, montant_prevu: values.montant_prevu, parent: parent?.id ?? null })
+    setLignes((prev) => [...prev, created])
     if (parent) setExpandedIds((prev) => new Set(prev).add(parent.id))
     setCreateFor(null)
   }
 
-  const handleUpdate = (values: LigneFormValues) => {
+  const handleUpdate = async (values: LigneFormValues) => {
     if (!editingLigne) return
-    setLignes((prev) => prev.map((l) => l.id === editingLigne.id
-      ? { ...l, nom: values.nom, equipe: values.equipe, declinaison: values.declinaison || null }
-      : l))
+    const updated = await updateLigneBudgetaire(editingLigne.id, { nom: values.nom, equipe: values.equipe, declinaison: values.declinaison, montant_prevu: values.montant_prevu })
+    setLignes((prev) => prev.map((l) => l.id === updated.id ? updated : l))
     setEditingLigne(null)
   }
 
-  const handleToggleActif = (ligne: LigneBudgetaire) => {
-    setLignes((prev) => prev.map((l) => l.id === ligne.id ? { ...l, actif: !l.actif } : l))
+  const handleToggleActif = async (ligne: LigneBudgetaire) => {
+    setActionError(null)
+    try {
+      const updated = await updateLigneBudgetaire(ligne.id, { actif: !ligne.actif })
+      setLignes((prev) => prev.map((l) => l.id === updated.id ? updated : l))
+    } catch (err) {
+      setActionError(errorMessage(err))
+    }
   }
 
-  const handleDelete = (ligne: LigneBudgetaire) => {
+  const handleDelete = async (ligne: LigneBudgetaire) => {
     setActionError(null)
-    if (hasChildren(ligne.id)) {
-      setActionError(`Impossible de supprimer « ${ligne.nom} » : cette ligne a des sous-lignes. Supprimez-les d’abord.`)
-      return
-    }
     if (!window.confirm(`Supprimer la ligne budgétaire « ${ligne.nom} » ?`)) return
-    setLignes((prev) => prev.filter((l) => l.id !== ligne.id))
+    try {
+      await deleteLigneBudgetaire(ligne.id)
+      setLignes((prev) => prev.filter((l) => l.id !== ligne.id))
+    } catch (err) {
+      setActionError(errorMessage(err))
+    }
   }
 
   return (
@@ -520,7 +316,7 @@ export default function ArchitectureMonetairePage() {
       <div className="ge-header-row">
         <div />
         <div className="ge-header-actions">
-          <button type="button" className="ge-btn-primary" onClick={() => setCreateFor({ parent: null })}>
+          <button type="button" className="ge-btn-primary" onClick={() => setCreateFor({ parent: null })} disabled={teams.length === 0}>
             <Plus size={14} />Nouvelle ligne budgétaire
           </button>
         </div>
@@ -531,17 +327,10 @@ export default function ArchitectureMonetairePage() {
           <Search size={14} />
           <input placeholder="Rechercher une ligne budgétaire..." value={search} onChange={(event) => setSearchAndResetPage(event.target.value)} />
         </label>
-        <label>Type
-          <select value={typeFilter} onChange={(event) => setTypeFilterAndResetPage(event.target.value as typeof typeFilter)}>
-            <option value="tous">Tous</option>
-            <option value="recette">Recette</option>
-            <option value="depense">Dépense</option>
-          </select>
-        </label>
         <label>Équipe
-          <select value={equipeFilter} onChange={(event) => setEquipeFilterAndResetPage(event.target.value)}>
+          <select value={equipeFilter} onChange={(event) => setEquipeFilterAndResetPage(event.target.value === 'toutes' ? 'toutes' : Number(event.target.value))}>
             <option value="toutes">Toutes</option>
-            {equipes.map((e) => <option key={e} value={e}>{e}</option>)}
+            {teams.map((team) => <option key={team.id} value={team.id}>{team.code} — {team.name}</option>)}
           </select>
         </label>
         <label>Niveau
@@ -562,6 +351,7 @@ export default function ArchitectureMonetairePage() {
         <button type="button" className="ge-reset" onClick={resetFilters}><RotateCcw size={14} />Réinitialiser</button>
       </div>
 
+      {loadError && <p className="ge-form-error">{loadError}</p>}
       {actionError && <p className="ge-form-error">{actionError}</p>}
 
       <div className="ge-table-panel">
@@ -569,11 +359,14 @@ export default function ArchitectureMonetairePage() {
           <table className="ge-table am-table">
             <thead>
               <tr>
-                <th>Code</th><th>Ligne budgétaire</th><th>Équipe</th><th>Niveau</th><th>Type</th><th>Déclinaison</th><th>Actions</th>
+                <th>Code</th><th>Ligne budgétaire</th><th>Équipe</th><th>Niveau</th><th>Déclinaison</th><th>Montant prévu</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((ligne) => {
+              {loading && (
+                <tr><td colSpan={7} className="ge-detail-empty">Chargement…</td></tr>
+              )}
+              {!loading && pageRows.map((ligne) => {
                 const kids = hasChildren(ligne.id)
                 const isExpanded = expandedIds.has(ligne.id)
                 return (
@@ -591,15 +384,10 @@ export default function ArchitectureMonetairePage() {
                       <span className={`am-code-text ${ligne.niveau === 3 ? 'am-code-leaf' : ''}`}>{ligne.code}</span>
                     </td>
                     <td className={ligne.niveau === 1 ? 'am-nom-1' : ligne.niveau === 2 ? 'am-nom-2' : ''}>{ligne.nom}</td>
-                    <td>{ligne.equipe}</td>
+                    <td>{ligne.equipe_code}</td>
                     <td><span className="ge-pill am-niveau-pill">{ligne.niveau}</span></td>
-                    <td>
-                      <span className={`am-type ${ligne.type === 'recette' ? 'am-type-recette' : 'am-type-depense'}`}>
-                        {ligne.type === 'recette' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                        {TYPE_LABELS[ligne.type]}
-                      </span>
-                    </td>
-                    <td className="am-declinaison">{ligne.declinaison ?? '—'}</td>
+                    <td className="am-declinaison">{ligne.declinaison || '—'}</td>
+                    <td>{ligne.montant_prevu != null ? `${ligne.montant_prevu.toLocaleString('fr-FR')} FCFA` : '—'}</td>
                     <td>
                       <RowActionsMenu
                         ligne={ligne}
@@ -613,7 +401,7 @@ export default function ArchitectureMonetairePage() {
                   </tr>
                 )
               })}
-              {pageRows.length === 0 && (
+              {!loading && pageRows.length === 0 && (
                 <tr><td colSpan={7} className="ge-detail-empty">Aucune ligne budgétaire ne correspond à votre recherche.</td></tr>
               )}
             </tbody>
@@ -643,10 +431,10 @@ export default function ArchitectureMonetairePage() {
       </div>
 
       {createFor && (
-        <LigneBudgetaireModal mode="create" parent={createFor.parent} onClose={() => setCreateFor(null)} onSubmit={handleCreate} />
+        <LigneBudgetaireModal mode="create" teams={teams} parent={createFor.parent} onClose={() => setCreateFor(null)} onSubmit={handleCreate} />
       )}
       {editingLigne && (
-        <LigneBudgetaireModal mode="edit" initial={editingLigne} onClose={() => setEditingLigne(null)} onSubmit={handleUpdate} />
+        <LigneBudgetaireModal mode="edit" teams={teams} initial={editingLigne} onClose={() => setEditingLigne(null)} onSubmit={handleUpdate} />
       )}
     </section>
   )

@@ -58,6 +58,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
+    # Sans quoi les DecimalField (Project, ProjectLigne…) sérialisent en JSON comme des chaînes
+    # (ex. "38400000.00") plutôt que des nombres, ce que le frontend TypeScript ne gère pas.
+    'COERCE_DECIMAL_TO_STRING': False,
 }
 
 MIDDLEWARE = [

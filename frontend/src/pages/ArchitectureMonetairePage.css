@@ -1,6 +1,7 @@
 @import './GestionEquipesPage.css';
+@import './ParametresPage.css';
 
-.am-page .ge-table { min-width: 1080px; }
+.am-page .ge-table { min-width: 1040px; }
 .am-page .ge-table tbody tr { cursor: default; }
 
 .am-filters { flex-wrap: wrap; }
@@ -36,10 +37,6 @@
 .am-nom-2 { font-weight: 700; color: #2b2b4a; }
 
 .am-niveau-pill { background: #e0e7ff; color: #4338ca; }
-
-.am-type { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
-.am-type-recette { color: #15803d; }
-.am-type-depense { color: #b91c1c; }
 
 .am-declinaison { color: #6c6c85; }
 
