@@ -48,6 +48,19 @@
 .salarie-filter b { color: #1a1a2e; }
 .salarie-filter svg { color: #8286a8; flex: 0 0 auto; }
 .salarie-filter-periode { cursor: pointer; }
+
+/* Carte de cumul des jours de congé */
+.salarie-solde-panel { padding: 0; }
+.salarie-solde-total { display: flex; align-items: baseline; gap: 6px; }
+.salarie-solde-total strong { font-size: 22px; color: #1a1a2e; }
+.salarie-solde-total span { font-size: 11px; color: #8286a8; font-weight: 600; }
+.salarie-solde-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; padding: 18px; }
+.salarie-solde-item { display: flex; flex-direction: column; gap: 6px; }
+.salarie-solde-item strong { font-size: 12px; color: #1a1a2e; }
+.salarie-solde-bar { height: 6px; border-radius: 999px; background: #ede9fe; overflow: hidden; }
+.salarie-solde-bar-fill { height: 100%; border-radius: inherit; background: #6b46c1; }
+.salarie-solde-item small { font-size: 10.5px; color: #8286a8; }
+.salarie-solde-item small b { color: #3a3d63; }
 .salarie-filter-periode select { border: none; background: none; padding: 0; margin: 0; color: #1a1a2e; font: inherit; font-weight: 700; cursor: pointer; }
 .salarie-filter-periode select:focus { outline: none; }
 .salarie-tab-filter-row { display: flex; justify-content: flex-end; }
@@ -84,6 +97,10 @@
 .salarie-info > svg { flex: 0 0 auto; margin-top: 1px; }
 .salarie-info strong { display: block; margin-bottom: 6px; color: #3a2185; font-size: 13px; }
 .salarie-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #5c4fa0; font-size: 11px; line-height: 1.5; }
+
+.salarie-info-technique { background: #fff4e6; color: #9a5b00; }
+.salarie-info-technique strong { color: #7a4600; }
+.salarie-info-technique ul { color: #8a5300; }
 
 @media (max-width: 900px) {
   .salarie-summary { grid-template-columns: 1fr; }
@@ -197,6 +214,9 @@
 .salarie-form textarea { resize: vertical; }
 .salarie-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .salarie-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+.salarie-checkbox-field { flex-direction: row !important; align-items: center; gap: 8px !important; font-weight: 600 !important; }
+.salarie-checkbox-field input[type="checkbox"] { width: 15px; height: 15px; accent-color: #5b21b6; }
 
 /* Sélecteur de pays (drapeau) */
 .salarie-country-picker { position: relative; }

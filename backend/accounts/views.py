@@ -5,19 +5,21 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AvanceDemande, CongeDemande, Organisation, Team, User
+from .models import AvanceDemande, CongeDemande, CongeType, FermetureTechnique, Organisation, Team, User
 from .serializers import (
     AvanceDemandeReviewSerializer,
     AvanceDemandeSerializer,
     CongeDemandeReviewSerializer,
     CongeDemandeSerializer,
+    CongeTypeSerializer,
     EmployeeAdminEditSerializer,
+    FermetureTechniqueSerializer,
     EmployeeAdminUpdateSerializer,
     EmployeeCreateSerializer,
     EmployeeMeSerializer,
@@ -42,12 +44,44 @@ def auto_approve_stale_demandes(queryset):
     cutoff = timezone.now() - DEMANDE_AUTO_APPROVE_DELAY
     stale = queryset.filter(statut='attente', created_at__lte=cutoff)
     if queryset.model is CongeDemande:
+        # Un congé « défini par l'entreprise » sans dates ne peut pas s'auto-approuver :
+        # il attend une action explicite de l'admin, qui doit d'abord fixer la période.
+        stale = stale.exclude(date_debut__isnull=True)
         employee_ids = list(stale.values_list('employee_id', flat=True))
         stale.update(statut='approuvee', reviewed_at=timezone.now())
         if employee_ids:
             User.objects.filter(id__in=employee_ids, statut='actif').update(statut='conge')
     else:
         stale.update(statut='approuvee', reviewed_at=timezone.now())
+
+
+def apply_fermetures_techniques(organisation):
+    """Fait passer en « Congé » les employés couverts par une fermeture technique actuellement
+    active (et les en fait ressortir une fois la période terminée), sans jamais créer de
+    CongeDemande ni toucher aux congés réellement demandés. Lazy comme auto_approve_stale_demandes :
+    appelé à chaque lecture pertinente, faute de tâche planifiée dans ce projet."""
+    if not organisation:
+        return
+    today = timezone.localdate()
+
+    # Fermetures dont la période est terminée : on retire le statut qu'elles avaient imposé.
+    perimees = User.objects.filter(
+        organisation=organisation, conge_technique_source__isnull=False,
+    ).exclude(conge_technique_source__date_fin__gte=today)
+    perimees_ids = list(perimees.values_list('id', flat=True))
+    if perimees_ids:
+        User.objects.filter(id__in=perimees_ids, statut='conge').update(statut='actif')
+        User.objects.filter(id__in=perimees_ids).update(conge_technique_source=None)
+
+    actives = FermetureTechnique.objects.filter(organisation=organisation, date_debut__lte=today, date_fin__gte=today)
+    for fermeture in actives:
+        candidats = User.objects.filter(organisation=organisation, statut='actif').exclude(
+            id__in=fermeture.employes_exceptes.values_list('id', flat=True)
+        )
+        equipes_exceptees = list(fermeture.equipes_exceptees.values_list('id', flat=True))
+        if equipes_exceptees:
+            candidats = candidats.exclude(team_id__in=equipes_exceptees)
+        candidats.update(statut='conge', conge_technique_source=fermeture)
 
 
 class OrganisationSearchView(generics.ListAPIView):
@@ -126,6 +160,7 @@ class EmployeeListView(generics.ListCreateAPIView):
         organisation = self.request.user.organisation
         if not organisation:
             return User.objects.none()
+        apply_fermetures_techniques(organisation)
         return (
             User.objects.filter(organisation=organisation)
             .select_related('team')
@@ -155,6 +190,8 @@ class EmployeeMeView(generics.RetrieveUpdateAPIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
+        apply_fermetures_techniques(self.request.user.organisation)
+        self.request.user.refresh_from_db()
         return self.request.user
 
 
@@ -166,6 +203,7 @@ class EmployeeDetailView(generics.RetrieveUpdateAPIView):
         organisation = self.request.user.organisation
         if not organisation:
             return User.objects.none()
+        apply_fermetures_techniques(organisation)
         return User.objects.filter(organisation=organisation)
 
     def update(self, request, *args, **kwargs):
@@ -212,6 +250,7 @@ class TeamListCreateView(generics.ListCreateAPIView):
         organisation = self.request.user.organisation
         if not organisation:
             return Team.objects.none()
+        apply_fermetures_techniques(organisation)
         return Team.objects.filter(organisation=organisation).select_related('manager').prefetch_related('team_members')
 
     def get_serializer_context(self):
@@ -259,18 +298,70 @@ class TeamRemoveMemberView(_TeamMembershipView):
             user.move_to_team(None, changed_by=changed_by)
 
 
+class CongeTypeListCreateView(generics.ListCreateAPIView):
+    """Politiques de congé de l'organisation : consultées par tous, gérées par admin/directeur."""
+    serializer_class = CongeTypeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return CongeType.objects.none()
+        return CongeType.objects.filter(organisation=organisation)
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
+        if not self.request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        serializer.save()
+
+
+class CongeTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification d'un type de congé (nom, quota, unité, mode de période, actif/inactif) et
+    suppression — réservée aux types « standard » créés par l'admin : Congé maladie et Congé
+    Technique sont des types par défaut et ne peuvent pas être supprimés."""
+    serializer_class = CongeTypeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return CongeType.objects.none()
+        return CongeType.objects.filter(organisation=organisation)
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
+        if instance.categorie != 'standard':
+            raise PermissionDenied('Ce type de congé par défaut ne peut pas être supprimé.')
+        if instance.demandes.exists():
+            raise ValidationError({'detail': 'Ce type est utilisé par des demandes existantes : désactivez-le plutôt que de le supprimer.'})
+        instance.delete()
+
+
 class CongeDemandeListCreateView(generics.ListCreateAPIView):
     """Demandes de congé du salarié connecté : consultation et dépôt."""
     serializer_class = CongeDemandeSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        apply_fermetures_techniques(self.request.user.organisation)
         qs = CongeDemande.objects.filter(employee=self.request.user)
         auto_approve_stale_demandes(qs)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(employee=self.request.user)
+        instance = serializer.save(employee=self.request.user)
+        # Un congé maladie met en Congé dès sa déclaration, sans attendre l'approbation de l'admin.
+        if instance.type_conge.categorie == 'maladie' and self.request.user.statut == 'actif':
+            self.request.user.statut = 'conge'
+            self.request.user.save(update_fields=['statut'])
 
 
 class CongeDemandeDetailView(generics.RetrieveDestroyAPIView):
@@ -282,6 +373,14 @@ class CongeDemandeDetailView(generics.RetrieveDestroyAPIView):
         auto_approve_stale_demandes(CongeDemande.objects.filter(employee=self.request.user))
         return CongeDemande.objects.filter(employee=self.request.user, statut='attente')
 
+    def perform_destroy(self, instance):
+        employee = instance.employee
+        was_maladie = instance.type_conge.categorie == 'maladie'
+        instance.delete()
+        if was_maladie and employee.statut == 'conge':
+            employee.statut = 'actif'
+            employee.save(update_fields=['statut'])
+
 
 class OrganisationCongeDemandeListView(generics.ListAPIView):
     """Toutes les demandes de congé de l'organisation, pour la gestion RH/direction."""
@@ -292,6 +391,7 @@ class OrganisationCongeDemandeListView(generics.ListAPIView):
         organisation = self.request.user.organisation
         if not organisation:
             return CongeDemande.objects.none()
+        apply_fermetures_techniques(organisation)
         qs = CongeDemande.objects.filter(employee__organisation=organisation)
         auto_approve_stale_demandes(qs)
         return qs.select_related('employee', 'reviewed_by')
@@ -313,10 +413,16 @@ class CongeDemandeReviewView(generics.UpdateAPIView):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à traiter les demandes.')
         serializer.save(reviewed_by=self.request.user, reviewed_at=timezone.now())
-        if serializer.instance.statut == 'approuvee':
-            employee = serializer.instance.employee
+        instance = serializer.instance
+        employee = instance.employee
+        if instance.statut == 'approuvee':
             if employee.statut == 'actif':
                 employee.statut = 'conge'
+                employee.save(update_fields=['statut'])
+        elif instance.statut == 'refusee' and instance.type_conge.categorie == 'maladie':
+            # Le congé maladie avait déjà mis l'employé en Congé dès sa déclaration : un refus le remet actif.
+            if employee.statut == 'conge':
+                employee.statut = 'actif'
                 employee.save(update_fields=['statut'])
 
     def update(self, request, *args, **kwargs):
@@ -343,7 +449,7 @@ class CongeDemandeEndView(generics.GenericAPIView):
             return Response({'detail': 'Ce congé n’a pas encore commencé.'}, status=status.HTTP_400_BAD_REQUEST)
         update_fields = ['cloture']
         demande.cloture = True
-        if demande.date_fin > today:
+        if demande.date_fin is None or demande.date_fin > today:
             demande.date_fin = today
             update_fields.append('date_fin')
         demande.save(update_fields=update_fields)
@@ -354,6 +460,59 @@ class CongeDemandeEndView(generics.GenericAPIView):
             employee.save(update_fields=['statut'])
 
         return Response(CongeDemandeSerializer(demande, context=self.get_serializer_context()).data)
+
+
+class CongeSoldeView(generics.GenericAPIView):
+    """Cumul des jours de congé (acquis / pris / restants) du salarié connecté, par type de congé
+    « standard » (maladie/technique n'ont pas de quota et ne sont pas comptés ici).
+
+    - Quota annuel (unite='annee') : montant plein dès l'embauche, remis à plein chaque année
+      civile — comportement inchangé, sans report d'une année sur l'autre.
+    - Quota mensuel (unite='mois') : « banque de congés » qui s'accumule sans limite depuis la
+      date d'embauche tant qu'elle n'est pas consommée (aucune remise à zéro annuelle) ; seuls
+      les jours effectivement pris (congés approuvés, toutes années confondues) en sont déduits."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user
+        organisation = employee.organisation
+        if not organisation:
+            return Response([])
+
+        today = timezone.localdate()
+        year_start = today.replace(month=1, day=1)
+        date_embauche = employee.date_embauche or today
+
+        results = []
+        for conge_type in CongeType.objects.filter(organisation=organisation, actif=True, categorie='standard'):
+            if conge_type.unite == 'annee':
+                effective_start = max(date_embauche, year_start)
+                jours_acquis = 0 if effective_start > today else (conge_type.jours_alloues or 0)
+                demandes_prises = CongeDemande.objects.filter(
+                    employee=employee, type_conge=conge_type, statut='approuvee', date_debut__year=today.year,
+                )
+            else:
+                # Banque mensuelle : accumulation continue depuis l'embauche, jamais remise à zéro.
+                if date_embauche > today:
+                    jours_acquis = 0
+                else:
+                    months = (today.year - date_embauche.year) * 12 + (today.month - date_embauche.month)
+                    if today.day >= date_embauche.day:
+                        months += 1
+                    jours_acquis = max(0, months) * (conge_type.jours_alloues or 0)
+                demandes_prises = CongeDemande.objects.filter(
+                    employee=employee, type_conge=conge_type, statut='approuvee',
+                )
+
+            jours_pris = sum(demande.duree for demande in demandes_prises)
+
+            results.append({
+                'type_conge': CongeTypeSerializer(conge_type, context=self.get_serializer_context()).data,
+                'jours_acquis': jours_acquis,
+                'jours_pris': jours_pris,
+                'solde': max(0, jours_acquis - jours_pris),
+            })
+        return Response(results)
 
 
 class AvanceDemandeListCreateView(generics.ListCreateAPIView):
@@ -417,3 +576,49 @@ class AvanceDemandeReviewView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(AvanceDemandeSerializer(serializer.instance, context=self.get_serializer_context()).data)
+
+
+class FermetureTechniqueListCreateView(generics.ListCreateAPIView):
+    """Périodes de fermeture technique (congé technique) : consultées par tous les salariés
+    de l'organisation, définies par admin/directeur. Ne crée aucune CongeDemande individuelle,
+    mais met bien les employés couverts en statut « Congé » pendant la période (voir
+    apply_fermetures_techniques)."""
+    serializer_class = FermetureTechniqueSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return FermetureTechnique.objects.none()
+        apply_fermetures_techniques(organisation)
+        return FermetureTechnique.objects.filter(organisation=organisation).prefetch_related(
+            'equipes_exceptees', 'employes_exceptes'
+        )
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer le congé technique.')
+        if not self.request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        serializer.save()
+        apply_fermetures_techniques(self.request.user.organisation)
+
+
+class FermetureTechniqueDetailView(generics.RetrieveDestroyAPIView):
+    """Suppression d'une période de fermeture technique mal configurée."""
+    serializer_class = FermetureTechniqueSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return FermetureTechnique.objects.none()
+        return FermetureTechnique.objects.filter(organisation=organisation)
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à configurer le congé technique.')
+        concernes = list(instance.employes_places_en_conge.filter(statut='conge').values_list('id', flat=True))
+        instance.delete()
+        if concernes:
+            User.objects.filter(id__in=concernes, statut='conge').update(statut='actif', conge_technique_source=None)

@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from django.utils import timezone
 
 from .managers import UserManager
 
@@ -79,6 +80,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         'Team', on_delete=models.SET_NULL, related_name='team_members', null=True, blank=True
     )
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
+    # Renseigné quand le statut « Congé » a été mis en place automatiquement par une fermeture
+    # technique active (et non par une CongeDemande individuelle), pour pouvoir le retirer
+    # proprement à la fin de la période sans toucher aux congés « réels » de l'employé.
+    conge_technique_source = models.ForeignKey(
+        'FermetureTechnique', on_delete=models.SET_NULL, null=True, blank=True, related_name='employes_places_en_conge'
+    )
     grade = models.PositiveIntegerField(default=0)
     matricule = models.CharField(max_length=50, blank=True)
     date_naissance = models.DateField(null=True, blank=True)
@@ -259,24 +266,100 @@ DEMANDE_STATUT_CHOICES = [
 ]
 
 
-class CongeDemande(models.Model):
-    TYPE_CHOICES = [
-        ('annuel', 'Congé annuel payé'),
-        ('exceptionnel', 'Congé exceptionnel'),
+class CongeType(models.Model):
+    """Politique de congé configurable par l'organisation : nom, quota de jours ouvrables
+    (par mois ou par année), et qui choisit la période (le salarié ou l'entreprise).
+
+    Deux catégories spéciales existent en plus des types « standard » créés librement par
+    l'admin : « maladie » et « technique ». Elles sont amorcées automatiquement pour chaque
+    organisation (voir create_default_conge_types) et ne peuvent pas être recréées depuis le
+    formulaire normal — seule la catégorie « standard » l'est."""
+    UNITE_CHOICES = [
+        ('mois', 'Par mois'),
+        ('annee', 'Par année'),
+    ]
+    MODE_PERIODE_CHOICES = [
+        ('employe', 'Le salarié choisit la période'),
+        ('entreprise', "L'entreprise définit la période"),
+    ]
+    CATEGORIE_CHOICES = [
+        ('standard', 'Standard'),
         ('maladie', 'Congé maladie'),
-        ('sans_solde', 'Congé sans solde'),
+        ('technique', 'Congé technique'),
     ]
 
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='conge_types')
+    nom = models.CharField(max_length=100)
+    categorie = models.CharField(max_length=10, choices=CATEGORIE_CHOICES, default='standard')
+    description = models.CharField(max_length=255, blank=True)
+    # Sans objet pour la catégorie « technique » (aucun quota) ; sans quota non plus pour
+    # « maladie ». Nul dans ces deux cas.
+    jours_alloues = models.PositiveIntegerField(null=True, blank=True)
+    unite = models.CharField(max_length=10, choices=UNITE_CHOICES, null=True, blank=True)
+    mode_periode = models.CharField(max_length=20, choices=MODE_PERIODE_CHOICES, null=True, blank=True)
+    actif = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nom']
+        unique_together = ('organisation', 'nom')
+
+    def __str__(self):
+        return f'{self.nom} ({self.organisation})'
+
+
+DEFAULT_CONGE_TYPES = (
+    (
+        'Congé annuel payé', 'standard', 2, 'mois', 'employe',
+        '',
+    ),
+    (
+        'Congé maladie', 'maladie', None, None, None,
+        "Pas de quota. Le salarié indique uniquement une date de début : le congé reste "
+        "ouvert jusqu'à ce qu'il déclare sa reprise du travail, qui en fixe alors la fin.",
+    ),
+    (
+        'Congé Technique', 'technique', None, None, None,
+        "Fermeture collective configurée depuis Demandes > Congé Technique (période et "
+        "exceptions par équipe ou par salarié). N'apparaît pas dans le formulaire de demande "
+        "et ne consomme aucun quota personnel.",
+    ),
+)
+
+
+def create_default_conge_types(organisation):
+    """Amorce les types de congé de base (standard, maladie, technique) pour qu'une nouvelle
+    organisation ne parte pas avec un formulaire de demande vide ; l'admin peut ensuite ajouter
+    des types standard depuis Paramètres. get_or_create ne touche jamais une ligne déjà
+    existante : si l'admin a déjà personnalisé un type portant l'un de ces noms, il n'est pas
+    écrasé — ceci permet aussi de « rattraper » les organisations existantes sans risque."""
+    for nom, categorie, jours, unite, mode, description in DEFAULT_CONGE_TYPES:
+        CongeType.objects.get_or_create(
+            organisation=organisation, nom=nom,
+            defaults={
+                'categorie': categorie, 'jours_alloues': jours, 'unite': unite,
+                'mode_periode': mode, 'description': description,
+            },
+        )
+
+
+class CongeDemande(models.Model):
     employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conge_demandes')
-    type_conge = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    date_debut = models.DateField()
-    date_fin = models.DateField()
+    type_conge = models.ForeignKey(CongeType, on_delete=models.PROTECT, related_name='demandes')
+    # Non renseignées tant que le type est « défini par l'entreprise » : c'est alors l'admin
+    # qui les saisit au moment de l'approbation.
+    date_debut = models.DateField(null=True, blank=True)
+    date_fin = models.DateField(null=True, blank=True)
     motif = models.TextField(blank=True)
     statut = models.CharField(max_length=20, choices=DEMANDE_STATUT_CHOICES, default='attente')
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     reviewed_at = models.DateTimeField(null=True, blank=True)
-    # Le salarié a déclaré reprendre le service avant (ou à) la date de fin prévue.
+    # Le salarié a déclaré reprendre le service avant (ou à) la date de fin prévue — c'est aussi
+    # le mécanisme utilisé pour clore un congé maladie (date_fin nulle jusque-là).
     cloture = models.BooleanField(default=False)
+    # Demi-journées : réservé aux types « standard » (ex. 2,5 jours au lieu de 3).
+    demi_journee_debut = models.BooleanField(default=False)
+    demi_journee_fin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -287,15 +370,32 @@ class CongeDemande(models.Model):
 
     @property
     def duree(self):
-        """Nombre de jours ouvrés (hors samedis et dimanches) entre date_debut et date_fin, inclus."""
+        """Nombre de jours ouvrés (hors samedis et dimanches) entre date_debut et date_fin, inclus,
+        avec prise en compte des demi-journées de départ/retour. 0 tant que date_debut n'est pas
+        renseignée. Pour un congé maladie encore ouvert (date_fin nulle), compte jusqu'à
+        aujourd'hui, à titre indicatif tant que la reprise n'est pas déclarée."""
+        if not self.date_debut:
+            return 0
         from datetime import timedelta
-        days = (self.date_fin - self.date_debut).days + 1
+        end = self.date_fin
+        if not end:
+            end = timezone.localdate()
+            if end < self.date_debut:
+                return 0
+        days = (end - self.date_debut).days + 1
         full_weeks, remainder = divmod(days, 7)
         total = full_weeks * 5
         for i in range(remainder):
             if (self.date_debut + timedelta(days=full_weeks * 7 + i)).weekday() < 5:
                 total += 1
-        return total
+        if total <= 0:
+            return total
+        deduction = 0
+        if self.demi_journee_debut and self.date_debut.weekday() < 5:
+            deduction += 0.5
+        if self.date_fin and self.demi_journee_fin and self.date_fin.weekday() < 5 and self.date_fin != self.date_debut:
+            deduction += 0.5
+        return max(0, total - deduction)
 
 
 class AvanceDemande(models.Model):
@@ -313,3 +413,25 @@ class AvanceDemande(models.Model):
 
     def __str__(self):
         return f'{self.employee} : {self.montant} FCFA'
+
+
+class FermetureTechnique(models.Model):
+    """Période de fermeture technique définie par l'entreprise (congé technique) : une simple
+    annonce de période avec exceptions par équipe et/ou par salarié, configurée depuis
+    Demandes > Congé Technique. Ne crée aucune CongeDemande individuelle, mais met bien les
+    employés couverts (hors exceptions) en statut « Congé » pendant la période — voir
+    apply_fermetures_techniques et User.conge_technique_source."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='fermetures_techniques')
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    description = models.CharField(max_length=255, blank=True)
+    equipes_exceptees = models.ManyToManyField(Team, blank=True, related_name='+')
+    employes_exceptes = models.ManyToManyField(User, blank=True, related_name='+')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_debut']
+
+    def __str__(self):
+        return f'Fermeture technique {self.date_debut} → {self.date_fin} ({self.organisation})'

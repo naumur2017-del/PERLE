@@ -26,6 +26,7 @@ import OrganigrammePage from './pages/OrganigrammePage'
 import EquipesPage from './pages/EquipesPage'
 import TresoreriePage from './pages/TresoreriePage'
 import SalariePage from './pages/SalariePage'
+import ArchitectureMonetairePage from './pages/ArchitectureMonetairePage'
 import ArchitecturePage from './pages/ArchitecturePage'
 import ParametresPage from './pages/ParametresPage'
 import ModulePage from './pages/ModulePage'
@@ -61,6 +62,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'tresorerie-mercuriales': { path: '/tresorerie/mercuriales', title: 'Mercuriales', description: 'Gestion des mercuriales (prix de référence) utilisées pour le contrôle des dépenses de trésorerie.' },
   salarie: { path: '/salarie', title: 'Salarié', description: 'Consultez et gérez les informations liées aux salariés.' },
   architecture: { path: '/architecture', title: 'Architecture des tâches', description: 'Référentiel central des tâches et activités de l’entreprise.' },
+  'architecture-monetaire': { path: '/architecture-monetaire', title: 'Architecture monétaire', description: 'Référentiel des lignes budgétaires de l’organisation classées par équipe et niveau.' },
   aide: { path: '/aide', title: 'Help / Centre d’assistance', description: 'Nous sommes là pour vous aider à utiliser PERLE efficacement.' },
   'aide-faq': { path: '/aide/faq', title: 'FAQ', description: 'Consultez les questions fréquemment posées et leurs réponses.' },
   'aide-connaissances': { path: '/aide/base-de-connaissances', title: 'Base de connaissances', description: 'Parcourez tous les articles de la base de connaissances PERLE.' },
@@ -251,6 +253,7 @@ function App() {
     tresorerie: <AppIcon><path d="M10 18v-7" /><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /><path d="M14 18v-7" /><path d="M18 18v-7" /><path d="M3 22h18" /><path d="M6 18v-7" /></AppIcon>,
     salarie: <AppIcon><path d="M15 13a3 3 0 1 0-6 0" /><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" /><circle cx="12" cy="8" r="2" /></AppIcon>,
     architecture: <AppIcon><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" /></AppIcon>,
+    architectureMonetaire: <AppIcon><line x1="3" y1="22" x2="21" y2="22" /><line x1="6" y1="18" x2="6" y2="11" /><line x1="10" y1="18" x2="10" y2="11" /><line x1="14" y1="18" x2="14" y2="11" /><line x1="18" y1="18" x2="18" y2="11" /><polygon points="12 2 20 7 4 7" /></AppIcon>,
     parametres: <AppIcon><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></AppIcon>,
     deconnexion: <AppIcon><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></AppIcon>,
     aide: <AppIcon><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></AppIcon>,
@@ -297,6 +300,7 @@ function App() {
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
     { id: 'architecture', label: 'Architecture des tâches', icon: icons.architecture },
+    { id: 'architecture-monetaire', label: 'Architecture monétaire', icon: icons.architectureMonetaire },
     {
       id: 'aide', label: 'Help', icon: icons.aide,
       children: [
@@ -407,6 +411,7 @@ function App() {
       case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage session={session!} onSessionUpdate={updateSession} />
       case 'architecture': return <ArchitecturePage />
+      case 'architecture-monetaire': return <ArchitectureMonetairePage />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
       case 'aide-connaissances': return <ModulePage title={pageConfig['aide-connaissances'].title} description={pageConfig['aide-connaissances'].description} icon={icons.aide} />
@@ -423,7 +428,7 @@ function App() {
       case 'guide-salarie': return <ModulePage title={pageConfig['guide-salarie'].title} description={pageConfig['guide-salarie'].description} icon={icons.guide} />
       case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
-      case 'parametres': return <ParametresPage icon={icons.parametres} />
+      case 'parametres': return <ParametresPage />
       default: return <HomePage modules={modules} navigateTo={navigateTo} />
     }
   }

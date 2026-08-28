@@ -45,8 +45,9 @@ import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
 import {
   createAvanceDemande, createCongeDemande, deleteAvanceDemande, deleteCongeDemande, endCongeDemande,
-  fetchMyAvanceDemandes, fetchMyCongeDemandes,
-  type AvanceDemande as ApiAvanceDemande, type CongeDemande as ApiCongeDemande, type TypeConge,
+  fetchCongeSolde, fetchCongeTypes, fetchFermeturesTechniques, fetchMyAvanceDemandes, fetchMyCongeDemandes,
+  type AvanceDemande as ApiAvanceDemande, type CongeDemande as ApiCongeDemande, type CongeSolde, type CongeType,
+  type FermetureTechnique,
 } from '../api/demandes'
 import { ApiError } from '../api/client'
 import type { Session } from '../auth/session'
@@ -98,20 +99,6 @@ interface AvanceDemande {
   dateReponse: string
 }
 
-const TYPE_CONGE_LABELS: Record<TypeConge, string> = {
-  annuel: 'Congé annuel payé',
-  exceptionnel: 'Congé exceptionnel',
-  maladie: 'Congé maladie',
-  sans_solde: 'Congé sans solde',
-}
-
-const TYPE_CONGE_KEYS: Record<string, TypeConge> = {
-  'Congé annuel payé': 'annuel',
-  'Congé exceptionnel': 'exceptionnel',
-  'Congé maladie': 'maladie',
-  'Congé sans solde': 'sans_solde',
-}
-
 const STATUT_FROM_API: Record<ApiCongeDemande['statut'], Statut> = {
   attente: 'En attente',
   approuvee: 'Approuvée',
@@ -125,22 +112,32 @@ const formatInputDate = (value: string) => {
   return `${day}/${month}/${year}`
 }
 
+const formatOptionalDate = (value: string | null) => value ? formatInputDate(value) : 'À définir par l’entreprise'
+
+const formatDateFin = (item: ApiCongeDemande) => {
+  if (item.date_fin) return formatInputDate(item.date_fin)
+  if (item.type_conge_detail.categorie === 'maladie') return item.cloture ? '-' : 'En cours (reprise à déclarer)'
+  return 'À définir par l’entreprise'
+}
+
+const formatDuree = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1).replace('.', ',')
+
 const todayIso = () => new Date().toLocaleDateString('sv-SE')
 
 const toDisplayConge = (item: ApiCongeDemande): CongeDemande => ({
   id: `CONG-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
   rawId: item.id,
   dateDemande: formatDateFr(item.created_at),
-  type: TYPE_CONGE_LABELS[item.type_conge],
-  dateDebut: formatInputDate(item.date_debut),
-  dateFin: formatInputDate(item.date_fin),
+  type: item.type_conge_detail.nom,
+  dateDebut: formatOptionalDate(item.date_debut),
+  dateFin: formatDateFin(item),
   duree: item.duree,
   motif: item.motif || 'Aucun motif renseigné',
   statut: STATUT_FROM_API[item.statut],
   approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
   approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
   dateReponse: item.reviewed_at ? formatDateFr(item.reviewed_at) : '-',
-  peutEtreTerminee: item.statut === 'approuvee' && !item.cloture && item.date_debut <= todayIso(),
+  peutEtreTerminee: item.statut === 'approuvee' && !item.cloture && !!item.date_debut && item.date_debut <= todayIso(),
 })
 
 const toDisplayAvance = (item: ApiAvanceDemande): AvanceDemande => ({
@@ -205,7 +202,7 @@ export default function SalariePage({ session, onSessionUpdate }: { session: Ses
       {activeTab === 'dashboard' ? <DashboardTab session={session} />
         : activeTab === 'activites' ? <ActivitesTab />
         : activeTab === 'remuneration' ? <RemunerationTab />
-        : activeTab === 'demandes' ? <DemandesTab />
+        : activeTab === 'demandes' ? <DemandesTab session={session} />
         : activeTab === 'profil' ? <ProfilTab onSessionUpdate={onSessionUpdate} />
         : <ComingSoon label={activeLabel} icon={tabs.find((tab) => tab.id === activeTab)!.icon} />}
     </section>
@@ -292,43 +289,114 @@ function SummaryCard({ icon, iconClass, title, total, totalLabel, attente, appro
   )
 }
 
+function CongeSoldeCard({ solde }: { solde: CongeSolde[] }) {
+  if (solde.length === 0) return null
+  const totalSolde = solde.reduce((sum, item) => sum + item.solde, 0)
+
+  return (
+    <section className="salarie-panel salarie-solde-panel">
+      <div className="salarie-panel-heading">
+        <div className="salarie-panel-title">
+          <span className="salarie-panel-icon conge"><Wallet2 size={15} strokeWidth={2} /></span>
+          <h3>Cumul de vos jours de congé</h3>
+        </div>
+        <div className="salarie-solde-total">
+          <strong>{formatDuree(totalSolde)}</strong>
+          <span>jour{totalSolde !== 1 ? 's' : ''} restant{totalSolde !== 1 ? 's' : ''} au total</span>
+        </div>
+      </div>
+      <div className="salarie-solde-grid">
+        {solde.map((item) => {
+          const pourcentage = item.jours_acquis > 0 ? Math.min(100, Math.round((item.jours_pris / item.jours_acquis) * 100)) : 0
+          return (
+            <div key={item.type_conge.id} className="salarie-solde-item">
+              <strong>{item.type_conge.nom}</strong>
+              <div className="salarie-solde-bar"><div className="salarie-solde-bar-fill" style={{ width: `${pourcentage}%` }} /></div>
+              <small>{formatDuree(item.jours_pris)} pris sur {formatDuree(item.jours_acquis)} acquis · <b>{formatDuree(item.solde)} restant{item.solde !== 1 ? 's' : ''}</b></small>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 interface CongeFormValues {
-  type: string
+  type_conge: number
   dateDebut: string
   dateFin: string
   motif: string
+  demiJourneeDebut: boolean
+  demiJourneeFin: boolean
 }
 
-function CongeForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (values: CongeFormValues) => void }) {
-  const [type, setType] = useState('Congé annuel payé')
+function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel: () => void; onCreate: (values: CongeFormValues) => void }) {
+  const [typeId, setTypeId] = useState(() => types[0]?.id ?? 0)
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
+  const [demiJourneeDebut, setDemiJourneeDebut] = useState(false)
+  const [demiJourneeFin, setDemiJourneeFin] = useState(false)
   const [motif, setMotif] = useState('')
+
+  const selectedType = types.find((type) => type.id === typeId)
+  const estMaladie = selectedType?.categorie === 'maladie'
+  const definiParEntreprise = !estMaladie && selectedType?.mode_periode === 'entreprise'
+  const demiJourneesPossibles = selectedType?.categorie === 'standard'
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!dateDebut || !dateFin) return
-    onCreate({ type, dateDebut, dateFin, motif: motif.trim() })
+    if (!typeId) return
+    if (estMaladie && !dateDebut) return
+    if (!estMaladie && !definiParEntreprise && (!dateDebut || !dateFin)) return
+    onCreate({
+      type_conge: typeId, dateDebut, dateFin: estMaladie ? '' : dateFin, motif: motif.trim(),
+      demiJourneeDebut: demiJourneesPossibles && demiJourneeDebut,
+      demiJourneeFin: demiJourneesPossibles && demiJourneeFin,
+    })
   }
 
   return (
     <form className="salarie-form" onSubmit={handleSubmit}>
       <label>Type de congé
-        <select value={type} onChange={(event) => setType(event.target.value)}>
-          <option>Congé annuel payé</option>
-          <option>Congé exceptionnel</option>
-          <option>Congé maladie</option>
-          <option>Congé sans solde</option>
+        <select value={typeId} onChange={(event) => setTypeId(Number(event.target.value))}>
+          {types.map((type) => <option key={type.id} value={type.id}>{type.nom}</option>)}
         </select>
       </label>
-      <div className="salarie-form-row">
-        <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-        <label>Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
-      </div>
+      {estMaladie ? (
+        <>
+          <p className="salarie-note-inline">
+            Indiquez uniquement la date de début : ce congé reste ouvert jusqu’à ce que vous déclariez votre reprise du travail.
+          </p>
+          <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
+        </>
+      ) : definiParEntreprise ? (
+        <p className="salarie-note-inline">
+          Ce type de congé est défini par l’entreprise : vous n’avez pas à choisir de dates, elles seront précisées à l’approbation de votre demande.
+        </p>
+      ) : (
+        <>
+          <div className="salarie-form-row">
+            <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
+            <label>Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+          </div>
+          {demiJourneesPossibles && (
+            <div className="salarie-form-row">
+              <label className="salarie-checkbox-field">
+                <input type="checkbox" checked={demiJourneeDebut} onChange={(event) => setDemiJourneeDebut(event.target.checked)} />
+                Demi-journée au départ
+              </label>
+              <label className="salarie-checkbox-field">
+                <input type="checkbox" checked={demiJourneeFin} onChange={(event) => setDemiJourneeFin(event.target.checked)} />
+                Demi-journée au retour
+              </label>
+            </div>
+          )}
+        </>
+      )}
       <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
       <div className="salarie-form-actions">
         <button type="button" className="salarie-ghost-btn" onClick={onCancel}>Annuler</button>
-        <button type="submit" className="salarie-primary-btn"><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
+        <button type="submit" className="salarie-primary-btn" disabled={!typeId}><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
       </div>
     </form>
   )
@@ -372,10 +440,42 @@ function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (v
   )
 }
 
-function DemandesTab() {
+function FermetureTechniqueBanner({ fermetures, teamId, employeeId }: { fermetures: FermetureTechnique[]; teamId: number | null; employeeId: number | null }) {
+  const today = todayIso()
+  const applicables = fermetures.filter((fermeture) => {
+    if (fermeture.date_fin < today) return false
+    if (teamId !== null && fermeture.equipes_exceptees.includes(teamId)) return false
+    if (employeeId !== null && fermeture.employes_exceptes.includes(employeeId)) return false
+    return true
+  })
+  if (applicables.length === 0) return null
+
+  return (
+    <div className="salarie-info salarie-info-technique">
+      <Info size={18} strokeWidth={2} />
+      <div>
+        <strong>Fermeture technique</strong>
+        <ul>
+          {applicables.map((fermeture) => (
+            <li key={fermeture.id}>
+              Du <strong>{formatInputDate(fermeture.date_debut)}</strong> au <strong>{formatInputDate(fermeture.date_fin)}</strong>
+              {fermeture.description ? ` — ${fermeture.description}` : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+function DemandesTab({ session }: { session: Session }) {
   const [periode, setPeriode] = useState(PERIODES[0])
   const [congeDemandesApi, setCongeDemandesApi] = useState<ApiCongeDemande[]>([])
   const [avanceDemandesApi, setAvanceDemandesApi] = useState<ApiAvanceDemande[]>([])
+  const [congeTypes, setCongeTypes] = useState<CongeType[]>([])
+  const [congeSolde, setCongeSolde] = useState<CongeSolde[]>([])
+  const [fermetures, setFermetures] = useState<FermetureTechnique[]>([])
+  const [meId, setMeId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [viewConge, setViewConge] = useState<CongeDemande | null>(null)
@@ -386,11 +486,15 @@ function DemandesTab() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([fetchMyCongeDemandes(), fetchMyAvanceDemandes()])
-      .then(([congesData, avancesData]) => {
+    Promise.all([fetchMyCongeDemandes(), fetchMyAvanceDemandes(), fetchCongeTypes(), fetchCongeSolde(), fetchFermeturesTechniques(), fetchMe()])
+      .then(([congesData, avancesData, typesData, soldeData, fermeturesData, me]) => {
         if (cancelled) return
         setCongeDemandesApi(congesData)
         setAvanceDemandesApi(avancesData)
+        setCongeTypes(typesData.filter((type) => type.actif && type.categorie !== 'technique'))
+        setCongeSolde(soldeData)
+        setFermetures(fermeturesData)
+        setMeId(me.id)
       })
       .catch(() => { if (!cancelled) setLoadError('Impossible de charger vos demandes.') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -404,13 +508,16 @@ function DemandesTab() {
     setFormError(null)
     try {
       const created = await createCongeDemande({
-        type_conge: TYPE_CONGE_KEYS[values.type],
-        date_debut: values.dateDebut,
-        date_fin: values.dateFin,
+        type_conge: values.type_conge,
+        date_debut: values.dateDebut || undefined,
+        date_fin: values.dateFin || undefined,
         motif: values.motif,
+        demi_journee_debut: values.demiJourneeDebut,
+        demi_journee_fin: values.demiJourneeFin,
       })
       setCongeDemandesApi((prev) => [created, ...prev])
       setShowCongeForm(false)
+      fetchCongeSolde().then(setCongeSolde).catch(() => {})
     } catch (err) {
       setFormError(errorMessage(err))
     }
@@ -445,6 +552,7 @@ function DemandesTab() {
     try {
       const updated = await endCongeDemande(rawId)
       setCongeDemandesApi((prev) => prev.map((item) => item.id === rawId ? updated : item))
+      fetchCongeSolde().then(setCongeSolde).catch(() => {})
     } catch (err) {
       setFormError(errorMessage(err))
     }
@@ -470,6 +578,8 @@ function DemandesTab() {
 
       {formError && <p className="form-error">{formError}</p>}
 
+      <FermetureTechniqueBanner fermetures={fermetures} teamId={session.team?.id ?? null} employeeId={meId} />
+
       <div className="salarie-tab-filter-row">
         <PeriodeFilter value={periode} onChange={setPeriode} />
       </div>
@@ -487,12 +597,16 @@ function DemandesTab() {
         />
       </div>
 
+      <CongeSoldeCard solde={congeSolde} />
+
       <section className="salarie-panel">
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><span className="salarie-panel-icon conge"><Calendar size={15} strokeWidth={2} /></span><h3>Demandes de congé</h3></div>
           <div className="salarie-panel-actions">
             <PeriodeFilter value={periode} onChange={setPeriode} label="Filtrer par mois" />
-            <button className="salarie-primary-btn" onClick={() => setShowCongeForm(true)}><Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé</button>
+            <button className="salarie-primary-btn" onClick={() => setShowCongeForm(true)} disabled={congeTypes.length === 0} title={congeTypes.length === 0 ? 'Aucun type de congé disponible : contactez votre administrateur.' : undefined}>
+              <Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé
+            </button>
           </div>
         </div>
         <div className="salarie-table-wrap">
@@ -508,7 +622,7 @@ function DemandesTab() {
                   <td>{demande.type}</td>
                   <td>{demande.dateDebut}</td>
                   <td>{demande.dateFin}</td>
-                  <td>{demande.duree}</td>
+                  <td>{formatDuree(demande.duree)}</td>
                   <td>{demande.motif}</td>
                   <td><StatutPill statut={demande.statut} /></td>
                   <td><strong>{demande.approuvePar}</strong><small>{demande.approuveRole}</small></td>
@@ -587,7 +701,7 @@ function DemandesTab() {
             <InfoRow label="Date de demande" value={viewConge.dateDemande} />
             <InfoRow label="Date de début" value={viewConge.dateDebut} />
             <InfoRow label="Date de fin" value={viewConge.dateFin} />
-            <InfoRow label="Durée" value={`${viewConge.duree} jour${viewConge.duree > 1 ? 's' : ''}`} />
+            <InfoRow label="Durée" value={`${formatDuree(viewConge.duree)} jour${viewConge.duree > 1 ? 's' : ''}`} />
             <InfoRow label="Motif" value={viewConge.motif} />
             <InfoRow label="Statut" value={<StatutPill statut={viewConge.statut} />} />
             <InfoRow label="Approuvé par" value={viewConge.approuveRole ? `${viewConge.approuvePar} (${viewConge.approuveRole})` : viewConge.approuvePar} />
@@ -619,7 +733,7 @@ function DemandesTab() {
 
       {showCongeForm && (
         <Lightbox title="Nouvelle demande de congé" onClose={() => setShowCongeForm(false)}>
-          <CongeForm onCancel={() => setShowCongeForm(false)} onCreate={handleCreateConge} />
+          <CongeForm types={congeTypes} onCancel={() => setShowCongeForm(false)} onCreate={handleCreateConge} />
         </Lightbox>
       )}
 

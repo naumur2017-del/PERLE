@@ -7,10 +7,13 @@ from .models import (
     AffectationHistory,
     AvanceDemande,
     CongeDemande,
+    CongeType,
+    FermetureTechnique,
     GradeHistory,
     Organisation,
     Team,
     User,
+    create_default_conge_types,
     create_default_teams,
 )
 
@@ -105,6 +108,7 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
             organisation=organisation,
         )
         create_default_teams(organisation, user)
+        create_default_conge_types(organisation)
         return user
 
 
@@ -167,6 +171,7 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
             organisation=organisation,
         )
         create_default_teams(organisation, user)
+        create_default_conge_types(organisation)
         return user
 
 
@@ -491,18 +496,54 @@ class TeamSerializer(serializers.ModelSerializer):
         return team
 
 
+class CongeTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CongeType
+        fields = ['id', 'nom', 'categorie', 'description', 'jours_alloues', 'unite', 'mode_periode', 'actif']
+        read_only_fields = ['id', 'categorie']
+
+    def validate_nom(self, value):
+        request = self.context['request']
+        organisation = request.user.organisation
+        qs = CongeType.objects.filter(organisation=organisation, nom__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Un type de congé porte déjà ce nom.')
+        return value
+
+    def validate(self, attrs):
+        # Seule la catégorie « standard » se crée/modifie librement depuis ce formulaire ;
+        # maladie/technique sont amorcés automatiquement et gardent des quotas/périodes vides.
+        categorie = self.instance.categorie if self.instance else 'standard'
+        if categorie == 'standard':
+            jours_alloues = attrs.get('jours_alloues', getattr(self.instance, 'jours_alloues', None))
+            unite = attrs.get('unite', getattr(self.instance, 'unite', None))
+            mode_periode = attrs.get('mode_periode', getattr(self.instance, 'mode_periode', None))
+            if jours_alloues is None or not unite or not mode_periode:
+                raise serializers.ValidationError('Merci de renseigner le quota, l’unité et le mode de période.')
+        return attrs
+
+    def create(self, validated_data):
+        organisation = self.context['request'].user.organisation
+        validated_data['categorie'] = 'standard'
+        return CongeType.objects.create(organisation=organisation, **validated_data)
+
+
 class CongeDemandeSerializer(serializers.ModelSerializer):
     employee_nom = serializers.SerializerMethodField()
     employee_fonction = serializers.CharField(source='employee.fonction', read_only=True)
     reviewed_by_nom = serializers.SerializerMethodField()
     reviewed_by_role = serializers.SerializerMethodField()
     duree = serializers.ReadOnlyField()
+    type_conge_detail = CongeTypeSerializer(source='type_conge', read_only=True)
 
     class Meta:
         model = CongeDemande
         fields = [
-            'id', 'employee', 'employee_nom', 'employee_fonction', 'type_conge', 'date_debut', 'date_fin', 'duree',
-            'motif', 'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
+            'id', 'employee', 'employee_nom', 'employee_fonction', 'type_conge', 'type_conge_detail',
+            'date_debut', 'date_fin', 'duree', 'demi_journee_debut', 'demi_journee_fin', 'motif',
+            'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
         ]
         read_only_fields = [
             'id', 'employee', 'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
@@ -517,9 +558,28 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
     def get_reviewed_by_role(self, obj):
         return obj.reviewed_by.get_role_display() if obj.reviewed_by else None
 
+    def validate_type_conge(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce type de congé n’appartient pas à votre organisation.')
+        return value
+
     def validate(self, attrs):
+        type_conge = attrs.get('type_conge', getattr(self.instance, 'type_conge', None))
         date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
         date_fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))
+        if self.instance is None and type_conge and type_conge.categorie == 'technique':
+            raise serializers.ValidationError(
+                {'type_conge': 'Le congé technique n’est pas une demande individuelle : il est configuré depuis Demandes > Congé Technique.'}
+            )
+        if self.instance is None and type_conge and type_conge.categorie == 'maladie':
+            if not date_debut:
+                raise serializers.ValidationError({'date_debut': 'Merci d’indiquer la date de début de votre congé maladie.'})
+            # Ouvert par nature : seule la reprise du travail en fixera la fin.
+            attrs['date_fin'] = None
+        elif self.instance is None and type_conge and type_conge.mode_periode == 'employe':
+            if not date_debut or not date_fin:
+                raise serializers.ValidationError({'date_debut': 'Merci d’indiquer les dates de votre congé.'})
         if date_debut and date_fin and date_fin < date_debut:
             raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
         return attrs
@@ -528,13 +588,64 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
 class CongeDemandeReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = CongeDemande
-        fields = ['id', 'statut']
+        fields = ['id', 'statut', 'date_debut', 'date_fin']
         read_only_fields = ['id']
+        extra_kwargs = {
+            'date_debut': {'required': False},
+            'date_fin': {'required': False},
+        }
 
     def validate_statut(self, value):
         if value not in ('approuvee', 'refusee'):
             raise serializers.ValidationError('Le statut doit être « approuvée » ou « refusée ».')
         return value
+
+    def validate(self, attrs):
+        statut = attrs.get('statut')
+        instance = self.instance
+        type_conge = instance.type_conge if instance else None
+        date_debut = attrs.get('date_debut', instance.date_debut if instance else None)
+        date_fin = attrs.get('date_fin', instance.date_fin if instance else None)
+        if statut == 'approuvee' and type_conge and type_conge.mode_periode == 'entreprise':
+            if not date_debut or not date_fin:
+                raise serializers.ValidationError(
+                    {'date_debut': 'Ce type de congé est défini par l’entreprise : indiquez les dates avant d’approuver.'}
+                )
+        if date_debut and date_fin and date_fin < date_debut:
+            raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
+        return attrs
+
+
+class FermetureTechniqueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FermetureTechnique
+        fields = ['id', 'date_debut', 'date_fin', 'description', 'equipes_exceptees', 'employes_exceptes', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def validate(self, attrs):
+        organisation = self.context['request'].user.organisation
+        date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
+        date_fin = attrs.get('date_fin', getattr(self.instance, 'date_fin', None))
+        if date_debut and date_fin and date_fin < date_debut:
+            raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
+        for equipe in attrs.get('equipes_exceptees') or []:
+            if equipe.organisation_id != organisation.id:
+                raise serializers.ValidationError('Une équipe sélectionnée n’appartient pas à votre organisation.')
+        for employe in attrs.get('employes_exceptes') or []:
+            if employe.organisation_id != organisation.id:
+                raise serializers.ValidationError('Un salarié sélectionné n’appartient pas à votre organisation.')
+        return attrs
+
+    def create(self, validated_data):
+        organisation = self.context['request'].user.organisation
+        equipes = validated_data.pop('equipes_exceptees', [])
+        employes = validated_data.pop('employes_exceptes', [])
+        instance = FermetureTechnique.objects.create(
+            organisation=organisation, created_by=self.context['request'].user, **validated_data
+        )
+        instance.equipes_exceptees.set(equipes)
+        instance.employes_exceptes.set(employes)
+        return instance
 
 
 class AvanceDemandeSerializer(serializers.ModelSerializer):

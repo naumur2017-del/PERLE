@@ -1,0 +1,49 @@
+@import './GestionEquipesPage.css';
+
+.am-page .ge-table { min-width: 1080px; }
+.am-page .ge-table tbody tr { cursor: default; }
+
+.am-filters { flex-wrap: wrap; }
+
+.am-code-cell { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.am-code-indent { flex: 0 0 auto; }
+
+.am-tree-toggle {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: #6c6c85;
+  cursor: pointer;
+}
+.am-tree-toggle:hover { background: #f0eef8; color: #6b46c1; }
+.am-tree-toggle-spacer { display: inline-block; width: 20px; flex: 0 0 20px; }
+
+.am-node-icon { display: grid; place-items: center; width: 18px; flex: 0 0 18px; }
+.am-icon-1 { color: #6b46c1; }
+.am-icon-2 { color: #c026a3; }
+.am-icon-3 { color: #8f8fa6; }
+.am-leaf-dot { width: 5px; height: 5px; border-radius: 50%; background: #c026a3; }
+
+.am-code-text { font-weight: 800; color: #14123a; }
+.am-code-leaf { color: #b3452f; font-weight: 700; }
+
+.am-nom-1 { font-weight: 800; color: #14123a; }
+.am-nom-2 { font-weight: 700; color: #2b2b4a; }
+
+.am-niveau-pill { background: #e0e7ff; color: #4338ca; }
+
+.am-type { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
+.am-type-recette { color: #15803d; }
+.am-type-depense { color: #b91c1c; }
+
+.am-declinaison { color: #6c6c85; }
+
+.am-row-inactif { opacity: 0.55; }
+
+.ge-row-menu-danger { color: #dc2626 !important; }
+.ge-row-menu-danger:hover { background: #fee2e2 !important; color: #b91c1c !important; }

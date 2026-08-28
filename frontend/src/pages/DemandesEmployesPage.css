@@ -1,4 +1,5 @@
 @import './GestionEquipesPage.css';
+@import './ParametresPage.css';
 
 .de-badge {
   display: inline-flex;
@@ -78,3 +79,26 @@
 .de-refuse { background: #fee2e2; color: #b91c1c; }
 .de-refuse:hover:not(:disabled) { background: #fecaca; }
 .de-approve:disabled, .de-refuse:disabled { opacity: .5; cursor: not-allowed; }
+
+.de-technique-form { padding: 16px; border: 1px solid #eae7f6; border-radius: 10px; background: #faf9fe; }
+.de-technique-exceptions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.de-technique-exceptions > div { display: flex; flex-direction: column; gap: 6px; }
+.de-technique-exceptions strong { font-size: 12px; color: #35335c; }
+.de-technique-hint { margin: 0 0 2px; }
+.de-technique-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid #ddd8f2;
+  border-radius: 7px;
+  background: #ffffff;
+}
+.de-technique-checklist label { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; color: #35335c; }
+.de-technique-checklist input[type="checkbox"] { width: 14px; height: 14px; accent-color: #6b46c1; }
+
+@media (max-width: 760px) {
+  .de-technique-exceptions { grid-template-columns: 1fr; }
+}
