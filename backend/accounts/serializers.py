@@ -15,6 +15,8 @@ from .models import (
     Organisation,
     Project,
     ProjectLigne,
+    Task,
+    TaskTemplate,
     Team,
     User,
     create_default_conge_types,
@@ -22,6 +24,8 @@ from .models import (
     next_ligne_budgetaire_code,
     next_project_code,
     next_project_ligne_code,
+    next_task_code,
+    next_task_template_code,
 )
 
 
@@ -833,3 +837,110 @@ class ProjectSerializer(serializers.ModelSerializer):
         organisation = request.user.organisation
         code = next_project_code(organisation)
         return Project.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)
+
+
+class TaskTemplateSerializer(serializers.ModelSerializer):
+    """Banque de tâches réutilisables (onglet Architecture des tâches) : juste un nom, sans
+    équipe ni ligne budgétaire ni heures ni montant — voir TaskSerializer.template."""
+    class Meta:
+        model = TaskTemplate
+        fields = ['id', 'code', 'nom', 'description', 'actif', 'created_at']
+        read_only_fields = ['id', 'code', 'created_at']
+
+    def validate_nom(self, value):
+        request = self.context['request']
+        organisation = request.user.organisation
+        qs = TaskTemplate.objects.filter(organisation=organisation, nom__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Une tâche porte déjà ce nom dans la banque.')
+        return value
+
+    def create(self, validated_data):
+        request = self.context['request']
+        organisation = request.user.organisation
+        code = next_task_template_code(organisation)
+        return TaskTemplate.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe (onglet Attribution
+    staffing). L'équipe est dérivée automatiquement de la ligne budgétaire choisie (celle-ci
+    « affecte » la tâche) : elle n'est pas saisie directement."""
+    template_nom = serializers.CharField(source='template.nom', read_only=True)
+    template_code = serializers.CharField(source='template.code', read_only=True)
+    template_description = serializers.CharField(source='template.description', read_only=True)
+    equipe_nom = serializers.CharField(source='equipe.name', read_only=True)
+    equipe_code = serializers.CharField(source='equipe.code', read_only=True)
+    equipe_manager_nom = serializers.SerializerMethodField()
+    assignee_nom = serializers.SerializerMethodField()
+    project_id = serializers.IntegerField(source='project_ligne.project_id', read_only=True)
+    project_nom = serializers.CharField(source='project_ligne.project.nom', read_only=True)
+    project_code = serializers.CharField(source='project_ligne.project.code', read_only=True)
+    ligne_budgetaire_nom = serializers.CharField(source='project_ligne.ligne_budgetaire.nom', read_only=True)
+    ligne_budgetaire_code = serializers.CharField(source='project_ligne.ligne_budgetaire.code', read_only=True)
+    montant = serializers.DecimalField(source='project_ligne.montant', max_digits=16, decimal_places=2, read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Task
+        fields = [
+            'id', 'code', 'template', 'template_nom', 'template_code', 'template_description',
+            'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
+            'assignee', 'assignee_nom', 'project_ligne', 'project_id', 'project_nom', 'project_code',
+            'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'montant', 'heures', 'lancee', 'lancee_le',
+            'actif', 'created_by_nom', 'created_at',
+        ]
+        read_only_fields = ['id', 'code', 'equipe', 'lancee', 'lancee_le', 'created_at']
+
+    def get_equipe_manager_nom(self, obj):
+        manager = obj.equipe.manager
+        return f'{manager.first_name} {manager.last_name}' if manager else None
+
+    def validate_template(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette tâche de la banque n’appartient pas à votre organisation.')
+        return value
+
+    def get_assignee_nom(self, obj):
+        return f'{obj.assignee.first_name} {obj.assignee.last_name}' if obj.assignee else None
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def validate_project_ligne(self, value):
+        request = self.context['request']
+        if value.project.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
+        return value
+
+    def validate_assignee(self, value):
+        if value is None:
+            return value
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce membre n’appartient pas à votre organisation.')
+        return value
+
+    def validate(self, attrs):
+        project_ligne = attrs.get('project_ligne', getattr(self.instance, 'project_ligne', None))
+        assignee = attrs.get('assignee', getattr(self.instance, 'assignee', None))
+        if project_ligne and assignee:
+            equipe = project_ligne.ligne_budgetaire.equipe
+            # Le manager peut se l'attribuer lui-même (staffing), même s'il n'est pas lui-même
+            # membre de l'équipe, ou l'attribuer à un membre réel de l'équipe.
+            if assignee.id != equipe.manager_id and assignee.team_id != equipe.id:
+                raise serializers.ValidationError({'assignee': 'Ce membre doit être le manager de l’équipe ou l’un de ses membres.'})
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        organisation = request.user.organisation
+        project_ligne = validated_data['project_ligne']
+        equipe = project_ligne.ligne_budgetaire.equipe
+        code = next_task_code(organisation)
+        return Task.objects.create(
+            organisation=organisation, equipe=equipe, code=code, created_by=request.user, **validated_data
+        )

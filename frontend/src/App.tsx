@@ -388,7 +388,7 @@ function App() {
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
-      case 'staffing': return <StaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
+      case 'staffing': return <StaffingPage navigateTo={navigateTo} />
       case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
       case 'staffing-execute': return (
         <ExecuteStaffingPage

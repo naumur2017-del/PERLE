@@ -570,3 +570,64 @@ class ProjectLigne(models.Model):
 
 def next_project_ligne_code(project):
     return f'PRJ.{str(project.lignes.count() + 1).zfill(3)}'
+
+
+class TaskTemplate(models.Model):
+    """Banque de tâches réutilisables (onglet Architecture des tâches) : un simple intitulé, sans
+    équipe, ligne budgétaire, heures ni montant. Sert de modèle choisi depuis Attribution staffing
+    (voir Task.template) pour éviter de redéfinir le même intitulé de tâche à chaque fois qu'elle
+    est attribuée à une équipe différente."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='task_templates')
+    code = models.CharField(max_length=30)
+    nom = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    actif = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nom']
+        unique_together = ('organisation', 'code')
+
+    def __str__(self):
+        return f'{self.code} — {self.nom}'
+
+
+def next_task_template_code(organisation):
+    count = TaskTemplate.objects.filter(organisation=organisation).count()
+    return f'BQ-{str(count + 1).zfill(3)}'
+
+
+class Task(models.Model):
+    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe réelle (dérivée de la
+    ligne budgétaire choisie à la création) — c'est cette attribution qui « affecte » la tâche à
+    un projet et à un financement. À la création, la tâche revient au manager de l'équipe ;
+    `assignee` reste disponible pour que Staffing l'attribue plus tard à un membre précis."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='tasks')
+    code = models.CharField(max_length=30)
+    template = models.ForeignKey(TaskTemplate, on_delete=models.PROTECT, related_name='attributions')
+    equipe = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='tasks')
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='taches_assignees')
+    project_ligne = models.ForeignKey(ProjectLigne, on_delete=models.PROTECT, related_name='taches')
+    heures = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    # « Lancée » : rendue visible dans Nouveau staffing pour le manager de l'équipe, qui décide
+    # alors de se l'attribuer ou de l'attribuer à un membre de son équipe.
+    lancee = models.BooleanField(default=False)
+    lancee_le = models.DateTimeField(null=True, blank=True)
+    actif = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('organisation', 'code')
+
+    def __str__(self):
+        return f'{self.code} — {self.template.nom}'
+
+
+def next_task_code(organisation):
+    year = timezone.localdate().year
+    prefix = f'TSK-{year}-'
+    count = Task.objects.filter(organisation=organisation, code__startswith=prefix).count()
+    return f'{prefix}{str(count + 1).zfill(3)}'

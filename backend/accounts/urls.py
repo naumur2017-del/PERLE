@@ -37,4 +37,9 @@ urlpatterns = [
     path('projects/<int:pk>/', views.ProjectDetailView.as_view()),
     path('projects/<int:project_id>/lignes/', views.ProjectLigneListCreateView.as_view()),
     path('projects/<int:project_id>/lignes/<int:pk>/', views.ProjectLigneDetailView.as_view()),
+    path('task-templates/', views.TaskTemplateListCreateView.as_view()),
+    path('task-templates/<int:pk>/', views.TaskTemplateDetailView.as_view()),
+    path('tasks/', views.TaskListCreateView.as_view()),
+    path('tasks/<int:pk>/', views.TaskDetailView.as_view()),
+    path('tasks/<int:pk>/lancer/', views.TaskLaunchView.as_view()),
 ]

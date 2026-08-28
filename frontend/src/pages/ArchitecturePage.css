@@ -1,3 +1,6 @@
+@import './GestionEquipesPage.css';
+@import './ParametresPage.css';
+
 .arch-page {
   display: flex;
   flex-direction: column;
@@ -12,6 +15,25 @@
 @keyframes arch-enter {
   from { opacity: 0; transform: translateY(6px); }
 }
+
+/* =============== SUB-TABS =============== */
+.arch-subtabs { display: flex; gap: 8px; padding: 4px; border: 1px solid #eae7f6; border-radius: 11px; background: #f7f5ff; width: fit-content; }
+.arch-subtabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #6c6c85;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arch-subtabs button:hover { color: #35335c; }
+.arch-subtabs button.active { background: #ffffff; color: #6b46c1; box-shadow: 0 2px 6px rgba(30, 20, 80, 0.08); }
 
 /* =============== MODULES BANNER =============== */
 .arch-modules-banner {
@@ -148,6 +170,21 @@
 .arch-details { color: #6c6c85; white-space: normal; min-width: 260px; }
 
 .arch-actions { display: flex; align-items: center; gap: 6px; }
+.arch-launched-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #eefbf3;
+  color: #146c3c;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .arch-row-action { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #ddd8f2; border-radius: 6px; background: #fff; color: #6c6c85; cursor: pointer; }
 .arch-row-action:hover { background: #f0eef8; color: #6b46c1; }
 .arch-row-action.danger:hover { background: #fef2f2; color: #dc2626; border-color: #fbdada; }
@@ -161,6 +198,83 @@
 .arch-page-ellipsis { padding: 0 4px; color: #a8a8bd; }
 .arch-page-size { display: flex; align-items: center; gap: 6px; font-weight: 600; }
 .arch-page-size select { height: 28px; padding: 0 8px; border: 1px solid #ddd8f2; border-radius: 6px; background: white; color: #2b2b4a; font-size: 11px; font-weight: 700; }
+
+/* =============== TASK CREATE MODAL =============== */
+.arch-task-modal { max-width: 560px; }
+
+.arch-modal-head-row { align-items: flex-start; }
+.arch-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 10px;
+  background: #efe9fd;
+  color: #6b46c1;
+}
+
+.arch-task-form { gap: 14px; }
+
+.arch-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #eee9fb;
+  border-radius: 10px;
+  background: #fbfaff;
+}
+.arch-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #6b46c1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.arch-ligne-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eefbf3;
+  color: #146c3c;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.arch-ligne-preview strong { font-size: 13px; white-space: nowrap; }
+
+/* =============== TASK DETAIL =============== */
+.arch-task-detail-desc { margin: 0 0 4px; padding: 10px 12px; border-radius: 7px; background: #faf9fe; color: #4a4a63; font-size: 12px; line-height: 1.5; }
+.arch-task-detail dl { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.arch-task-detail dl > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0eef8; }
+.arch-task-detail dl > div:last-of-type { border-bottom: none; }
+.arch-task-detail dt { font-size: 11px; font-weight: 700; color: #6c6c85; }
+.arch-task-detail dd { margin: 0; font-size: 12px; font-weight: 600; color: #14123a; text-align: right; }
+
+.arch-delete-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #fbdada;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #dc2626;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+.arch-delete-btn:hover { background: #fee2e2; }
 
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1300px) {
