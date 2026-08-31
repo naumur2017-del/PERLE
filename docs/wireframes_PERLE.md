@@ -5,24 +5,26 @@ Document compagnon de [analyse_workspaces_PERLE.md](analyse_workspaces_PERLE.md)
 
 **Légende des symboles**
 
-| Symbole | Signification |
-|---|---|
-| `[ Bouton ]` | Bouton d'action primaire |
-| `( Bouton )` | Bouton secondaire / lien |
-| `[▾ Champ ]` | Liste déroulante |
-| `[_______]` | Champ de saisie texte |
-| `[x]` / `[ ]` | Case à cocher (cochée / décochée) |
-| `(•)` / `( )` | Bouton radio |
-| `▓▓▓░░░` | Barre de progression |
-| `●` | Pastille de statut / notification |
-| `≡` | Poignée de glisser-déposer |
-| `⋮` | Menu contextuel (3 points) |
+| Symbole              | Signification                         |
+| -------------------- | ------------------------------------- |
+| `[ Bouton ]`       | Bouton d'action primaire              |
+| `( Bouton )`       | Bouton secondaire / lien              |
+| `[▾ Champ ]`      | Liste déroulante                     |
+| `[_______]`        | Champ de saisie texte                 |
+| `[x]` / `[ ]`    | Case à cocher (cochée / décochée) |
+| `(•)` / `( )`   | Bouton radio                          |
+| `▓▓▓pull░░░` | Barre de progression                  |
+| `●`               | Pastille de statut / notification     |
+| `≡`               | Poignée de glisser-déposer          |
+| `⋮`               | Menu contextuel (3 points)            |
 
 ---
 
 ## 0. Structure globale (shell applicatif)
 
 Toutes les pages partagent la même ossature : barre supérieure fixe + menu latéral filtré par rôle + zone de contenu.
+
+
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -1917,21 +1919,21 @@ Conformément à NFR-UX-01, les écrans terrain (saisie des heures, FT, incident
 
 ## 13. Récapitulatif des écrans maquettés
 
-| # | Workspace | Écrans maquettés |
-|---|-----------|------------------|
-| 0 | Shell global | Ossature · Connexion · Notifications · Recherche globale |
-| A1 | Administrateur | Dashboard · Utilisateurs (+modal) · Permissions · Référentiels · Paramètres · Import · Audit · Sauvegardes |
-| A2 | Direction | Dashboard exécutif · Portefeuille · Validations · Clôtures (+modal) |
-| A3 | Chef de projet | Liste projets · Fiche (Général, Chiffrage, Planning, Activités +modal, Budget, Avancement) · Bibliothèque chiffrages |
-| A4 | Planificateur | Gantt portefeuille · Capacité/charge · Ordonnancement · Scénarios · Conflits |
-| A5 | Manager d'équipe | Pilotage · Composition historisée · EHS équipe · FDT équipe (+modal rejet) · Absences |
-| A6 | Opérations | Ma journée · Nouvelle FT · Feuille de temps · Production |
-| A7 | Finance | Dashboard · Fiches de trésorerie · Comptes · Budgets · Recettes · RECP · Exports comptables |
-| A8 | RH | Liste personnel · Fiche (Général, Versions +modal, Historique EHS) · Équipes |
-| A9 | HSE / EHS | Dashboard · Incidents (+formulaire) · Actions kanban · Dispositif EHS (+formule) |
-| A10 | Consultation | Dashboards autorisés · Catalogue de rapports |
-| M | Mobile | Accueil terrain · Saisie des heures · Déclaration d'incident |
-| P | Parcours | FT · Feuille de temps · Chaîne EHS · Cycle de vie projet |
+| #   | Workspace         | Écrans maquettés                                                                                                         |
+| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 0   | Shell global      | Ossature · Connexion · Notifications · Recherche globale                                                                |
+| A1  | Administrateur    | Dashboard · Utilisateurs (+modal) · Permissions · Référentiels · Paramètres · Import · Audit · Sauvegardes       |
+| A2  | Direction         | Dashboard exécutif · Portefeuille · Validations · Clôtures (+modal)                                                   |
+| A3  | Chef de projet    | Liste projets · Fiche (Général, Chiffrage, Planning, Activités +modal, Budget, Avancement) · Bibliothèque chiffrages |
+| A4  | Planificateur     | Gantt portefeuille · Capacité/charge · Ordonnancement · Scénarios · Conflits                                         |
+| A5  | Manager d'équipe | Pilotage · Composition historisée · EHS équipe · FDT équipe (+modal rejet) · Absences                               |
+| A6  | Opérations       | Ma journée · Nouvelle FT · Feuille de temps · Production                                                               |
+| A7  | Finance           | Dashboard · Fiches de trésorerie · Comptes · Budgets · Recettes · RECP · Exports comptables                         |
+| A8  | RH                | Liste personnel · Fiche (Général, Versions +modal, Historique EHS) · Équipes                                          |
+| A9  | HSE / EHS         | Dashboard · Incidents (+formulaire) · Actions kanban · Dispositif EHS (+formule)                                        |
+| A10 | Consultation      | Dashboards autorisés · Catalogue de rapports                                                                             |
+| M   | Mobile            | Accueil terrain · Saisie des heures · Déclaration d'incident                                                            |
+| P   | Parcours          | FT · Feuille de temps · Chaîne EHS · Cycle de vie projet                                                               |
 
 **Total : 45 écrans + 6 modales + 4 parcours.**
 
@@ -1939,14 +1941,14 @@ Conformément à NFR-UX-01, les écrans terrain (saisie des heures, FT, incident
 
 ## 14. Notes de conception à arbitrer
 
-| # | Point | Recommandation |
-|---|-------|----------------|
-| 1 | Vocabulaire EHS vs HSE | Les deux CDC utilisent « EHS » différemment (dispositif de crédit vs hygiène-sécurité). Recommandation : réserver **EHS** au dispositif de crédit et **HSE** à la sécurité, comme dans ces maquettes. |
-| 2 | Matricule versionné | Le versionnement (BO001V1 → V2) doit être visible partout où un employé est référencé, sinon l'historique EHS devient incohérent. |
-| 3 | Densité des tableaux | Les vues type « Ordonnancement » (45 colonnes) et « Synth EHS » (15 921 colonnes dans Excel) doivent être **paginées et filtrées côté serveur**, jamais rendues intégralement. |
-| 4 | Seuils de validation | Le circuit FT (4 niveaux) doit être paramétrable par montant et par conformité mercuriale — voir A1.5. |
-| 5 | Mode hors ligne | Hors périmètre MVP, mais les écrans mobiles M1-M3 devraient bufferiser localement une saisie en cas de coupure réseau. |
-| 6 | Accessibilité | Les codes couleur (🔴🟠🟡🟢) doivent toujours être doublés d'un libellé texte (NFR-UX-04). |
+| # | Point                  | Recommandation                                                                                                                                                                                                               |
+| - | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | Vocabulaire EHS vs HSE | Les deux CDC utilisent « EHS » différemment (dispositif de crédit vs hygiène-sécurité). Recommandation : réserver**EHS** au dispositif de crédit et **HSE** à la sécurité, comme dans ces maquettes. |
+| 2 | Matricule versionné   | Le versionnement (BO001V1 → V2) doit être visible partout où un employé est référencé, sinon l'historique EHS devient incohérent.                                                                                    |
+| 3 | Densité des tableaux  | Les vues type « Ordonnancement » (45 colonnes) et « Synth EHS » (15 921 colonnes dans Excel) doivent être**paginées et filtrées côté serveur**, jamais rendues intégralement.                                |
+| 4 | Seuils de validation   | Le circuit FT (4 niveaux) doit être paramétrable par montant et par conformité mercuriale — voir A1.5.                                                                                                                   |
+| 5 | Mode hors ligne        | Hors périmètre MVP, mais les écrans mobiles M1-M3 devraient bufferiser localement une saisie en cas de coupure réseau.                                                                                                   |
+| 6 | Accessibilité         | Les codes couleur (🔴🟠🟡🟢) doivent toujours être doublés d'un libellé texte (NFR-UX-04).                                                                                                                                |
 
 ---
 
