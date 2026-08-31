@@ -102,6 +102,7 @@
 .arch-tree-row { display: flex; align-items: center; gap: 6px; height: 30px; padding-right: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; color: #35335c; }
 .arch-tree-row:hover { background: #f7f5ff; }
 .arch-tree-row.selected { background: #efe9fd; color: #6b46c1; font-weight: 700; }
+.arch-tree-row-inactive { opacity: 0.55; }
 
 .arch-tree-toggle { display: grid; place-items: center; width: 18px; height: 18px; flex: 0 0 18px; border: 0; background: none; color: #8f8fa6; cursor: pointer; }
 .arch-tree-toggle-spacer { display: block; width: 18px; flex: 0 0 18px; }
@@ -252,11 +253,63 @@
 
 /* =============== TASK DETAIL =============== */
 .arch-task-detail-desc { margin: 0 0 4px; padding: 10px 12px; border-radius: 7px; background: #faf9fe; color: #4a4a63; font-size: 12px; line-height: 1.5; }
-.arch-task-detail dl { display: flex; flex-direction: column; gap: 0; margin: 0; }
-.arch-task-detail dl > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0eef8; }
-.arch-task-detail dl > div:last-of-type { border-bottom: none; }
-.arch-task-detail dt { font-size: 11px; font-weight: 700; color: #6c6c85; }
-.arch-task-detail dd { margin: 0; font-size: 12px; font-weight: 600; color: #14123a; text-align: right; }
+.arch-task-detail dl, dl.arch-task-detail { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.arch-task-detail dl > div, dl.arch-task-detail > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0eef8; }
+.arch-task-detail dl > div:last-of-type, dl.arch-task-detail > div:last-of-type { border-bottom: none; }
+.arch-task-detail dt, dl.arch-task-detail dt { font-size: 11px; font-weight: 700; color: #6c6c85; }
+.arch-task-detail dd, dl.arch-task-detail dd { margin: 0; font-size: 12px; font-weight: 600; color: #14123a; text-align: right; }
+
+/* =============== ATTRIBUTION DES TÂCHES (nouvelle mise en page) =============== */
+.arch-attribution { display: flex; flex-direction: column; gap: 14px; }
+.arch-attribution-lead { margin: 0; color: #6c6c85; font-size: 12px; font-weight: 600; }
+
+.arch-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.arch-toolbar-row-secondary { padding-top: 2px; }
+
+.arch-select-sm { height: 34px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 11.5px; font-weight: 600; }
+
+.arch-date-filter { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: #6c6c85; white-space: nowrap; }
+.arch-date-filter input { height: 34px; padding: 0 8px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 11px; font-weight: 600; }
+
+.arch-btn-outline.is-active { background: #efe9fd; border-color: #6b46c1; color: #6b46c1; }
+
+.arch-th-checkbox { width: 34px; text-align: center !important; }
+.arch-transversale-tag { color: #a8a8bd; font-style: italic; font-weight: 600; }
+
+.arch-pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; }
+.arch-pill-envoyee { background: #dbeafe; color: #1d4ed8; }
+.arch-pill-acceptee { background: #dcfce7; color: #15803d; }
+.arch-pill-refusee { background: #fee2e2; color: #b91c1c; }
+.arch-pill-prio-haute { background: #fee2e2; color: #b91c1c; }
+.arch-pill-prio-moyenne { background: #fef1d8; color: #b45309; }
+.arch-pill-prio-basse { background: #e0e7ff; color: #4338ca; }
+
+.arch-staffed-hint { margin-top: 3px; font-size: 9.5px; font-weight: 700; color: #8f8fa6; white-space: nowrap; }
+
+/* =============== PANEL (créer / modifier / voir en ligne) =============== */
+.arch-panel { border: 1px solid #eae7f6; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04); overflow: hidden; }
+.arch-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #eae7f6; }
+.arch-panel-head h3 { margin: 0; font-size: 11px; font-weight: 800; color: #6b46c1; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.arch-panel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; padding: 18px 22px 0; }
+.arch-panel-full { grid-column: 1 / -1; }
+.arch-panel .ge-modal-actions { padding: 18px 22px 22px; border-top: none; }
+.arch-panel .ge-form-error { margin: 0 22px; }
+
+.param-checkbox-field { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: #35335c; align-self: end; padding-bottom: 9px; }
+.param-checkbox-field input { width: 16px; height: 16px; }
+
+.arch-panel-view { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+.arch-panel-view-head { display: flex; align-items: center; gap: 10px; }
+.arch-panel-view-head strong { font-size: 13px; color: #14123a; }
+.arch-panel-view h4 { margin: 0; font-size: 15px; font-weight: 700; color: #14123a; }
+
+@media (max-width: 1100px) {
+  .arch-panel-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .arch-panel-grid { grid-template-columns: 1fr; }
+}
 
 .arch-delete-btn {
   display: flex;

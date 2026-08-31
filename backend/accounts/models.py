@@ -35,6 +35,11 @@ class Organisation(models.Model):
     # Nombre de niveaux d’organigramme disponibles pour les équipes : au moins les 3 niveaux
     # protégés (Direction, Pilotage, Ressources) + 1 niveau libre pour les équipes créées ensuite.
     team_levels_count = models.PositiveIntegerField(default=4)
+    # Taux de conversion EHS → FCFA utilisé pour le staffing (Nouveau staffing) : une personne
+    # consomme, par heure travaillée, un nombre d'EHS égal à son grade (ex. grade 5 → 5 EHS/h) ;
+    # ce taux convertit ces EHS en coût réel, décompté du montant que le projet a attribué à la
+    # ligne budgétaire de la tâche (voir TaskAssignment).
+    taux_ehs_fcfa = models.DecimalField(max_digits=8, decimal_places=2, default=150)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -572,48 +577,89 @@ def next_project_ligne_code(project):
     return f'PRJ.{str(project.lignes.count() + 1).zfill(3)}'
 
 
+TASK_PRIORITE_CHOICES = [
+    ('haute', 'Haute'),
+    ('moyenne', 'Moyenne'),
+    ('basse', 'Basse'),
+]
+
+
 class TaskTemplate(models.Model):
-    """Banque de tâches réutilisables (onglet Architecture des tâches) : un simple intitulé, sans
-    équipe, ligne budgétaire, heures ni montant. Sert de modèle choisi depuis Attribution staffing
-    (voir Task.template) pour éviter de redéfinir le même intitulé de tâche à chaque fois qu'elle
-    est attribuée à une équipe différente."""
+    """Catalogue des tâches (onglet Catalogue des tâches) : arborescence libre (dossiers puis
+    tâches élémentaires en feuilles). Le premier niveau (racine, sans parent) représente une
+    équipe réelle de l'organisation (`equipe`) ; les niveaux suivants héritent automatiquement de
+    l'équipe de leur racine. Tout élément actif du catalogue — dossier ou tâche élémentaire, à
+    n'importe quel niveau — peut être choisi depuis Attribution des tâches (voir Task.template),
+    pour éviter de redéfinir le même intitulé à chaque équipe ; `type_element`/`attribuable`
+    restent des métadonnées, sans effet sur cette sélection. Le code est saisi manuellement (pas
+    d'auto-génération) : voir TaskTemplateSerializer.validate_code."""
+    TYPE_CHOICES = [
+        ('dossier', 'Dossier'),
+        ('tache_elementaire', 'Tâche élémentaire'),
+    ]
+    FREQUENCE_CHOICES = [
+        ('ponctuelle', 'Ponctuelle'),
+        ('recurrente', 'Récurrente'),
+    ]
+    DECLENCHEMENT_CHOICES = [
+        ('manuel', 'Manuel'),
+        ('automatique', 'Automatique'),
+    ]
+
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='task_templates')
     code = models.CharField(max_length=30)
     nom = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    parent = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='enfants')
+    niveau = models.PositiveSmallIntegerField(default=1)
+    equipe = models.ForeignKey(Team, on_delete=models.PROTECT, null=True, blank=True, related_name='task_templates')
+    type_element = models.CharField(max_length=20, choices=TYPE_CHOICES, default='dossier')
+    attribuable = models.BooleanField(default=True)
+    recurrente = models.BooleanField(default=False)
+    details = models.TextField(blank=True)
+    explication = models.TextField(blank=True)
+    frequence = models.CharField(max_length=20, choices=FREQUENCE_CHOICES, default='ponctuelle')
+    mode_declenchement = models.CharField(max_length=20, choices=DECLENCHEMENT_CHOICES, default='manuel')
+    priorite_defaut = models.CharField(max_length=10, choices=TASK_PRIORITE_CHOICES, default='moyenne')
+    duree_estimee_heures = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     actif = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['nom']
+        ordering = ['code']
         unique_together = ('organisation', 'code')
 
     def __str__(self):
         return f'{self.code} — {self.nom}'
 
 
-def next_task_template_code(organisation):
-    count = TaskTemplate.objects.filter(organisation=organisation).count()
-    return f'BQ-{str(count + 1).zfill(3)}'
-
-
 class Task(models.Model):
-    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe réelle (dérivée de la
-    ligne budgétaire choisie à la création) — c'est cette attribution qui « affecte » la tâche à
-    un projet et à un financement. À la création, la tâche revient au manager de l'équipe ;
-    `assignee` reste disponible pour que Staffing l'attribue plus tard à un membre précis."""
+    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe réelle. La ligne
+    budgétaire est choisie directement (dérive l'équipe destinataire) ; le projet est facultatif
+    — une tâche « transversale » n'en a aucun. À la création la tâche est envoyée au manager de
+    l'équipe, qui doit explicitement l'Accepter ou la Refuser (statut) avant qu'elle apparaisse
+    dans Nouveau staffing pour être répartie (voir TaskAssignment) entre lui-même et/ou des
+    membres de son équipe, chacun avec ses propres heures."""
+    PRIORITE_CHOICES = TASK_PRIORITE_CHOICES
+    STATUT_CHOICES = [
+        ('envoyee', 'Envoyée'),
+        ('acceptee', 'Acceptée'),
+        ('refusee', 'Refusée'),
+    ]
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='tasks')
     code = models.CharField(max_length=30)
     template = models.ForeignKey(TaskTemplate, on_delete=models.PROTECT, related_name='attributions')
+    description = models.TextField(blank=True)
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
+    ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, related_name='taches')
     equipe = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='tasks')
-    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='taches_assignees')
-    project_ligne = models.ForeignKey(ProjectLigne, on_delete=models.PROTECT, related_name='taches')
-    heures = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-    # « Lancée » : rendue visible dans Nouveau staffing pour le manager de l'équipe, qui décide
-    # alors de se l'attribuer ou de l'attribuer à un membre de son équipe.
-    lancee = models.BooleanField(default=False)
-    lancee_le = models.DateTimeField(null=True, blank=True)
+    echeance = models.DateField(null=True, blank=True)
+    priorite = models.CharField(max_length=10, choices=PRIORITE_CHOICES, default='moyenne')
+    # Circuit de validation par le manager de l'équipe destinataire, avant staffing.
+    statut = models.CharField(max_length=10, choices=STATUT_CHOICES, default='envoyee')
+    statut_decide_le = models.DateTimeField(null=True, blank=True)
     actif = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -631,3 +677,38 @@ def next_task_code(organisation):
     prefix = f'TSK-{year}-'
     count = Task.objects.filter(organisation=organisation, code__startswith=prefix).count()
     return f'{prefix}{str(count + 1).zfill(3)}'
+
+
+class TaskAssignment(models.Model):
+    """Une personne staffée sur une tâche (Nouveau staffing), avec ses propres heures — une
+    tâche peut être répartie entre plusieurs personnes, chacune avec sa propre exécution
+    (À démarrer/En cours/En pause/Terminée, voir TaskAssignmentExecutionView). La consommation en
+    EHS (grade de la personne × heures) et son équivalent FCFA (× Organisation.taux_ehs_fcfa) sont
+    figés au moment de l'attribution : un changement de grade ou de taux plus tard ne doit pas
+    modifier rétroactivement des attributions déjà faites. Décliner (voir la vue d'exécution)
+    supprime l'attribution, ce qui libère le montant consommé sur la ligne budgétaire du projet."""
+    EXECUTION_STATUT_CHOICES = [
+        ('a_demarrer', 'À démarrer'),
+        ('en_cours', 'En cours'),
+        ('en_pause', 'En pause'),
+        ('terminee', 'Terminée'),
+    ]
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='task_assignments')
+    heures = models.DecimalField(max_digits=6, decimal_places=2)
+    grade_snapshot = models.PositiveIntegerField()
+    taux_snapshot = models.DecimalField(max_digits=8, decimal_places=2)
+    ehs_consomme = models.DecimalField(max_digits=10, decimal_places=2)
+    montant_fcfa = models.DecimalField(max_digits=14, decimal_places=2)
+    execution_statut = models.CharField(max_length=12, choices=EXECUTION_STATUT_CHOICES, default='a_demarrer')
+    demarree_le = models.DateTimeField(null=True, blank=True)
+    terminee_le = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('task', 'user')
+
+    def __str__(self):
+        return f'{self.task.code} — {self.user.email} ({self.heures} h)'

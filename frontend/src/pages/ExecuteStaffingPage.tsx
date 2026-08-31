@@ -1,89 +1,60 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download,
-  ExternalLink, FileText, Folder, Info, ListChecks, MessageCircle, MoreVertical, Pause, Play,
-  RotateCcw, Search, SlidersHorizontal, UserCheck, X,
+  AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Folder, Info,
+  ListChecks, MessageCircle, MoreVertical, Pause, Play, RotateCcw, Search, SlidersHorizontal,
+  UserCheck, X, XCircle,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { fetchMe } from '../api/employees'
+import {
+  executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment, type TaskExecutionStatut,
+} from '../api/taskAssignments'
+import { ApiError } from '../api/client'
 import './ExecuteStaffingPage.css'
 
-type StatutStaffing = 'en-attente' | 'accepte' | 'refuse'
-type StatutExecution = 'en-cours' | 'en-pause' | 'terminee'
-type Tab = 'a-accepter' | 'en-cours' | 'en-pause' | 'terminee'
-
-interface TacheAssignee {
-  id: string
-  projet: string
-  tache: string
-  description: string
-  attribueePar: string
-  attribueeParRole: string
-  equipe: string
-  ligneBudgetaire: string
-  ehsAffectes: number
-  debut: string
-  echeance: string
-  priorite: 'Haute' | 'Moyenne' | 'Basse'
-  pieceJointe: string | null
-  statutStaffing: StatutStaffing
-  statutExecution: StatutExecution | null
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué.'
+  }
+  return 'Impossible de contacter le serveur.'
 }
 
-const TACHES_INITIAL: TacheAssignee[] = [
-  { id: 'WRK-1457', projet: 'ERP Academy', tache: 'Mission de collecte des données', description: 'Collecter les données auprès des bénéficiaires selon le questionnaire validé.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Déplacements terrain', ehsAffectes: 16, debut: '20/05/2025', echeance: '15/06/2025', priorite: 'Haute', pieceJointe: 'Questionnaire_collecte_donnees.pdf', statutStaffing: 'en-attente', statutExecution: null },
-  { id: 'WRK-1458', projet: 'ERP Academy', tache: 'Rédaction rapport préliminaire', description: 'Rédiger le rapport préliminaire de synthèse à partir des données collectées.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Études et analyses', ehsAffectes: 12, debut: '22/05/2025', echeance: '30/06/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'en-attente', statutExecution: null },
-  { id: 'WRK-1459', projet: 'ERP Academy', tache: 'Atelier de restitution intermédiaire', description: "Organiser l'atelier de restitution intermédiaire avec les parties prenantes.", attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Réunions et ateliers', ehsAffectes: 8, debut: '25/05/2025', echeance: '05/06/2025', priorite: 'Basse', pieceJointe: null, statutStaffing: 'en-attente', statutExecution: null },
-
-  { id: 'WRK-1456', projet: 'ERP Academy', tache: 'Analyse des besoins utilisateurs', description: 'Recueillir et documenter les besoins fonctionnels auprès des utilisateurs clés.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Études et analyses', ehsAffectes: 20, debut: '01/05/2025', echeance: '10/05/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-cours' },
-  { id: 'WRK-1462', projet: 'Mission Audit Interne', tache: 'Revue des contrôles internes', description: 'Passer en revue les contrôles internes du cycle achats-fournisseurs.', attribueePar: 'Herman Tsaffock', attribueeParRole: 'Manager BO1', equipe: 'BO1 - Back Office 1', ligneBudgetaire: 'Déplacements terrain', ehsAffectes: 20, debut: '03/05/2025', echeance: '22/05/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-cours' },
-  { id: 'WRK-1463', projet: 'Digitalisation RH', tache: 'Paramétrage du SIRH', description: "Paramétrer les modules congés et absences du SIRH.", attribueePar: 'Belomo Edwige', attribueeParRole: 'Manager IT1', equipe: 'IT1 - Développement 1', ligneBudgetaire: 'Formation équipe', ehsAffectes: 8, debut: '04/05/2025', echeance: '28/05/2025', priorite: 'Basse', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-cours' },
-  { id: 'WRK-1464', projet: 'Étude de faisabilité usine', tache: 'Analyse des coûts', description: "Chiffrer les coûts d'investissement et d'exploitation du projet d'usine.", attribueePar: 'Pamela G.', attribueeParRole: 'Manager PI1', equipe: 'PI1 - Pilotage 1', ligneBudgetaire: 'Achat matériel', ehsAffectes: 15, debut: '05/05/2025', echeance: '02/06/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-cours' },
-  { id: 'WRK-1465', projet: 'ERP Academy', tache: "Tests d'intégration module RH", description: "Exécuter les scénarios de tests d'intégration du module RH.", attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'IT1 - Développement 1', ligneBudgetaire: 'Support technique', ehsAffectes: 10, debut: '06/05/2025', echeance: '10/06/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-cours' },
-
-  { id: 'WRK-1460', projet: 'ERP Academy', tache: 'Validation rapport final', description: 'Faire valider le rapport final par le comité de pilotage.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Contrôle qualité', ehsAffectes: 10, debut: '05/06/2025', echeance: '12/06/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-pause' },
-  { id: 'WRK-1466', projet: 'Formation 200 Agents', tache: 'Préparation supports pédagogiques', description: 'Concevoir les supports pédagogiques de la formation des 200 agents.', attribueePar: 'Essogo Erine', attribueeParRole: 'Manager FO1', equipe: 'FO1 - Front Office 1', ligneBudgetaire: 'Consultation externe', ehsAffectes: 14, debut: '08/05/2025', echeance: '20/06/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-pause' },
-  { id: 'WRK-1467', projet: 'Implémentation CRM', tache: 'Paramétrage des workflows', description: 'Paramétrer les workflows de validation des opportunités commerciales.', attribueePar: 'Théodore Bessala', attribueeParRole: 'Manager PI1', equipe: 'PI1 - Pilotage 1', ligneBudgetaire: 'Support technique', ehsAffectes: 12, debut: '10/05/2025', echeance: '25/06/2025', priorite: 'Basse', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-pause' },
-  { id: 'WRK-1468', projet: 'Refonte SI Comptable', tache: 'Migration des données', description: "Migrer les données comptables historiques vers le nouveau système.", attribueePar: 'Brayan Ebongue', attribueeParRole: 'Manager IT1', equipe: 'IT1 - Développement 1', ligneBudgetaire: 'Achat matériel', ehsAffectes: 18, debut: '12/05/2025', echeance: '30/06/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'en-pause' },
-
-  { id: 'WRK-1401', projet: 'ERP Academy', tache: 'Saisie des écritures comptables', description: 'Saisir les écritures comptables du mois dans le nouvel ERP.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'BO1 - Back Office 1', ligneBudgetaire: 'Support technique', ehsAffectes: 15, debut: '28/04/2025', echeance: '12/05/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1402', projet: 'ERP Academy', tache: 'Rapprochement bancaire', description: 'Effectuer le rapprochement bancaire du mois écoulé.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'BO1 - Back Office 1', ligneBudgetaire: 'Déplacements terrain', ehsAffectes: 20, debut: '28/04/2025', echeance: '12/05/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1403', projet: 'Mission Audit Interne', tache: 'Établissement des déclarations fiscales', description: 'Préparer et déposer les déclarations fiscales du trimestre.', attribueePar: 'Herman Tsaffock', attribueeParRole: 'Manager BO1', equipe: 'BO1 - Back Office 1', ligneBudgetaire: 'Consultation externe', ehsAffectes: 30, debut: '29/04/2025', echeance: '13/05/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1404', projet: 'ERP Academy', tache: 'Analyse financière', description: "Analyser les indicateurs financiers clés du projet.", attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Achat matériel', ehsAffectes: 25, debut: '29/04/2025', echeance: '14/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1405', projet: 'Digitalisation RH', tache: 'Préparation du budget', description: 'Préparer le budget prévisionnel du projet RH.', attribueePar: 'Belomo Edwige', attribueeParRole: 'Manager IT1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Formation équipe', ehsAffectes: 18, debut: '30/04/2025', echeance: '14/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1406', projet: 'Étude de faisabilité usine', tache: 'Suivi des opérations', description: 'Suivre l\'avancement des opérations terrain du projet.', attribueePar: 'Pamela G.', attribueeParRole: 'Manager PI1', equipe: 'OP1 - Opérations 1', ligneBudgetaire: 'Support technique', ehsAffectes: 22, debut: '30/04/2025', echeance: '15/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1407', projet: 'ERP Academy', tache: 'Planification stratégique', description: 'Élaborer le planning stratégique du prochain trimestre.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'PI1 - Pilotage 1', ligneBudgetaire: 'Déplacements terrain', ehsAffectes: 16, debut: '01/05/2025', echeance: '15/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1408', projet: 'Formation 200 Agents', tache: 'Recueil des besoins de formation', description: 'Recenser les besoins de formation auprès des 200 agents.', attribueePar: 'Essogo Erine', attribueeParRole: 'Manager FO1', equipe: 'FO1 - Front Office 1', ligneBudgetaire: 'Études et analyses', ehsAffectes: 10, debut: '20/04/2025', echeance: '05/05/2025', priorite: 'Basse', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1409', projet: 'Implémentation CRM', tache: 'Cahier des charges', description: 'Rédiger le cahier des charges fonctionnel du CRM.', attribueePar: 'Théodore Bessala', attribueeParRole: 'Manager PI1', equipe: 'PI1 - Pilotage 1', ligneBudgetaire: 'Consultation externe', ehsAffectes: 14, debut: '18/04/2025', echeance: '02/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1410', projet: 'Refonte SI Comptable', tache: "Audit de l'existant", description: "Réaliser l'audit du système comptable existant.", attribueePar: 'Brayan Ebongue', attribueeParRole: 'Manager IT1', equipe: 'IT1 - Développement 1', ligneBudgetaire: 'Achat matériel', ehsAffectes: 20, debut: '15/04/2025', echeance: '28/04/2025', priorite: 'Haute', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1411', projet: 'Mission Audit Interne', tache: 'Restitution préliminaire', description: 'Présenter les conclusions préliminaires de la mission d\'audit.', attribueePar: 'Herman Tsaffock', attribueeParRole: 'Manager BO1', equipe: 'BO1 - Back Office 1', ligneBudgetaire: 'Réunions et ateliers', ehsAffectes: 8, debut: '22/04/2025', echeance: '06/05/2025', priorite: 'Moyenne', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-  { id: 'WRK-1412', projet: 'ERP Academy', tache: 'Archivage des documents', description: 'Archiver les documents de la phase de cadrage du projet.', attribueePar: 'Ajara Lamare', attribueeParRole: 'Manager MO1', equipe: 'MO1 - Middle Office 1', ligneBudgetaire: 'Contrôle qualité', ehsAffectes: 6, debut: '25/04/2025', echeance: '07/05/2025', priorite: 'Basse', pieceJointe: null, statutStaffing: 'accepte', statutExecution: 'terminee' },
-]
+type Tab = 'a_demarrer' | 'en_cours' | 'en_pause' | 'terminee'
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'a-accepter', label: 'Staffing à accepter' },
-  { key: 'en-cours', label: 'En cours' },
-  { key: 'en-pause', label: 'En pause' },
+  { key: 'a_demarrer', label: 'À démarrer' },
+  { key: 'en_cours', label: 'En cours' },
+  { key: 'en_pause', label: 'En pause' },
   { key: 'terminee', label: 'Terminer' },
 ]
 
-const STATUT_STAFFING_LABEL: Record<StatutStaffing, string> = { 'en-attente': "En attente d'acceptation", accepte: 'Accepté', refuse: 'Refusé' }
-const STATUT_STAFFING_CLASS: Record<StatutStaffing, string> = { 'en-attente': 'orange', accepte: 'green', refuse: 'red' }
-const STATUT_EXECUTION_LABEL: Record<StatutExecution, string> = { 'en-cours': 'En cours', 'en-pause': 'En pause', terminee: 'Terminée' }
-const STATUT_EXECUTION_CLASS: Record<StatutExecution, string> = { 'en-cours': 'blue', 'en-pause': 'orange', terminee: 'green' }
-const PRIORITE_CLASS: Record<TacheAssignee['priorite'], string> = { Haute: 'haute', Moyenne: 'moyenne', Basse: 'basse' }
-
-function initiales(nom: string) {
-  return nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+const STATUT_EXECUTION_CLASS: Record<TaskExecutionStatut, string> = {
+  a_demarrer: 'orange', en_cours: 'blue', en_pause: 'orange', terminee: 'green',
 }
 
-function parseDateFr(date: string) {
-  const [jour, mois, annee] = date.split('/').map(Number)
-  return new Date(annee, mois - 1, jour).getTime()
+function formatDate(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('fr-FR')
 }
 
-const parAttributionFifo = (a: TacheAssignee, b: TacheAssignee) => parseDateFr(a.debut) - parseDateFr(b.debut)
+function formatDateTime(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('fr-FR')
+}
 
-const AUJOURD_HUI_MS = new Date(2025, 5, 20).getTime()
+function fmtEhs(value: number) {
+  return value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+
+function fmtFcfa(value: number) {
+  return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA`
+}
 
 function formatDDHHMMSS(totalSeconds: number) {
   const neg = totalSeconds < 0
@@ -96,70 +67,52 @@ function formatDDHHMMSS(totalSeconds: number) {
   return `${neg ? '-' : ''}${pad(jours)}:${pad(heures)}:${pad(minutes)}:${pad(secondes)}`
 }
 
-function tempsRestantInfo(echeance: string, exec: StatutExecution | null, nowMs: number) {
+function tempsRestantInfo(echeance: string | null, exec: TaskExecutionStatut, nowMs: number) {
   if (exec === 'terminee') return { label: 'Terminée', tone: 'done' } as const
-  const totalSeconds = Math.floor((parseDateFr(echeance) - nowMs) / 1000)
+  if (!echeance) return { label: '—', tone: 'ok' } as const
+  const totalSeconds = Math.floor((new Date(echeance).getTime() - nowMs) / 1000)
   const label = formatDDHHMMSS(totalSeconds)
   if (totalSeconds < 0) return { label, tone: 'retard' } as const
   if (totalSeconds <= 3 * 86400) return { label, tone: 'urgent' } as const
   return { label, tone: 'ok' } as const
 }
 
-const DEBUT_JOURNEE_MINUTES = 8 * 60
-const FIN_JOURNEE_MINUTES = 17 * 60 + 30
 const DETAIL_CLOSE_MS = 220
 
-function calculerHeureFin(heures: number) {
-  const total = DEBUT_JOURNEE_MINUTES + Math.round(heures * 60)
-  const h = Math.floor(total / 60) % 24
-  const m = total % 60
-  return { total, label: `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}` }
-}
-
-type StaffColumnId =
-  | 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'ehsAffectes'
-  | 'debut' | 'echeance' | 'tempsRestant' | 'statutStaffing' | 'statutExecution'
+type StaffColumnId = 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'heures' | 'echeance' | 'tempsRestant' | 'statutExecution'
 
 const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'projet', label: 'Projet' },
-  { id: 'tache', label: 'Tâche (Réf. Wrike)' },
+  { id: 'tache', label: 'Tâche' },
   { id: 'attribueePar', label: 'Attribuée par' },
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
-  { id: 'ehsAffectes', label: 'EHS affectés' },
-  { id: 'debut', label: 'Début' },
+  { id: 'heures', label: 'Heures' },
   { id: 'echeance', label: 'Échéance' },
   { id: 'tempsRestant', label: 'Temps restant' },
-  { id: 'statutStaffing', label: 'Statut staffing' },
   { id: 'statutExecution', label: "Statut d'exécution" },
 ]
 
-const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (t: TacheAssignee, exec: StatutExecution | null, nowMs: number) => ReactNode }> = {
-  projet: { render: (t) => <span className="es-projet-cell"><Folder size={13} />{t.projet}</span> },
-  tache: { className: 'es-name', render: (t) => <><strong>{t.tache}</strong><small>{t.id}</small></> },
+const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (a: TaskAssignment, nowMs: number) => ReactNode }> = {
+  projet: { render: (a) => <span className="es-projet-cell"><Folder size={13} />{a.project_nom ?? 'Transversale'}</span> },
+  tache: { className: 'es-name', render: (a) => <><strong>{a.template_nom}</strong><small>{a.task_code}</small></> },
   attribueePar: {
-    render: (t) => (
+    render: (a) => (
       <span className="es-employee">
-        <span className="es-employee-dot">{initiales(t.attribueePar)}</span>
-        <span><strong>{t.attribueePar}</strong><small>{t.attribueeParRole}</small></span>
+        <span className="es-employee-dot">{a.task_created_by_nom ? a.task_created_by_nom.split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase() : '—'}</span>
+        <span><strong>{a.task_created_by_nom ?? '—'}</strong><small>{a.equipe_nom}</small></span>
       </span>
     ),
   },
-  ligneBudgetaire: { render: (t) => t.ligneBudgetaire },
-  ehsAffectes: { render: (t) => t.ehsAffectes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
-  debut: { render: (t) => t.debut },
-  echeance: { render: (t) => <span className={t.statutStaffing === 'en-attente' ? 'es-echeance' : undefined}>{t.echeance}</span> },
+  ligneBudgetaire: { render: (a) => `${a.ligne_budgetaire_code} — ${a.ligne_budgetaire_nom}` },
+  heures: { render: (a) => `${a.heures} h` },
+  echeance: { render: (a) => <span className={a.execution_statut === 'a_demarrer' ? 'es-echeance' : undefined}>{formatDate(a.echeance)}</span> },
   tempsRestant: {
-    render: (t, exec, nowMs) => {
-      const info = tempsRestantInfo(t.echeance, exec, nowMs)
+    render: (a, nowMs) => {
+      const info = tempsRestantInfo(a.echeance, a.execution_statut, nowMs)
       return <span className={`es-temps-restant es-temps-restant-${info.tone}`}>{info.label}</span>
     },
   },
-  statutStaffing: { render: (t) => <span className={`es-pill es-pill-${STATUT_STAFFING_CLASS[t.statutStaffing]}`}>{STATUT_STAFFING_LABEL[t.statutStaffing]}</span> },
-  statutExecution: {
-    render: (_t, exec) => exec
-      ? <span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[exec]}`}>{STATUT_EXECUTION_LABEL[exec]}</span>
-      : <span className="es-no-action">—</span>,
-  },
+  statutExecution: { render: (a) => <span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[a.execution_statut]}`}>{a.execution_statut_display}</span> },
 }
 
 interface ExecuteStaffingPageProps {
@@ -171,72 +124,65 @@ interface ExecuteStaffingPageProps {
 }
 
 export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggleTimer, onStopTimer, timers }: ExecuteStaffingPageProps) {
-  const [taches, setTaches] = useState<TacheAssignee[]>(TACHES_INITIAL)
+  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [acting, setActing] = useState(false)
+
   const [pageTab, setPageTab] = useState<'mes-taches' | 'historique'>('mes-taches')
-  const [activeTab, setActiveTab] = useState<Tab>('a-accepter')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>('a_demarrer')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [panelClosing, setPanelClosing] = useState(false)
   const closeTimeoutRef = useRef<number | null>(null)
   const [search, setSearch] = useState('')
   const [filterProjet, setFilterProjet] = useState('Tous')
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
-  const [filterPriorite, setFilterPriorite] = useState('Toutes')
-  const [nowMs, setNowMs] = useState(AUJOURD_HUI_MS)
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
 
   useEffect(() => {
-    const interval = setInterval(() => setNowMs((n) => n + 1000), 1000)
+    fetchMe()
+      .then((meData) => fetchTaskAssignments({ user: meData.id }))
+      .then((data) => setAssignments(data))
+      .catch(() => setLoadError('Impossible de charger vos tâches à exécuter.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(interval)
   }, [])
 
   useEffect(() => () => { if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current) }, [])
 
-  const projets = useMemo(() => Array.from(new Set(taches.map((t) => t.projet))), [taches])
-  const equipes = useMemo(() => Array.from(new Set(taches.map((t) => t.equipe))), [taches])
+  const projets = useMemo(() => Array.from(new Set(assignments.map((a) => a.project_nom ?? 'Transversale'))), [assignments])
+  const equipes = useMemo(() => Array.from(new Set(assignments.map((a) => a.equipe_nom))), [assignments])
 
-  const selected = taches.find((t) => t.id === selectedId) ?? null
-  const heureFinSelected = selected ? calculerHeureFin(selected.ehsAffectes) : null
-  const depasseHeuresSupSelected = heureFinSelected !== null && heureFinSelected.total > FIN_JOURNEE_MINUTES
+  const selected = assignments.find((a) => a.id === selectedId) ?? null
+  const timerFor = (assignment: TaskAssignment) => timers.find((tm) => tm.code === assignment.task_code)
 
-  const statutExecutionEffectif = (tache: TacheAssignee): StatutExecution | null => {
-    if (tache.statutStaffing !== 'accepte') return null
-    if (tache.statutExecution === 'terminee') return 'terminee'
-    const timer = timers.find((t) => t.code === tache.id)
-    if (timer) return timer.running ? 'en-cours' : 'en-pause'
-    return tache.statutExecution
-  }
+  const counts: Record<Tab, number> = { a_demarrer: 0, en_cours: 0, en_pause: 0, terminee: 0 }
+  assignments.forEach((a) => { counts[a.execution_statut] += 1 })
 
-  const tabOf = (tache: TacheAssignee): Tab | null => {
-    if (tache.statutStaffing === 'en-attente') return 'a-accepter'
-    if (tache.statutStaffing === 'refuse') return null
-    const exec = statutExecutionEffectif(tache)
-    if (exec === 'terminee') return 'terminee'
-    if (exec === 'en-pause') return 'en-pause'
-    if (exec === 'en-cours') return 'en-cours'
-    return null
-  }
-
-  const counts: Record<Tab, number> = { 'a-accepter': 0, 'en-cours': 0, 'en-pause': 0, terminee: 0 }
-  taches.forEach((t) => { const tab = tabOf(t); if (tab) counts[tab] += 1 })
-
-  const filtered = taches
-    .filter((t) => (
-      tabOf(t) === activeTab
-      && (filterProjet === 'Tous' || t.projet === filterProjet)
-      && (filterEquipe === 'Toutes' || t.equipe === filterEquipe)
-      && (filterPriorite === 'Toutes' || t.priorite === filterPriorite)
-      && (search.trim() === '' || `${t.id} ${t.tache} ${t.projet} ${t.attribueePar}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const filtered = assignments
+    .filter((a) => (
+      a.execution_statut === activeTab
+      && (filterProjet === 'Tous' || (a.project_nom ?? 'Transversale') === filterProjet)
+      && (filterEquipe === 'Toutes' || a.equipe_nom === filterEquipe)
+      && (search.trim() === '' || `${a.task_code} ${a.template_nom} ${a.project_nom ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
     ))
-    .sort(parAttributionFifo)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   const resetFiltres = () => {
-    setFilterProjet('Tous'); setFilterEquipe('Toutes'); setFilterPriorite('Toutes'); setSearch('')
+    setFilterProjet('Tous'); setFilterEquipe('Toutes'); setSearch('')
   }
 
-  const handleSelect = (tache: TacheAssignee) => {
+  const handleSelect = (assignment: TaskAssignment) => {
     if (closeTimeoutRef.current) { window.clearTimeout(closeTimeoutRef.current); closeTimeoutRef.current = null }
     setPanelClosing(false)
-    setSelectedId(tache.id)
+    setActionError(null)
+    setSelectedId(assignment.id)
   }
 
   const closePanel = () => {
@@ -248,33 +194,41 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     }, DETAIL_CLOSE_MS)
   }
 
-  const handleAccepter = (tache: TacheAssignee) => {
-    setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutStaffing: 'accepte', statutExecution: 'en-cours' } : t))
-    if (!timers.some((t) => t.code === tache.id)) onStartTimer(tache.id, tache.tache)
-    setActiveTab('en-cours')
-  }
+  const applyUpdate = (updated: TaskAssignment) => setAssignments((list) => list.map((a) => a.id === updated.id ? updated : a))
+  const removeAssignment = (id: number) => setAssignments((list) => list.filter((a) => a.id !== id))
 
-  const handlePause = (tache: TacheAssignee) => {
-    if (timers.some((t) => t.code === tache.id)) onToggleTimer(tache.id)
-    setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutExecution: 'en-pause' } : t))
-  }
-
-  const handleReprendre = (tache: TacheAssignee) => {
-    if (timers.some((t) => t.code === tache.id)) onToggleTimer(tache.id)
-    setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutExecution: 'en-cours' } : t))
-  }
-
-  const handleTerminer = (tache: TacheAssignee) => {
-    if (timers.some((t) => t.code === tache.id)) onStopTimer(tache.id)
-    setTaches((list) => list.map((t) => t.id === tache.id ? { ...t, statutExecution: 'terminee' } : t))
+  const runAction = async (assignment: TaskAssignment, action: 'demarrer' | 'pause' | 'reprendre' | 'terminer' | 'decliner') => {
+    setActing(true)
+    setActionError(null)
+    try {
+      const result = await executeTaskAssignmentAction(assignment.id, action)
+      // Décliner supprime l'attribution : elle ne m'appartient plus, elle doit disparaître de ma liste.
+      if (action === 'decliner') removeAssignment(assignment.id)
+      else applyUpdate(result as TaskAssignment)
+      if (action === 'demarrer') {
+        if (!timerFor(assignment)) onStartTimer(assignment.task_code, assignment.template_nom)
+      } else if (action === 'pause' || action === 'reprendre') {
+        if (timerFor(assignment)) onToggleTimer(assignment.task_code)
+      } else if (action === 'terminer' || action === 'decliner') {
+        if (timerFor(assignment)) onStopTimer(assignment.task_code)
+      }
+      if (action === 'demarrer') setActiveTab('en_cours')
+      if (action === 'decliner') closePanel()
+    } catch (err) {
+      setActionError(errorMessage(err))
+    } finally {
+      setActing(false)
+    }
   }
 
   const KPIS = [
-    { icon: ListChecks, tone: 'purple', label: 'Staffings à accepter', value: counts['a-accepter'], sub: 'En attente de votre réponse' },
-    { icon: Play, tone: 'blue', label: 'En cours', value: counts['en-cours'], sub: "Tâches en cours d'exécution" },
-    { icon: Pause, tone: 'orange', label: 'En pause', value: counts['en-pause'], sub: 'Tâches temporairement suspendues' },
+    { icon: ListChecks, tone: 'purple', label: 'À démarrer', value: counts.a_demarrer, sub: 'En attente de votre réponse' },
+    { icon: Play, tone: 'blue', label: 'En cours', value: counts.en_cours, sub: "Tâches en cours d'exécution" },
+    { icon: Pause, tone: 'orange', label: 'En pause', value: counts.en_pause, sub: 'Tâches temporairement suspendues' },
     { icon: CheckCircle2, tone: 'green', label: 'Terminer', value: counts.terminee, sub: 'Tâches à clôturer' },
   ]
+
+  if (loading) return <section className="es-page"><p className="es-empty">Chargement…</p></section>
 
   return (
     <section className="es-page">
@@ -286,272 +240,247 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
         <button type="button" className="es-btn-outline" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Voir le nouveau staffing</button>
       </div>
 
-      <div className="es-toolbar">
-        <button type="button" className="es-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
-        <button type="button" className="es-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>
-      </div>
+      {loadError && <p className="es-empty">{loadError}</p>}
 
-      <div className="es-kpis">
-        {KPIS.map((kpi) => (
-          <article key={kpi.label} className={`es-kpi es-kpi-${kpi.tone}`}>
-            <span className="es-kpi-icon"><kpi.icon size={19} /></span>
-            <strong>{kpi.value}</strong>
-            <span className="es-kpi-label">{kpi.label}</span>
-            <small>{kpi.sub}</small>
-          </article>
-        ))}
-      </div>
+      {!loadError && (
+        <>
+          <div className="es-toolbar">
+            <button type="button" className="es-daterange" disabled><Calendar size={14} />Toutes périodes</button>
+            <button type="button" className="es-btn-outline" disabled><SlidersHorizontal size={14} />Filtres avancés</button>
+          </div>
 
-      <div className={`es-layout ${selected ? 'has-detail' : ''}`}>
-        <div className="es-main">
-          <nav className="es-page-tabs">
-            <button className={pageTab === 'mes-taches' ? 'active' : ''} onClick={() => setPageTab('mes-taches')}>Mes tâches</button>
-            <button className={pageTab === 'historique' ? 'active' : ''} onClick={() => setPageTab('historique')}>Historique</button>
-          </nav>
+          <div className="es-kpis">
+            {KPIS.map((kpi) => (
+              <article key={kpi.label} className={`es-kpi es-kpi-${kpi.tone}`}>
+                <span className="es-kpi-icon"><kpi.icon size={19} /></span>
+                <strong>{kpi.value}</strong>
+                <span className="es-kpi-label">{kpi.label}</span>
+                <small>{kpi.sub}</small>
+              </article>
+            ))}
+          </div>
 
-          {pageTab === 'mes-taches' ? (
-            <>
-              <nav className="es-tabs">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    className={activeTab === tab.key ? 'active' : ''}
-                    onClick={() => { setActiveTab(tab.key); closePanel() }}
-                  >
-                    {tab.label} <span className="es-tab-count">{counts[tab.key]}</span>
-                  </button>
-                ))}
+          <div className={`es-layout ${selected ? 'has-detail' : ''}`}>
+            <div className="es-main">
+              <nav className="es-page-tabs">
+                <button className={pageTab === 'mes-taches' ? 'active' : ''} onClick={() => setPageTab('mes-taches')}>Mes tâches</button>
+                <button className={pageTab === 'historique' ? 'active' : ''} onClick={() => setPageTab('historique')}>Historique</button>
               </nav>
 
-              <div className="es-filters">
-                <label>Projet
-                  <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
-                    <option>Tous</option>
-                    {projets.map((p) => <option key={p}>{p}</option>)}
-                  </select>
-                </label>
-                <label>Équipe
-                  <select value={filterEquipe} onChange={(e) => setFilterEquipe(e.target.value)}>
-                    <option>Toutes</option>
-                    {equipes.map((e) => <option key={e}>{e}</option>)}
-                  </select>
-                </label>
-                <label>Priorité
-                  <select value={filterPriorite} onChange={(e) => setFilterPriorite(e.target.value)}>
-                    <option>Toutes</option>
-                    <option>Haute</option><option>Moyenne</option><option>Basse</option>
-                  </select>
-                </label>
-                <label className="es-search">
-                  <Search size={14} />
-                  <input placeholder="Rechercher une tâche, un projet..." value={search} onChange={(e) => setSearch(e.target.value)} />
-                </label>
-                <button type="button" className="es-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
-              </div>
-
-              <section className="es-table-panel">
-                <div className="es-table-head">
-                  <h3>{TABS.find((t) => t.key === activeTab)?.label} <span className="es-count-badge">{filtered.length}</span></h3>
-                  <ColumnsMenu columns={STAFF_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+              {assignments.length === 0 ? (
+                <div className="es-info-banner">
+                  <Info size={14} />
+                  <span>Aucune tâche ne vous a été attribuée pour l’instant. Une tâche apparaît ici dès qu’un manager vous l’attribue depuis Nouveau staffing.</span>
                 </div>
-                <div className="es-table-wrap">
-                  <table className="es-table">
-                    <thead>
-                      <tr>
-                        {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.length === 0 && (
-                        <tr><td colSpan={visibleColumns.length + 1} className="es-empty">Aucune tâche dans cette section.</td></tr>
-                      )}
-                      {filtered.map((tache) => {
-                        const exec = statutExecutionEffectif(tache)
-                        return (
-                          <tr key={tache.id} className={selectedId === tache.id ? 'es-row-selected' : ''} onClick={() => handleSelect(tache)}>
-                            {visibleColumns.map((c) => {
-                              const def = STAFF_CELL_DEFS[c.id]
-                              return <td key={c.id} className={def.className}>{def.render(tache, exec, nowMs)}</td>
-                            })}
-                            <td onClick={(e) => e.stopPropagation()}>
-                              {activeTab === 'a-accepter' ? (
-                                <button type="button" className="es-accept-btn" onClick={() => handleSelect(tache)}>
-                                  <Play size={13} />Démarrer
-                                </button>
-                              ) : (
-                                <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(tache)}>
-                                  <MoreVertical size={16} />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="es-table-foot">
-                  <span>Affichage de 1 à {filtered.length} sur {filtered.length} tâches</span>
-                  <div className="es-table-foot-right">
-                    <label className="es-page-size">Lignes par page
-                      <select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select>
-                    </label>
-                    <nav className="es-pagination" aria-label="Pagination">
-                      <button type="button" disabled><ChevronLeft size={14} /></button>
-                      <button type="button" className="is-active">1</button>
-                      <button type="button" disabled><ChevronRight size={14} /></button>
-                    </nav>
-                  </div>
-                </div>
-              </section>
-
-              <div className="es-legend">
-                <span><i className="dot orange" />En attente d'acceptation</span>
-                <span><i className="dot green" />Accepté</span>
-                <span><i className="dot red" />Refusé</span>
-                <span><i className="dot blue" />En cours</span>
-                <span><i className="dot amber" />En pause</span>
-                <span><i className="dot teal" />Terminée</span>
-              </div>
-
-              <div className="es-info-banner">
-                <Info size={14} />
-                <span>En démarrant le staffing, vous confirmez votre disponibilité et vous vous engagez à exécuter cette tâche dans les délais prévus.</span>
-              </div>
-            </>
-          ) : (
-            <section className="es-table-panel">
-              <div className="es-table-head"><h3>Historique <span className="es-count-badge">{taches.length}</span></h3></div>
-              <div className="es-table-wrap">
-                <table className="es-table">
-                  <thead>
-                    <tr>
-                      <th>Projet</th><th>Tâche (Réf. Wrike)</th><th>Attribuée par</th><th>Statut staffing</th><th>Statut d'exécution</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...taches].sort(parAttributionFifo).map((tache) => {
-                      const exec = statutExecutionEffectif(tache)
-                      return (
-                        <tr key={tache.id} onClick={() => handleSelect(tache)}>
-                          <td><span className="es-projet-cell"><Folder size={13} />{tache.projet}</span></td>
-                          <td className="es-name"><strong>{tache.tache}</strong><small>{tache.id}</small></td>
-                          <td>{tache.attribueePar}</td>
-                          <td><span className={`es-pill es-pill-${STATUT_STAFFING_CLASS[tache.statutStaffing]}`}>{STATUT_STAFFING_LABEL[tache.statutStaffing]}</span></td>
-                          <td>{exec ? <span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[exec]}`}>{STATUT_EXECUTION_LABEL[exec]}</span> : <span className="es-no-action">—</span>}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {selected && (
-          <aside className={`es-detail ${panelClosing ? 'es-detail-closing' : ''}`}>
-            <>
-              <div className="es-detail-head">
-                <h3>Détail de la tâche</h3>
-                <button type="button" className="es-detail-close" onClick={closePanel} aria-label="Fermer"><X size={16} /></button>
-              </div>
-
-              <div className="es-detail-id">
-                <span className="es-detail-wrk">WRK</span>
-                <strong>{selected.id}</strong>
-                <span className="es-detail-badge">Reçue de Wrike</span>
-              </div>
-
-              <dl className="es-detail-info">
-                <div><dt>Projet</dt><dd>{selected.projet}</dd></div>
-                <div><dt>Tâche</dt><dd>{selected.tache}</dd></div>
-                <div className="es-detail-block"><dt>Description</dt><dd>{selected.description}</dd></div>
-                <div><dt>Attribuée par</dt><dd>{selected.attribueePar} ({selected.attribueeParRole})</dd></div>
-                <div><dt>Équipe</dt><dd>{selected.equipe}</dd></div>
-                <div><dt>Ligne budgétaire</dt><dd>{selected.ligneBudgetaire}</dd></div>
-                <div><dt>EHS affectés</dt><dd>{selected.ehsAffectes.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div>
-                <div><dt>Début prévue</dt><dd>{selected.debut}</dd></div>
-                <div><dt>Échéance</dt><dd className="es-echeance">{selected.echeance}</dd></div>
-                <div><dt>Priorité</dt><dd><span className={`es-priorite es-priorite-${PRIORITE_CLASS[selected.priorite]}`}>{selected.priorite}</span></dd></div>
-                <div><dt>Lien Wrike</dt><dd>
-                  <a
-                    className="es-wrike-link"
-                    href={`https://www.wrike.com/open.htm?id=${encodeURIComponent(selected.id)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Ouvrir dans Wrike <ExternalLink size={12} />
-                  </a>
-                </dd></div>
-              </dl>
-
-              {selected.pieceJointe && (
-                <div className="es-detail-section">
-                  <h4>Pièces jointes / Consignes</h4>
-                  <a className="es-attachment" href="#" onClick={(e) => e.preventDefault()}>
-                    <FileText size={14} />{selected.pieceJointe}<Download size={13} className="es-attachment-dl" />
-                  </a>
-                </div>
-              )}
-
-              {selected.statutStaffing === 'en-attente' && (
+              ) : pageTab === 'mes-taches' ? (
                 <>
-                  <div className="es-response-box">
-                    <span><Info size={13} />Votre réponse au staffing</span>
-                    <p>Vous devez démarrer cette tâche pour pouvoir l'exécuter.</p>
+                  <nav className="es-tabs">
+                    {TABS.map((tab) => (
+                      <button
+                        key={tab.key}
+                        className={activeTab === tab.key ? 'active' : ''}
+                        onClick={() => { setActiveTab(tab.key); closePanel() }}
+                      >
+                        {tab.label} <span className="es-tab-count">{counts[tab.key]}</span>
+                      </button>
+                    ))}
+                  </nav>
+
+                  <div className="es-filters">
+                    <label>Projet
+                      <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
+                        <option>Tous</option>
+                        {projets.map((p) => <option key={p}>{p}</option>)}
+                      </select>
+                    </label>
+                    <label>Équipe
+                      <select value={filterEquipe} onChange={(e) => setFilterEquipe(e.target.value)}>
+                        <option>Toutes</option>
+                        {equipes.map((e) => <option key={e}>{e}</option>)}
+                      </select>
+                    </label>
+                    <label className="es-search">
+                      <Search size={14} />
+                      <input placeholder="Rechercher une tâche, un projet..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                    </label>
+                    <button type="button" className="es-reset" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
                   </div>
-                  {depasseHeuresSupSelected && heureFinSelected && (
-                    <div className="es-overtime-warning">
-                      <AlertTriangle size={15} />
-                      <div>
-                        <strong>Heures supplémentaires</strong>
-                        <p>Cette tâche amène le collaborateur au-delà de 17h30 (fin estimée à {heureFinSelected.label}), il devra faire des heures supplémentaires.</p>
+
+                  {actionError && <p className="es-empty">{actionError}</p>}
+
+                  <section className="es-table-panel">
+                    <div className="es-table-head">
+                      <h3>{TABS.find((t) => t.key === activeTab)?.label} <span className="es-count-badge">{filtered.length}</span></h3>
+                      <ColumnsMenu columns={STAFF_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+                    </div>
+                    <div className="es-table-wrap">
+                      <table className="es-table">
+                        <thead>
+                          <tr>
+                            {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.length === 0 && (
+                            <tr><td colSpan={visibleColumns.length + 1} className="es-empty">Aucune tâche dans cette section.</td></tr>
+                          )}
+                          {filtered.map((assignment) => (
+                            <tr key={assignment.id} className={selectedId === assignment.id ? 'es-row-selected' : ''} onClick={() => handleSelect(assignment)}>
+                              {visibleColumns.map((c) => {
+                                const def = STAFF_CELL_DEFS[c.id]
+                                return <td key={c.id} className={def.className}>{def.render(assignment, nowMs)}</td>
+                              })}
+                              <td onClick={(e) => e.stopPropagation()}>
+                                {activeTab === 'a_demarrer' ? (
+                                  <button type="button" className="es-accept-btn" disabled={acting} onClick={() => runAction(assignment, 'demarrer')}>
+                                    <Play size={13} />Démarrer
+                                  </button>
+                                ) : (
+                                  <button type="button" className="es-row-action" aria-label="Actions" title="Voir le détail" onClick={() => handleSelect(assignment)}>
+                                    <MoreVertical size={16} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="es-table-foot">
+                      <span>Affichage de 1 à {filtered.length} sur {filtered.length} tâches</span>
+                      <div className="es-table-foot-right">
+                        <label className="es-page-size">Lignes par page
+                          <select defaultValue={10}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select>
+                        </label>
+                        <nav className="es-pagination" aria-label="Pagination">
+                          <button type="button" disabled><ChevronLeft size={14} /></button>
+                          <button type="button" className="is-active">1</button>
+                          <button type="button" disabled><ChevronRight size={14} /></button>
+                        </nav>
                       </div>
                     </div>
-                  )}
-                  <div className="es-detail-actions">
-                    <button type="button" className="es-btn-accept" onClick={() => handleAccepter(selected)}><Play size={14} />Démarrer</button>
+                  </section>
+
+                  <div className="es-legend">
+                    <span><i className="dot orange" />À démarrer</span>
+                    <span><i className="dot blue" />En cours</span>
+                    <span><i className="dot amber" />En pause</span>
+                    <span><i className="dot teal" />Terminée</span>
                   </div>
-                  <a className="es-contact-link" href="#" onClick={(e) => e.preventDefault()}><MessageCircle size={13} />Besoin d'informations complémentaires ? Contacter le manager</a>
+
+                  <div className="es-info-banner">
+                    <Info size={14} />
+                    <span>En démarrant le staffing, vous confirmez votre disponibilité et vous vous engagez à exécuter cette tâche dans les délais prévus.</span>
+                  </div>
                 </>
-              )}
-
-              {selected.statutStaffing === 'refuse' && (
-                <div className="es-response-box declined">
-                  <span><Info size={13} />Staffing décliné</span>
-                  <p>Vous avez décliné cette tâche. Contactez votre manager si vous souhaitez revenir sur cette décision.</p>
-                </div>
-              )}
-
-              {selected.statutStaffing === 'accepte' && statutExecutionEffectif(selected) !== 'terminee' && (
-                <>
-                  <div className="es-response-box">
-                    <span><Clock3 size={13} />Suivi d'exécution</span>
-                    <p>{statutExecutionEffectif(selected) === 'en-cours' ? 'Cette tâche est actuellement en cours d\'exécution.' : "Cette tâche est actuellement en pause."}</p>
+              ) : (
+                <section className="es-table-panel">
+                  <div className="es-table-head"><h3>Historique <span className="es-count-badge">{assignments.length}</span></h3></div>
+                  <div className="es-table-wrap">
+                    <table className="es-table">
+                      <thead>
+                        <tr>
+                          <th>Projet</th><th>Tâche</th><th>Heures</th><th>Échéance</th><th>Statut d'exécution</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...assignments].sort((a, b) => a.created_at.localeCompare(b.created_at)).map((assignment) => (
+                          <tr key={assignment.id} onClick={() => handleSelect(assignment)}>
+                            <td><span className="es-projet-cell"><Folder size={13} />{assignment.project_nom ?? 'Transversale'}</span></td>
+                            <td className="es-name"><strong>{assignment.template_nom}</strong><small>{assignment.task_code}</small></td>
+                            <td>{assignment.heures} h</td>
+                            <td>{formatDate(assignment.echeance)}</td>
+                            <td><span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[assignment.execution_statut]}`}>{assignment.execution_statut_display}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="es-detail-actions">
-                    {statutExecutionEffectif(selected) === 'en-cours' ? (
-                      <button type="button" className="es-btn-pause" onClick={() => handlePause(selected)}><Pause size={14} />Mettre en pause</button>
-                    ) : (
-                      <button type="button" className="es-btn-accept" onClick={() => handleReprendre(selected)}><Play size={14} />Reprendre l'exécution</button>
+                </section>
+              )}
+            </div>
+
+            {selected && (
+              <aside className={`es-detail ${panelClosing ? 'es-detail-closing' : ''}`}>
+                <div className="es-detail-head">
+                  <h3>Détail de la tâche</h3>
+                  <button type="button" className="es-detail-close" onClick={closePanel} aria-label="Fermer"><X size={16} /></button>
+                </div>
+
+                <div className="es-detail-id">
+                  <strong>{selected.task_code}</strong>
+                  <span className="es-detail-badge">{selected.template_code}</span>
+                </div>
+
+                <dl className="es-detail-info">
+                  <div><dt>Projet</dt><dd>{selected.project_nom ? `${selected.project_code} — ${selected.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
+                  <div><dt>Tâche</dt><dd>{selected.template_nom}</dd></div>
+                  {selected.task_description && <div className="es-detail-block"><dt>Description</dt><dd>{selected.task_description}</dd></div>}
+                  <div><dt>Attribuée par</dt><dd>{selected.task_created_by_nom ?? '—'}</dd></div>
+                  <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
+                  <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>
+                  <div><dt>Échéance</dt><dd className="es-echeance">{formatDate(selected.echeance)}</dd></div>
+                  <div><dt>Priorité</dt><dd>{selected.priorite_display}</dd></div>
+                  <div><dt>Heures attribuées</dt><dd>{selected.heures} h</dd></div>
+                  <div><dt>Consommation</dt><dd>{fmtEhs(selected.ehs_consomme)} EHS (grade {selected.user_grade}) · {fmtFcfa(selected.montant_fcfa)}</dd></div>
+                  {selected.demarree_le && <div><dt>Démarrée le</dt><dd>{formatDateTime(selected.demarree_le)}</dd></div>}
+                  {selected.terminee_le && <div><dt>Terminée le</dt><dd>{formatDateTime(selected.terminee_le)}</dd></div>}
+                </dl>
+
+                {actionError && <p className="es-empty">{actionError}</p>}
+
+                {selected.execution_statut === 'a_demarrer' && (
+                  <>
+                    <div className="es-response-box">
+                      <span><Info size={13} />Votre réponse au staffing</span>
+                      <p>Vous devez démarrer cette tâche pour pouvoir l'exécuter.</p>
+                    </div>
+                    {tempsRestantInfo(selected.echeance, selected.execution_statut, nowMs).tone === 'retard' && (
+                      <div className="es-overtime-warning">
+                        <AlertTriangle size={15} />
+                        <div>
+                          <strong>Échéance dépassée</strong>
+                          <p>L'échéance de cette tâche est déjà passée.</p>
+                        </div>
+                      </div>
                     )}
-                    <button type="button" className="es-btn-finish" onClick={() => handleTerminer(selected)}><CheckCircle2 size={14} />Terminer la tâche</button>
-                  </div>
-                </>
-              )}
+                    <div className="es-detail-actions">
+                      <button type="button" className="es-btn-accept" disabled={acting} onClick={() => runAction(selected, 'demarrer')}><Play size={14} />Démarrer</button>
+                      <button type="button" className="es-btn-pause" disabled={acting} onClick={() => runAction(selected, 'decliner')}><XCircle size={14} />Décliner</button>
+                    </div>
+                    <a className="es-contact-link" href="#" onClick={(e) => e.preventDefault()}><MessageCircle size={13} />Besoin d'informations complémentaires ? Contacter le manager</a>
+                  </>
+                )}
 
-              {selected.statutStaffing === 'accepte' && statutExecutionEffectif(selected) === 'terminee' && (
-                <div className="es-response-box done">
-                  <span><CheckCircle2 size={13} />Tâche terminée</span>
-                  <p>Cette tâche a été clôturée. Retrouvez-la dans l'onglet « Historique ».</p>
-                </div>
-              )}
-            </>
-          </aside>
-        )}
-      </div>
+                {(selected.execution_statut === 'en_cours' || selected.execution_statut === 'en_pause') && (
+                  <>
+                    <div className="es-response-box">
+                      <span><Clock3 size={13} />Suivi d'exécution</span>
+                      <p>{selected.execution_statut === 'en_cours' ? "Cette tâche est actuellement en cours d'exécution." : 'Cette tâche est actuellement en pause.'}</p>
+                    </div>
+                    <div className="es-detail-actions">
+                      {selected.execution_statut === 'en_cours' ? (
+                        <button type="button" className="es-btn-pause" disabled={acting} onClick={() => runAction(selected, 'pause')}><Pause size={14} />Mettre en pause</button>
+                      ) : (
+                        <button type="button" className="es-btn-accept" disabled={acting} onClick={() => runAction(selected, 'reprendre')}><Play size={14} />Reprendre l'exécution</button>
+                      )}
+                      <button type="button" className="es-btn-finish" disabled={acting} onClick={() => runAction(selected, 'terminer')}><CheckCircle2 size={14} />Terminer la tâche</button>
+                    </div>
+                  </>
+                )}
+
+                {selected.execution_statut === 'terminee' && (
+                  <div className="es-response-box done">
+                    <span><CheckCircle2 size={13} />Tâche terminée</span>
+                    <p>Cette tâche a été clôturée. Retrouvez-la dans l'onglet « Historique ».</p>
+                  </div>
+                )}
+              </aside>
+            )}
+          </div>
+        </>
+      )}
     </section>
   )
 }

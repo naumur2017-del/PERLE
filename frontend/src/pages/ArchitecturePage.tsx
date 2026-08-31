@@ -1,13 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import {
-  Archive, Building2, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Eye, File, Folder,
-  FolderKanban, FolderOpen, ListChecks, Pencil, Plus, Rocket, Search, Trash2, User, UserCheck, Users, X,
+  Archive, Building2, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Folder, FolderOpen,
+  ListChecks, Pencil, Plus, Search, Trash2, UserCheck, X,
 } from 'lucide-react'
-import { fetchTeams, type Team, type TeamMember } from '../api/employees'
+import { fetchTeams, type Team } from '../api/employees'
 import { fetchProjects, type Project } from '../api/projects'
-import { createTask, deleteTask, fetchTasks, launchTask, type Task } from '../api/tasks'
+import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
+import {
+  createTask, deleteTask, fetchTasks, updateTask, type Task, type TaskFormValues,
+  type TaskPriorite, type TaskStatut,
+} from '../api/tasks'
 import {
   createTaskTemplate, deleteTaskTemplate, fetchTaskTemplates, updateTaskTemplate, type TaskTemplate,
+  type TaskTemplateDeclenchement, type TaskTemplateFrequence, type TaskTemplatePriorite, type TaskTemplateType,
 } from '../api/taskTemplates'
 import { ApiError } from '../api/client'
 import './ArchitecturePage.css'
@@ -25,100 +30,121 @@ const errorMessage = (error: unknown): string => {
   return 'Impossible de contacter le serveur.'
 }
 
-const MODULES_LIES = [
-  { icon: FolderKanban, label: 'Création de projet' },
-  { icon: ListChecks, label: 'Pilotage des projets' },
-  { icon: UserCheck, label: 'Staffing' },
-]
-
-type PageTab = 'staffing' | 'banque'
-type Selection = { type: 'team'; id: number } | { type: 'member'; id: number; teamId: number } | null
-
-function TeamTree({ teams, expanded, onToggle, selected, onSelect }: {
-  teams: Team[]
-  expanded: Set<number>
-  onToggle: (id: number) => void
-  selected: Selection
-  onSelect: (selection: Selection) => void
-}) {
-  return (
-    <ul className="arch-tree">
-      {teams.map((team) => {
-        const isExpanded = expanded.has(team.id)
-        const isSelected = selected?.type === 'team' && selected.id === team.id
-        return (
-          <li key={team.id}>
-            <div className={`arch-tree-row ${isSelected ? 'selected' : ''}`} onClick={() => onSelect({ type: 'team', id: team.id })}>
-              {team.members.length > 0 ? (
-                <button
-                  type="button"
-                  className="arch-tree-toggle"
-                  onClick={(event) => { event.stopPropagation(); onToggle(team.id) }}
-                  aria-label={isExpanded ? 'Réduire' : 'Développer'}
-                >
-                  {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                </button>
-              ) : <span className="arch-tree-toggle-spacer" />}
-              <span className="arch-tree-node-icon">
-                {isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />}
-              </span>
-              <span className="arch-tree-code">{team.code}</span>
-              <span className="arch-tree-label">- {team.name}</span>
-              <span className="arch-tree-count">{team.members.length}</span>
-            </div>
-            {isExpanded && team.members.length > 0 && (
-              <ul className="arch-tree">
-                {team.members.map((member: TeamMember) => {
-                  const mSelected = selected?.type === 'member' && selected.id === member.id
-                  return (
-                    <li key={member.id}>
-                      <div
-                        className={`arch-tree-row ${mSelected ? 'selected' : ''}`}
-                        style={{ paddingLeft: 28 }}
-                        onClick={() => onSelect({ type: 'member', id: member.id, teamId: team.id })}
-                      >
-                        <span className="arch-tree-toggle-spacer" />
-                        <span className="arch-tree-node-icon"><User size={13} /></span>
-                        <span className="arch-tree-label">{member.first_name} {member.last_name}</span>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </li>
-        )
-      })}
-    </ul>
-  )
+const formatDate = (value: string | null): string => {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('fr-FR')
 }
 
-function TaskCreateModal({ team, projects, templates, onClose, onSubmit }: {
-  team: Team
+const staffingSummary = (task: Task): string => {
+  const count = task.assignments.length
+  if (count === 0) return 'Non staffée'
+  if (count === 1) return `Staffée à ${task.assignments[0].user_nom}`
+  return `Staffée à ${count} personnes`
+}
+
+const PRIORITE_OPTIONS: { value: TaskPriorite; label: string }[] = [
+  { value: 'haute', label: 'Haute' },
+  { value: 'moyenne', label: 'Moyenne' },
+  { value: 'basse', label: 'Basse' },
+]
+
+const STATUT_OPTIONS: { value: TaskStatut; label: string }[] = [
+  { value: 'envoyee', label: 'Envoyée' },
+  { value: 'acceptee', label: 'Acceptée' },
+  { value: 'refusee', label: 'Refusée' },
+]
+
+const PAGE_SIZE = 8
+
+type PageTab = 'attribution' | 'banque'
+type PanelMode = { kind: 'create'; from?: Task } | { kind: 'edit'; task: Task } | { kind: 'view'; task: Task } | null
+
+function exportTasksCsv(tasks: Task[]) {
+  const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Échéance', 'Priorité', 'Statut', 'Créé le']
+  const rows = tasks.map((t) => [
+    t.template_code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
+    `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
+    formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
+  ])
+  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+  const bom = String.fromCharCode(0xfeff)
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `attribution-des-taches-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreated, onUpdated, onDeleteRequest }: {
+  mode: Exclude<PanelMode, null>
+  teams: Team[]
   projects: Project[]
   templates: TaskTemplate[]
+  lignes: LigneBudgetaire[]
   onClose: () => void
-  onSubmit: (values: { template: number; project_ligne: number; heures: number }) => Promise<void>
+  onCreated: (task: Task) => void
+  onUpdated: (task: Task) => void
+  onDeleteRequest: (task: Task) => void
 }) {
-  const [templateId, setTemplateId] = useState<number | null>(null)
-  const [projectId, setProjectId] = useState<number | null>(null)
-  const [ligneId, setLigneId] = useState<number | null>(null)
-  const [heures, setHeures] = useState('')
+  const seed = mode.kind === 'create' ? mode.from : mode.task
+  const [templateId, setTemplateId] = useState<number | null>(seed?.template ?? null)
+  const [description, setDescription] = useState(seed?.description ?? '')
+  const [transversale, setTransversale] = useState(seed ? seed.project === null : false)
+  const [projectId, setProjectId] = useState<number | null>(seed?.project ?? null)
+  const [equipeId, setEquipeId] = useState<number | null>(seed?.equipe ?? null)
+  const [ligneId, setLigneId] = useState<number | null>(seed?.ligne_budgetaire ?? null)
+  const [echeance, setEcheance] = useState(mode.kind === 'create' ? '' : seed?.echeance ?? '')
+  const [priorite, setPriorite] = useState<TaskPriorite>(seed?.priorite ?? 'moyenne')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(mode.kind !== 'view')
 
-  const activeTemplates = templates.filter((t) => t.actif)
+  const readOnly = mode.kind === 'view' && !editing
+  const activeTemplates = templates.filter((t) => t.actif || t.id === templateId)
   const selectedTemplate = activeTemplates.find((t) => t.id === templateId) ?? null
-  const projectsWithLignesForTeam = projects.filter((p) => p.lignes.some((l) => l.equipe === team.id))
   const selectedProject = projects.find((p) => p.id === projectId) ?? null
-  const lignesForTeam = selectedProject ? selectedProject.lignes.filter((l) => l.equipe === team.id) : []
-  const selectedLigne = lignesForTeam.find((l) => l.id === ligneId) ?? null
 
-  const heuresNumber = Number(heures) || 0
-  const canSave = templateId !== null && ligneId !== null && heuresNumber > 0
+  const equipeOptions = transversale
+    ? teams
+    : selectedProject ? teams.filter((t) => selectedProject.lignes.some((l) => l.equipe === t.id)) : []
+  const selectedEquipe = teams.find((t) => t.id === equipeId) ?? null
+
+  const ligneOptions = transversale
+    ? lignes.filter((l) => l.equipe === equipeId && l.actif).map((l) => ({ value: l.id, label: `${l.code} — ${l.nom}` }))
+    : selectedProject
+      ? selectedProject.lignes.filter((l) => l.equipe === equipeId).map((l) => ({ value: l.ligne_budgetaire, label: `${l.ligne_budgetaire_code} — ${l.ligne_budgetaire_nom}` }))
+      : []
+
+  const canSave = templateId !== null && ligneId !== null && equipeId !== null && echeance !== ''
+    && description.trim() !== '' && (transversale || projectId !== null)
+
+  const handleTemplateChange = (value: string) => {
+    const id = value === '' ? null : Number(value)
+    setTemplateId(id)
+    const tpl = templates.find((t) => t.id === id)
+    if (description.trim() === '' && tpl?.details) setDescription(tpl.details)
+    if (tpl) setPriorite(tpl.priorite_defaut)
+  }
+
+  const handleTransversaleChange = (checked: boolean) => {
+    setTransversale(checked)
+    if (checked) setProjectId(null)
+    setEquipeId(null)
+    setLigneId(null)
+  }
 
   const handleProjectChange = (value: string) => {
     setProjectId(value === '' ? null : Number(value))
+    setEquipeId(null)
+    setLigneId(null)
+  }
+
+  const handleEquipeChange = (value: string) => {
+    setEquipeId(value === '' ? null : Number(value))
     setLigneId(null)
   }
 
@@ -127,276 +153,707 @@ function TaskCreateModal({ team, projects, templates, onClose, onSubmit }: {
     if (!canSave || templateId === null || ligneId === null) return
     setSaving(true)
     setError(null)
+    const payload: TaskFormValues = {
+      template: templateId,
+      description: description.trim(),
+      project: transversale ? null : projectId,
+      ligne_budgetaire: ligneId,
+      echeance,
+      priorite,
+    }
     try {
-      await onSubmit({ template: templateId, project_ligne: ligneId, heures: heuresNumber })
+      if (mode.kind === 'edit' || (mode.kind === 'view' && editing)) {
+        const updated = await updateTask(mode.task.id, payload)
+        onUpdated(updated)
+      } else {
+        const created = await createTask(payload)
+        onCreated(created)
+      }
     } catch (err) {
       setError(errorMessage(err))
+    } finally {
       setSaving(false)
     }
   }
 
+  const title = mode.kind === 'create' ? 'Attribuer une tâche' : mode.kind === 'edit' ? 'Modifier l’attribution' : editing ? 'Modifier l’attribution' : (mode.task.template_nom || 'Détail de la tâche')
+
   return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Nouvelle tâche" onMouseDown={() => { if (!saving) onClose() }}>
-      <div className="ge-modal arch-task-modal" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="ge-modal-head arch-modal-head-row">
-          <span className="arch-modal-icon"><ListChecks size={18} /></span>
-          <div>
-            <h3>Nouvelle tâche</h3>
-            <p className="ge-modal-subtitle">
-              Pour l’équipe <strong>{team.code} — {team.name}</strong>
-              {team.manager && <> · reviendra à son manager, <strong>{team.manager.first_name} {team.manager.last_name}</strong></>}
-              . L’attribution à un membre se fera plus tard depuis Staffing.
-            </p>
-          </div>
-          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
-        </div>
-
-        <form className="param-form arch-task-form" onSubmit={handleSubmit}>
-          {error && <p className="ge-form-error">{error}</p>}
-
-          <div className="arch-form-section">
-            <span className="arch-form-section-title"><Archive size={12} />Tâche de la banque</span>
-            <label className="param-field">Modèle de tâche *
-              <select required value={templateId ?? ''} onChange={(event) => setTemplateId(event.target.value === '' ? null : Number(event.target.value))}>
-                <option value="">{activeTemplates.length === 0 ? 'Aucune tâche dans la banque' : 'Sélectionner une tâche'}</option>
-                {activeTemplates.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.nom}</option>)}
-              </select>
-            </label>
-            {selectedTemplate?.description && <p className="charge-hint">{selectedTemplate.description}</p>}
-          </div>
-
-          <div className="arch-form-section">
-            <span className="arch-form-section-title"><FolderKanban size={12} />Financement</span>
-            <div className="param-form-row">
-              <label className="param-field">Projet *
-                <select required value={projectId ?? ''} onChange={(event) => handleProjectChange(event.target.value)}>
-                  <option value="">{projectsWithLignesForTeam.length === 0 ? 'Aucun projet avec une ligne pour cette équipe' : 'Sélectionner un projet'}</option>
-                  {projectsWithLignesForTeam.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.nom}</option>)}
-                </select>
-              </label>
-              <label className="param-field">Ligne budgétaire *
-                <select required value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))} disabled={!selectedProject}>
-                  <option value="">{!selectedProject ? 'Choisissez un projet d’abord' : lignesForTeam.length === 0 ? 'Aucune ligne pour cette équipe' : 'Sélectionner une ligne'}</option>
-                  {lignesForTeam.map((l) => <option key={l.id} value={l.id}>{l.ligne_budgetaire_code} — {l.ligne_budgetaire_nom}</option>)}
-                </select>
-              </label>
-            </div>
-            {selectedLigne && (
-              <div className="arch-ligne-preview">
-                <span>{selectedLigne.ligne_budgetaire_code} — {selectedLigne.ligne_budgetaire_nom}</span>
-                <strong>{selectedLigne.montant.toLocaleString('fr-FR')} FCFA</strong>
-              </div>
-            )}
-          </div>
-
-          <div className="arch-form-section">
-            <span className="arch-form-section-title"><CalendarClock size={12} />Durée</span>
-            <label className="param-field">Nombre d’heures pour la tâche *
-              <input required type="number" min={0} step="0.5" value={heures} placeholder="Ex. 8" onChange={(event) => setHeures(event.target.value)} />
-            </label>
-          </div>
-
-          <div className="ge-modal-actions">
-            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
-            <button type="submit" className="ge-btn-primary" disabled={!canSave || saving}>{saving ? 'Création…' : 'Créer la tâche'}</button>
-          </div>
-        </form>
+    <div className="arch-panel">
+      <div className="arch-panel-head">
+        <h3>{mode.kind === 'view' && !editing ? 'DÉTAIL / ATTRIBUTION D’UNE TÂCHE' : 'DÉTAIL / ATTRIBUTION D’UNE TÂCHE'}</h3>
+        <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
       </div>
-    </div>
-  )
-}
 
-function TaskDetailModal({ task, onClose, onDelete }: { task: Task; onClose: () => void; onDelete: () => void }) {
-  return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Détail de la tâche" onMouseDown={onClose}>
-      <div className="ge-modal param-modal" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="ge-modal-head">
-          <div>
-            <h3>{task.template_nom}</h3>
-            <p className="ge-modal-subtitle">{task.code}</p>
+      {readOnly ? (
+        <div className="arch-panel-view">
+          <div className="arch-panel-view-head">
+            <strong>{mode.task.code}</strong>
+            <span className={`arch-pill arch-pill-${mode.task.statut}`}>{mode.task.statut_display}</span>
           </div>
-          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
-        </div>
-        <div className="param-form arch-task-detail">
-          {task.template_description && <p className="arch-task-detail-desc">{task.template_description}</p>}
-          <dl>
-            <div><dt>Équipe</dt><dd>{task.equipe_code} — {task.equipe_nom}</dd></div>
-            <div><dt>Responsable (manager)</dt><dd>{task.equipe_manager_nom ?? 'Aucun manager défini'}</dd></div>
-            <div><dt>Assignée à</dt><dd>{task.assignee_nom ?? 'À attribuer depuis Staffing'}</dd></div>
-            <div><dt>Projet</dt><dd>{task.project_code} — {task.project_nom}</dd></div>
-            <div><dt>Ligne budgétaire</dt><dd>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</dd></div>
-            <div><dt>Montant</dt><dd>{task.montant.toLocaleString('fr-FR')} FCFA</dd></div>
-            <div><dt>Heures</dt><dd>{task.heures.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} h</dd></div>
-            <div><dt>Statut</dt><dd><span className={`ge-pill ${task.actif ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{task.actif ? 'Active' : 'Inactive'}</span></dd></div>
-            <div><dt>Staffing</dt><dd>{task.lancee ? `Lancée${task.lancee_le ? ` le ${new Date(task.lancee_le).toLocaleDateString('fr-FR')}` : ''}` : 'Pas encore lancée'}</dd></div>
-            <div><dt>Créée par</dt><dd>{task.created_by_nom ?? '-'}</dd></div>
+          <h4>{title}</h4>
+          {mode.task.description && <p className="arch-task-detail-desc">{mode.task.description}</p>}
+          <dl className="arch-task-detail">
+            <div><dt>Projet / Nature</dt><dd>{mode.task.project_nom ? `${mode.task.project_code} — ${mode.task.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
+            <div><dt>Équipe destinataire</dt><dd>{mode.task.equipe_code} — {mode.task.equipe_nom}</dd></div>
+            <div><dt>Manager destinataire</dt><dd>{mode.task.equipe_manager_nom ?? 'Aucun manager défini'}</dd></div>
+            <div><dt>Ligne budgétaire</dt><dd>{mode.task.ligne_budgetaire_code} — {mode.task.ligne_budgetaire_nom}</dd></div>
+            <div><dt>Échéance</dt><dd>{formatDate(mode.task.echeance)}</dd></div>
+            <div><dt>Priorité</dt><dd>{mode.task.priorite_display}</dd></div>
+            <div><dt>Statut</dt><dd>{mode.task.statut_display}{mode.task.statut === 'acceptee' && <span className="arch-staffed-hint"> · {staffingSummary(mode.task).toLowerCase()}</span>}</dd></div>
+            <div><dt>Créée par</dt><dd>{mode.task.created_by_nom ?? '-'}</dd></div>
           </dl>
           <div className="ge-modal-actions">
-            <button type="button" className="arch-delete-btn" onClick={onDelete}><Trash2 size={13} />Supprimer la tâche</button>
+            <button type="button" className="arch-delete-btn" onClick={() => onDeleteRequest(mode.task)}><Trash2 size={13} />Supprimer la tâche</button>
+            <button type="button" className="ge-btn-primary" onClick={() => setEditing(true)}><Pencil size={13} />Modifier</button>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function TaskTemplateModal({ initial, onClose, onSubmit }: {
-  initial?: TaskTemplate
-  onClose: () => void
-  onSubmit: (values: { nom: string; description: string }) => Promise<void>
-}) {
-  const [nom, setNom] = useState(initial?.nom ?? '')
-  const [description, setDescription] = useState(initial?.description ?? '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const canSave = nom.trim() !== ''
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!canSave) return
-    setSaving(true)
-    setError(null)
-    try {
-      await onSubmit({ nom: nom.trim(), description: description.trim() })
-    } catch (err) {
-      setError(errorMessage(err))
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label={initial ? 'Modifier la tâche' : 'Nouvelle tâche dans la banque'} onMouseDown={() => { if (!saving) onClose() }}>
-      <div className="ge-modal param-modal" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="ge-modal-head">
-          <div>
-            <h3>{initial ? 'Modifier la tâche' : 'Nouvelle tâche dans la banque'}</h3>
-            <p className="ge-modal-subtitle">Un simple intitulé réutilisable, sans équipe, ligne budgétaire, heures ni montant.</p>
-          </div>
-          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
-        </div>
+      ) : (
         <form className="param-form" onSubmit={handleSubmit}>
           {error && <p className="ge-form-error">{error}</p>}
-          <label className="param-field">Nom de la tâche *
-            <input required value={nom} placeholder="Ex. Rédaction du rapport" onChange={(event) => setNom(event.target.value)} />
-          </label>
-          <label className="param-field">Description (facultatif)
-            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
-          </label>
+
+          <div className="arch-panel-grid">
+            <label className="param-field">Projet / Nature *
+              <select required={!transversale} disabled={transversale} value={projectId ?? ''} onChange={(event) => handleProjectChange(event.target.value)}>
+                <option value="">{transversale ? 'Tâche transversale' : 'Sélectionner un projet'}</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.nom}</option>)}
+              </select>
+            </label>
+            <label className="param-field">Équipe destinataire *
+              <select required value={equipeId ?? ''} onChange={(event) => handleEquipeChange(event.target.value)} disabled={!transversale && !selectedProject}>
+                <option value="">{!transversale && !selectedProject ? 'Choisissez un projet d’abord' : equipeOptions.length === 0 ? 'Aucune équipe disponible' : 'Sélectionner une équipe'}</option>
+                {equipeOptions.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+              </select>
+            </label>
+            <label className="param-field">Échéance *
+              <input required type="date" value={echeance} onChange={(event) => setEcheance(event.target.value)} />
+            </label>
+
+            <label className="param-checkbox-field">
+              <input type="checkbox" checked={transversale} onChange={(event) => handleTransversaleChange(event.target.checked)} />
+              Tâche transversale (aucun projet)
+            </label>
+            <label className="param-field">Manager destinataire
+              <input readOnly value={selectedEquipe?.manager ? `${selectedEquipe.manager.first_name} ${selectedEquipe.manager.last_name}` : selectedEquipe ? 'Aucun manager défini' : ''} placeholder="Choisissez une équipe" />
+            </label>
+            <label className="param-field">Priorité *
+              <select required value={priorite} onChange={(event) => setPriorite(event.target.value as TaskPriorite)}>
+                {PRIORITE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </label>
+
+            <label className="param-field">Tâche (depuis catalogue) *
+              <select required value={templateId ?? ''} onChange={(event) => handleTemplateChange(event.target.value)}>
+                <option value="">{activeTemplates.length === 0 ? 'Aucune tâche dans le catalogue' : 'Sélectionner une tâche'}</option>
+                {activeTemplates.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.nom}{t.type_element === 'dossier' ? ' (dossier)' : ''}</option>)}
+              </select>
+              {selectedTemplate?.details && <p className="charge-hint">{selectedTemplate.details}</p>}
+            </label>
+            <label className="param-field">Ligne budgétaire *
+              <select required value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))} disabled={!equipeId}>
+                <option value="">{!equipeId ? 'Choisissez une équipe d’abord' : ligneOptions.length === 0 ? 'Aucune ligne disponible' : 'Sélectionner une ligne'}</option>
+                {ligneOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+              </select>
+            </label>
+
+            <label className="param-field arch-panel-full">Description / Contexte *
+              <textarea required rows={3} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Précisez le contexte de cette attribution..." />
+            </label>
+          </div>
+
           <div className="ge-modal-actions">
             <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
             <button type="submit" className="ge-btn-primary" disabled={!canSave || saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
           </div>
         </form>
-      </div>
+      )}
     </div>
   )
 }
 
-function TaskTemplateBankTab({ templates, loading, onCreated, onUpdated, onDeleted }: {
+function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading, setTasks, actionError, setActionError }: {
+  teams: Team[]
+  tasks: Task[]
+  projects: Project[]
   templates: TaskTemplate[]
+  lignes: LigneBudgetaire[]
   loading: boolean
-  onCreated: (t: TaskTemplate) => void
-  onUpdated: (t: TaskTemplate) => void
-  onDeleted: (id: number) => void
+  setTasks: (updater: (prev: Task[]) => Task[]) => void
+  actionError: string | null
+  setActionError: (error: string | null) => void
 }) {
-  const [showCreate, setShowCreate] = useState(false)
-  const [editing, setEditing] = useState<TaskTemplate | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [filterStatut, setFilterStatut] = useState<TaskStatut | 'tous'>('tous')
+  const [filterEcheanceDebut, setFilterEcheanceDebut] = useState('')
+  const [filterEcheanceFin, setFilterEcheanceFin] = useState('')
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
+  const [filterEquipe, setFilterEquipe] = useState<number | 'tous'>('tous')
+  const [filterPriorite, setFilterPriorite] = useState<TaskPriorite | 'tous'>('tous')
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [page, setPage] = useState(1)
+  const [panel, setPanel] = useState<PanelMode>(null)
 
-  const handleCreate = async (values: { nom: string; description: string }) => {
-    const created = await createTaskTemplate(values)
-    onCreated(created)
-    setShowCreate(false)
+  const query = search.trim().toLowerCase()
+  const filtered = tasks.filter((t) => (
+    (filterStatut === 'tous' || t.statut === filterStatut)
+    && (filterEquipe === 'tous' || t.equipe === filterEquipe)
+    && (filterPriorite === 'tous' || t.priorite === filterPriorite)
+    && (!filterEcheanceDebut || (t.echeance ?? '') >= filterEcheanceDebut)
+    && (!filterEcheanceFin || (t.echeance ?? '') <= filterEcheanceFin)
+    && (!query || t.template_nom.toLowerCase().includes(query) || t.code.toLowerCase().includes(query)
+      || (t.project_nom ?? '').toLowerCase().includes(query) || t.equipe_nom.toLowerCase().includes(query))
+  ))
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  const changeFilter = (apply: () => void) => { apply(); setPage(1) }
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const handleUpdate = async (values: { nom: string; description: string }) => {
-    if (!editing) return
-    const updated = await updateTaskTemplate(editing.id, values)
-    onUpdated(updated)
-    setEditing(null)
+  const pageAllSelected = pageItems.length > 0 && pageItems.every((t) => selectedIds.has(t.id))
+  const toggleSelectPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (pageAllSelected) pageItems.forEach((t) => next.delete(t.id))
+      else pageItems.forEach((t) => next.add(t.id))
+      return next
+    })
   }
 
-  const handleToggleActif = async (template: TaskTemplate) => {
-    const updated = await updateTaskTemplate(template.id, { actif: !template.actif })
-    onUpdated(updated)
+  const selectedTasks = tasks.filter((t) => selectedIds.has(t.id))
+
+  const handleDuplicate = () => {
+    if (selectedTasks.length !== 1) return
+    setPanel({ kind: 'create', from: selectedTasks[0] })
   }
 
-  const handleDelete = async (template: TaskTemplate) => {
-    if (!window.confirm(`Supprimer la tâche « ${template.nom} » de la banque ?`)) return
+  const handleExport = () => {
+    exportTasksCsv(selectedTasks.length > 0 ? selectedTasks : filtered)
+  }
+
+  const handleCreated = (task: Task) => {
+    setTasks((prev) => [task, ...prev])
+    setPanel(null)
+  }
+
+  const handleUpdated = (task: Task) => {
+    setTasks((prev) => prev.map((t) => t.id === task.id ? task : t))
+    setPanel({ kind: 'view', task })
+  }
+
+  const handleDeleteRequest = async (task: Task) => {
+    if (!window.confirm(`Supprimer la tâche « ${task.template_nom} » attribuée à ${task.equipe_nom} ?`)) return
     setActionError(null)
     try {
-      await deleteTaskTemplate(template.id)
-      onDeleted(template.id)
+      await deleteTask(task.id)
+      setTasks((prev) => prev.filter((t) => t.id !== task.id))
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(task.id); return next })
+      setPanel(null)
     } catch (err) {
       setActionError(errorMessage(err))
     }
   }
 
   return (
-    <div className="param-tab">
-      <div className="param-tab-heading">
-        <div>
-          <h2>Banque de tâches</h2>
-          <p>Définissez ici les tâches réutilisables : un simple nom, sans équipe ni ligne budgétaire ni heures ni montant. Elles se choisissent ensuite depuis Attribution staffing, pour éviter de redéfinir la même tâche à chaque équipe.</p>
-        </div>
-        <button type="button" className="ge-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} />Nouvelle tâche</button>
-      </div>
+    <div className="arch-attribution">
+      <p className="arch-attribution-lead">Attribuer une tâche du catalogue à une équipe et à son manager.</p>
 
       {actionError && <p className="ge-form-error">{actionError}</p>}
 
-      <div className="ge-table-panel">
-        <div className="ge-table-wrap">
-          <table className="ge-table">
-            <thead><tr><th>Code</th><th>Nom</th><th>Description</th><th>Statut</th><th>Actions</th></tr></thead>
+      <div className="arch-toolbar-row">
+        <button type="button" className="arch-btn-primary" onClick={() => setPanel({ kind: 'create' })}><Plus size={14} />Attribuer une tâche</button>
+        <button type="button" className="arch-btn-outline" onClick={handleDuplicate} disabled={selectedTasks.length !== 1}><Copy size={14} />Dupliquer</button>
+        <button type="button" className="arch-btn-outline" onClick={handleExport} disabled={filtered.length === 0}><Download size={14} />Exporter</button>
+
+        <select className="arch-select-sm" value={filterStatut} onChange={(event) => changeFilter(() => setFilterStatut(event.target.value as TaskStatut | 'tous'))}>
+          <option value="tous">Tous statuts</option>
+          {STATUT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+
+        <label className="arch-date-filter">Échéance du
+          <input type="date" value={filterEcheanceDebut} onChange={(event) => changeFilter(() => setFilterEcheanceDebut(event.target.value))} />
+        </label>
+        <label className="arch-date-filter">au
+          <input type="date" value={filterEcheanceFin} onChange={(event) => changeFilter(() => setFilterEcheanceFin(event.target.value))} />
+        </label>
+
+        <label className="arch-search">
+          <Search size={13} />
+          <input placeholder="Rechercher..." value={search} onChange={(event) => changeFilter(() => setSearch(event.target.value))} />
+        </label>
+
+        <button type="button" className={`arch-btn-outline ${showMoreFilters ? 'is-active' : ''}`} onClick={() => setShowMoreFilters((v) => !v)}><Filter size={14} />Filtres</button>
+      </div>
+
+      {showMoreFilters && (
+        <div className="arch-toolbar-row arch-toolbar-row-secondary">
+          <select className="arch-select-sm" value={filterEquipe} onChange={(event) => changeFilter(() => setFilterEquipe(event.target.value === 'tous' ? 'tous' : Number(event.target.value)))}>
+            <option value="tous">Toutes les équipes</option>
+            {teams.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+          </select>
+          <select className="arch-select-sm" value={filterPriorite} onChange={(event) => changeFilter(() => setFilterPriorite(event.target.value as TaskPriorite | 'tous'))}>
+            <option value="tous">Toutes priorités</option>
+            {PRIORITE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div className="arch-table-panel">
+        <div className="arch-table-wrap">
+          <table className="arch-table">
+            <thead>
+              <tr>
+                <th className="arch-th-checkbox"><input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" /></th>
+                <th>Code</th><th>Projet / Nature</th><th>Tâche (depuis catalogue)</th><th>Équipe destinataire</th>
+                <th>Manager destinataire</th><th>Ligne budgétaire</th><th>Échéance</th><th>Priorité</th><th>Statut</th>
+                <th>Créé le</th><th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {loading && <tr><td colSpan={5} className="ge-detail-empty">Chargement…</td></tr>}
-              {!loading && templates.map((template) => (
-                <tr key={template.id}>
-                  <td className="arch-code">{template.code}</td>
-                  <td className="arch-name">{template.nom}</td>
-                  <td className="param-type-desc">{template.description || '—'}</td>
-                  <td><span className={`ge-pill ${template.actif ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{template.actif ? 'Actif' : 'Inactif'}</span></td>
-                  <td className="ge-actions">
-                    <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier" onClick={() => setEditing(template)}><Pencil size={13} /></button>
-                    <button type="button" className="ge-btn-outline param-toggle-btn" onClick={() => handleToggleActif(template)}>
-                      {template.actif ? 'Désactiver' : 'Activer'}
-                    </button>
-                    <button type="button" className="ge-row-action ge-row-action-danger" aria-label="Supprimer" title="Supprimer" onClick={() => handleDelete(template)}><Trash2 size={13} /></button>
+              {loading && <tr><td colSpan={11} className="ge-detail-empty">Chargement…</td></tr>}
+              {!loading && pageItems.map((task) => (
+                <tr key={task.id}>
+                  <td className="arch-th-checkbox"><input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={`Sélectionner ${task.code}`} /></td>
+                  <td className="arch-code">{task.template_code}</td>
+                  <td>{task.project_nom ? <>{task.project_code}<br /><small>{task.project_nom}</small></> : <span className="arch-transversale-tag">– Transversale</span>}</td>
+                  <td className="arch-name">{task.template_nom}</td>
+                  <td>{task.equipe_code}</td>
+                  <td>{task.equipe_manager_nom ?? '—'}</td>
+                  <td>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</td>
+                  <td>{formatDate(task.echeance)}</td>
+                  <td><span className={`arch-pill arch-pill-prio-${task.priorite}`}>{task.priorite_display}</span></td>
+                  <td>
+                    <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span>
+                    {task.statut === 'acceptee' && (
+                      <div className="arch-staffed-hint">{staffingSummary(task)}</div>
+                    )}
+                  </td>
+                  <td>{formatDate(task.created_at)}</td>
+                  <td>
+                    <div className="arch-actions">
+                      <button type="button" className="arch-row-action" aria-label="Voir le détail" onClick={() => setPanel({ kind: 'view', task })}><Eye size={13} /></button>
+                      <button type="button" className="arch-row-action" aria-label="Modifier" onClick={() => setPanel({ kind: 'edit', task })}><Pencil size={13} /></button>
+                      <button type="button" className="arch-row-action danger" aria-label="Supprimer" onClick={() => handleDeleteRequest(task)}><Trash2 size={13} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {!loading && templates.length === 0 && (
-                <tr><td colSpan={5} className="ge-detail-empty">Aucune tâche dans la banque pour le moment.</td></tr>
+              {!loading && pageItems.length === 0 && (
+                <tr><td colSpan={11} className="ge-detail-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+        <div className="arch-table-foot">
+          <span>Affichage {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1} à {Math.min(currentPage * PAGE_SIZE, filtered.length)} sur {filtered.length} tâche{filtered.length > 1 ? 's' : ''}</span>
+          <nav className="arch-pagination" aria-label="Pagination">
+            <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft size={14} /></button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button key={p} type="button" className={p === currentPage ? 'is-active' : ''} onClick={() => setPage(p)}>{p}</button>
+            ))}
+            <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight size={14} /></button>
+          </nav>
+        </div>
       </div>
 
-      {showCreate && <TaskTemplateModal onClose={() => setShowCreate(false)} onSubmit={handleCreate} />}
-      {editing && <TaskTemplateModal initial={editing} onClose={() => setEditing(null)} onSubmit={handleUpdate} />}
+      {panel && (
+        <TaskPanel
+          key={panel.kind === 'create' ? `create-${panel.from?.id ?? 'blank'}` : `${panel.kind}-${panel.task.id}`}
+          mode={panel}
+          teams={teams}
+          projects={projects}
+          templates={templates}
+          lignes={lignes}
+          onClose={() => setPanel(null)}
+          onCreated={handleCreated}
+          onUpdated={handleUpdated}
+          onDeleteRequest={handleDeleteRequest}
+        />
+      )}
     </div>
   )
 }
 
-function StaffingAttributionTab({ teams, tasks, projects, templates, loading, setTasks, actionError, setActionError }: {
-  teams: Team[]
-  tasks: Task[]
-  projects: Project[]
-  templates: TaskTemplate[]
-  loading: boolean
-  setTasks: (updater: (prev: Task[]) => Task[]) => void
-  actionError: string | null
-  setActionError: (error: string | null) => void
-}) {
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [selected, setSelected] = useState<Selection>(null)
-  const [search, setSearch] = useState('')
-  const [showCreate, setShowCreate] = useState(false)
-  const [viewTask, setViewTask] = useState<Task | null>(null)
+const TEMPLATE_TYPE_OPTIONS: { value: TaskTemplateType; label: string }[] = [
+  { value: 'dossier', label: 'Dossier' },
+  { value: 'tache_elementaire', label: 'Tâche élémentaire' },
+]
+const TEMPLATE_FREQUENCE_OPTIONS: { value: 'ponctuelle' | 'recurrente'; label: string }[] = [
+  { value: 'ponctuelle', label: 'Ponctuelle' },
+  { value: 'recurrente', label: 'Récurrente' },
+]
+const TEMPLATE_DECLENCHEMENT_OPTIONS: { value: 'manuel' | 'automatique'; label: string }[] = [
+  { value: 'manuel', label: 'Manuel' },
+  { value: 'automatique', label: 'Automatique' },
+]
 
-  const toggleTeam = (id: number) => {
+interface TemplateNode extends TaskTemplate { children: TemplateNode[] }
+
+function buildTemplateTree(templates: TaskTemplate[]): TemplateNode[] {
+  const nodes = new Map<number, TemplateNode>(templates.map((t) => [t.id, { ...t, children: [] }]))
+  const roots: TemplateNode[] = []
+  nodes.forEach((node) => {
+    if (node.parent !== null && nodes.has(node.parent)) {
+      nodes.get(node.parent)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+  return roots
+}
+
+function exportTemplatesCsv(templates: TaskTemplate[]) {
+  const header = ['Code', 'Nom', 'Niveau', 'Parent', 'Équipe', 'Type', 'Attribuable', 'Statut', 'Créée le']
+  const rows = templates.map((t) => [
+    t.code, t.nom, String(t.niveau), t.parent_code ?? '', t.equipe_nom ? `${t.equipe_code} — ${t.equipe_nom}` : '',
+    t.type_element_display, t.attribuable ? 'Oui' : 'Non', t.actif ? 'Actif' : 'Inactif', formatDate(t.created_at),
+  ])
+  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+  const bom = String.fromCharCode(0xfeff)
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `catalogue-des-taches-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function CatalogueTree({ nodes, depth = 0, expanded, onToggle, selectedId, onSelect }: {
+  nodes: TemplateNode[]
+  depth?: number
+  expanded: Set<number>
+  onToggle: (id: number) => void
+  selectedId: number | null
+  onSelect: (node: TemplateNode) => void
+}) {
+  return (
+    <ul className="arch-tree">
+      {nodes.map((node) => {
+        const isExpanded = expanded.has(node.id)
+        const isSelected = selectedId === node.id
+        const isLeaf = node.type_element === 'tache_elementaire'
+        return (
+          <li key={node.id}>
+            <div className={`arch-tree-row ${isSelected ? 'selected' : ''} ${!node.actif ? 'arch-tree-row-inactive' : ''}`} style={{ paddingLeft: depth * 14 }} onClick={() => onSelect(node)}>
+              {node.children.length > 0 ? (
+                <button type="button" className="arch-tree-toggle" onClick={(event) => { event.stopPropagation(); onToggle(node.id) }} aria-label={isExpanded ? 'Réduire' : 'Développer'}>
+                  {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                </button>
+              ) : <span className="arch-tree-toggle-spacer" />}
+              <span className="arch-tree-node-icon">{isLeaf ? <ListChecks size={13} /> : (isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />)}</span>
+              <span className="arch-tree-code">{node.code}</span>
+              <span className="arch-tree-label">- {node.nom}</span>
+            </div>
+            {isExpanded && node.children.length > 0 && (
+              <CatalogueTree nodes={node.children} depth={depth + 1} expanded={expanded} onToggle={onToggle} selectedId={selectedId} onSelect={onSelect} />
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function CataloguePanel({ mode, templates, dossiers, teams, onClose, onCreated, onUpdated, onDeleteRequest }: {
+  mode: { kind: 'create'; parentId: number | null; equipeId?: number | null } | { kind: 'edit' | 'view'; node: TaskTemplate }
+  templates: TaskTemplate[]
+  dossiers: TaskTemplate[]
+  teams: Team[]
+  onClose: () => void
+  onCreated: (t: TaskTemplate) => void
+  onUpdated: (t: TaskTemplate) => void
+  onDeleteRequest: (t: TaskTemplate) => void
+}) {
+  const seed = mode.kind === 'edit' || mode.kind === 'view' ? mode.node : null
+  const initialParentId = mode.kind === 'create' && mode.parentId !== null
+    ? (dossiers.some((d) => d.id === mode.parentId) ? mode.parentId : null)
+    : null
+  const [code, setCode] = useState(seed?.code ?? '')
+  const [nom, setNom] = useState(seed?.nom ?? '')
+  const [parentId, setParentId] = useState<number | null>(seed ? seed.parent : initialParentId)
+  const initialEquipeId = (): number | null => {
+    if (seed) return seed.equipe
+    if (initialParentId !== null) {
+      const parentTemplate = templates.find((t) => t.id === initialParentId)
+      if (parentTemplate) return parentTemplate.equipe
+    }
+    if (mode.kind === 'create' && mode.equipeId != null) return mode.equipeId
+    return null
+  }
+  const [equipeId, setEquipeId] = useState<number | null>(initialEquipeId())
+  const [typeElement, setTypeElement] = useState<TaskTemplateType>(seed?.type_element ?? 'dossier')
+  const [attribuable, setAttribuable] = useState(seed?.attribuable ?? true)
+  const [recurrente, setRecurrente] = useState(seed?.recurrente ?? false)
+  const [details, setDetails] = useState(seed?.details ?? '')
+  const [explication, setExplication] = useState(seed?.explication ?? '')
+  const [frequence, setFrequence] = useState<TaskTemplateFrequence>(seed?.frequence ?? 'ponctuelle')
+  const [modeDeclenchement, setModeDeclenchement] = useState<TaskTemplateDeclenchement>(seed?.mode_declenchement ?? 'manuel')
+  const [prioriteDefaut, setPrioriteDefaut] = useState<TaskTemplatePriorite>(seed?.priorite_defaut ?? 'moyenne')
+  const [dureeEstimee, setDureeEstimee] = useState(seed?.duree_estimee_heures != null ? String(seed.duree_estimee_heures) : '')
+  const [actif, setActif] = useState(seed?.actif ?? true)
+  const [saving, setSaving] = useState(false)
+  const [togglingActif, setTogglingActif] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(mode.kind !== 'view')
+
+  const readOnly = mode.kind === 'view' && !editing
+  const parentNode = templates.find((t) => t.id === parentId) ?? null
+  const isRoot = parentId === null
+  const canSave = nom.trim() !== '' && (mode.kind !== 'create' || code.trim() !== '') && (!isRoot || equipeId !== null)
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSave) return
+    setSaving(true)
+    setError(null)
+    const payload = {
+      nom: nom.trim(),
+      equipe: equipeId,
+      type_element: typeElement,
+      attribuable: typeElement === 'tache_elementaire' ? attribuable : true,
+      recurrente,
+      details: details.trim(),
+      explication: explication.trim(),
+      frequence,
+      mode_declenchement: modeDeclenchement,
+      priorite_defaut: prioriteDefaut,
+      duree_estimee_heures: dureeEstimee === '' ? null : Number(dureeEstimee),
+      actif,
+    }
+    try {
+      if (mode.kind === 'create') {
+        const created = await createTaskTemplate({ ...payload, code: code.trim(), parent: parentId })
+        onCreated(created)
+      } else {
+        const updated = await updateTaskTemplate(mode.node.id, payload)
+        onUpdated(updated)
+      }
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleActif = async () => {
+    if (mode.kind !== 'view') return
+    setTogglingActif(true)
+    setError(null)
+    try {
+      const updated = await updateTaskTemplate(mode.node.id, { actif: !mode.node.actif })
+      onUpdated(updated)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setTogglingActif(false)
+    }
+  }
+
+  return (
+    <div className="arch-panel">
+      <div className="arch-panel-head">
+        <h3>DÉTAIL DE LA TÂCHE</h3>
+        <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+      </div>
+
+      {readOnly ? (
+        <div className="arch-panel-view">
+          <div className="arch-panel-view-head">
+            <strong>{mode.node.code}</strong>
+            <span className={`ge-pill ${mode.node.actif ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{mode.node.actif ? 'Actif' : 'Inactif'}</span>
+            <span className="arch-pill arch-pill-prio-moyenne">{mode.node.type_element_display}</span>
+          </div>
+          <h4>{mode.node.nom}</h4>
+          {mode.node.details && <p className="arch-task-detail-desc">{mode.node.details}</p>}
+          <dl className="arch-task-detail">
+            <div><dt>Parent</dt><dd>{mode.node.parent_nom ? `${mode.node.parent_code} — ${mode.node.parent_nom}` : 'Racine'}</dd></div>
+            <div><dt>Niveau</dt><dd>{mode.node.niveau}</dd></div>
+            <div><dt>Équipe</dt><dd>{mode.node.equipe_nom ? `${mode.node.equipe_code} — ${mode.node.equipe_nom}` : '—'}</dd></div>
+            {mode.node.type_element === 'tache_elementaire' && (
+              <>
+                <div><dt>Attribuable</dt><dd>{mode.node.attribuable ? 'Oui' : 'Non'}</dd></div>
+                <div><dt>Récurrente</dt><dd>{mode.node.recurrente ? 'Oui' : 'Non'}</dd></div>
+                <div><dt>Fréquence</dt><dd>{mode.node.frequence_display}</dd></div>
+                <div><dt>Mode de déclenchement</dt><dd>{mode.node.mode_declenchement_display}</dd></div>
+                <div><dt>Priorité par défaut</dt><dd>{mode.node.priorite_defaut_display}</dd></div>
+                <div><dt>Durée estimée</dt><dd>{mode.node.duree_estimee_heures != null ? `${mode.node.duree_estimee_heures} h` : '—'}</dd></div>
+                <div><dt>Attributions en cours</dt><dd>{mode.node.attributions_count}</dd></div>
+              </>
+            )}
+            {mode.node.explication && <div><dt>Explication</dt><dd>{mode.node.explication}</dd></div>}
+            <div><dt>Sous-éléments</dt><dd>{mode.node.enfants_count}</dd></div>
+            <div><dt>Créée le</dt><dd>{formatDate(mode.node.created_at)} {mode.node.created_by_nom ? `par ${mode.node.created_by_nom}` : ''}</dd></div>
+            <div><dt>Dernière modification</dt><dd>{formatDate(mode.node.updated_at)} {mode.node.updated_by_nom ? `par ${mode.node.updated_by_nom}` : ''}</dd></div>
+          </dl>
+          <div className="ge-modal-actions">
+            <button type="button" className="arch-delete-btn" onClick={() => onDeleteRequest(mode.node)}><Trash2 size={13} />Supprimer</button>
+            <button type="button" className="ge-btn-outline param-toggle-btn" disabled={togglingActif} onClick={handleToggleActif}>
+              {togglingActif ? 'Enregistrement…' : mode.node.actif ? 'Désactiver' : 'Activer'}
+            </button>
+            <button type="button" className="ge-btn-primary" onClick={() => setEditing(true)}><Pencil size={13} />Modifier</button>
+          </div>
+        </div>
+      ) : (
+        <form className="param-form" onSubmit={handleSubmit}>
+          {error && <p className="ge-form-error">{error}</p>}
+
+          <div className="arch-form-section">
+            <span className="arch-form-section-title"><Archive size={12} />Identification</span>
+            <div className="arch-panel-grid">
+              <label className="param-field">Code *
+                {mode.kind === 'create' ? (
+                  <input required value={code} placeholder="Ex. PI, A01..." onChange={(event) => setCode(event.target.value)} />
+                ) : (
+                  <input readOnly value={code} />
+                )}
+              </label>
+              <label className="param-field">Nom de la tâche *
+                <input required value={nom} placeholder="Ex. Chiffrage unitaire" onChange={(event) => setNom(event.target.value)} />
+              </label>
+              <label className="param-field">Statut *
+                <select value={actif ? '1' : '0'} onChange={(event) => setActif(event.target.value === '1')}>
+                  <option value="1">Actif</option>
+                  <option value="0">Inactif</option>
+                </select>
+              </label>
+
+              <label className="param-field">Parent
+                {mode.kind === 'create' ? (
+                  <select value={parentId ?? ''} onChange={(event) => {
+                    const id = event.target.value === '' ? null : Number(event.target.value)
+                    setParentId(id)
+                    const p = templates.find((t) => t.id === id)
+                    setEquipeId(p?.equipe ?? null)
+                  }}>
+                    <option value="">Racine (aucun parent — premier niveau)</option>
+                    {dossiers.map((d) => <option key={d.id} value={d.id}>{d.code} — {d.nom}</option>)}
+                  </select>
+                ) : (
+                  <input readOnly value={parentNode ? `${parentNode.code} — ${parentNode.nom}` : 'Racine (aucun parent — premier niveau)'} />
+                )}
+              </label>
+              <label className="param-field">Équipe {isRoot && '*'}
+                {isRoot ? (
+                  <select required value={equipeId ?? ''} onChange={(event) => setEquipeId(event.target.value === '' ? null : Number(event.target.value))}>
+                    <option value="">Sélectionner une équipe</option>
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+                  </select>
+                ) : (
+                  <input readOnly value={parentNode?.equipe_nom ? `${parentNode.equipe_code} — ${parentNode.equipe_nom}` : (seed?.equipe_nom ? `${seed.equipe_code} — ${seed.equipe_nom}` : 'Héritée du premier niveau')} />
+                )}
+              </label>
+              <label className="param-field">Type d’élément *
+                <select value={typeElement} onChange={(event) => setTypeElement(event.target.value as TaskTemplateType)}>
+                  {TEMPLATE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              {typeElement === 'tache_elementaire' && (
+                <label className="param-field">Tâche attribuable *
+                  <select value={attribuable ? '1' : '0'} onChange={(event) => setAttribuable(event.target.value === '1')}>
+                    <option value="1">Oui</option>
+                    <option value="0">Non</option>
+                  </select>
+                </label>
+              )}
+              <label className="param-checkbox-field">
+                <input type="checkbox" checked={recurrente} onChange={(event) => setRecurrente(event.target.checked)} />
+                Tâche récurrente
+              </label>
+            </div>
+          </div>
+
+          <div className="arch-form-section">
+            <span className="arch-form-section-title"><ListChecks size={12} />Description fonctionnelle</span>
+            <div className="arch-panel-grid">
+              <label className="param-field arch-panel-full">Détails
+                <textarea rows={3} value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Ce que couvre cette tâche..." />
+              </label>
+              <label className="param-field arch-panel-full">Explication
+                <textarea rows={3} value={explication} onChange={(event) => setExplication(event.target.value)} placeholder="Pourquoi cette tâche existe, comment la réaliser..." />
+              </label>
+            </div>
+          </div>
+
+          {typeElement === 'tache_elementaire' && (
+            <div className="arch-form-section">
+              <span className="arch-form-section-title"><CalendarClock size={12} />Paramétrage</span>
+              <div className="arch-panel-grid">
+                <label className="param-field">Fréquence
+                  <select value={frequence} onChange={(event) => setFrequence(event.target.value as TaskTemplateFrequence)}>
+                    {TEMPLATE_FREQUENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+                <label className="param-field">Mode de déclenchement
+                  <select value={modeDeclenchement} onChange={(event) => setModeDeclenchement(event.target.value as TaskTemplateDeclenchement)}>
+                    {TEMPLATE_DECLENCHEMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+                <label className="param-field">Priorité par défaut
+                  <select value={prioriteDefaut} onChange={(event) => setPrioriteDefaut(event.target.value as TaskTemplatePriorite)}>
+                    {PRIORITE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+                <label className="param-field">Durée estimée (heures)
+                  <input type="number" min={0} step="0.5" value={dureeEstimee} placeholder="-" onChange={(event) => setDureeEstimee(event.target.value)} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="ge-modal-actions">
+            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+            <button type="submit" className="ge-btn-primary" disabled={!canSave || saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, onDeleted }: {
+  templates: TaskTemplate[]
+  teams: Team[]
+  loading: boolean
+  onCreated: (t: TaskTemplate) => void
+  onUpdated: (t: TaskTemplate) => void
+  onDeleted: (id: number) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [expandedTeams, setExpandedTeams] = useState<Set<number>>(new Set())
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  const [panel, setPanel] = useState<{ kind: 'create'; parentId: number | null; equipeId?: number | null } | { kind: 'edit' | 'view'; node: TaskTemplate } | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const dossiers = templates.filter((t) => t.type_element === 'dossier')
+  const tree = buildTemplateTree(templates)
+  const selectedId = panel && panel.kind !== 'create' ? panel.node.id : null
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null
+
+  const rootsByTeam = new Map<number, TemplateNode[]>()
+  const unassignedRoots: TemplateNode[] = []
+  tree.forEach((root) => {
+    if (root.equipe !== null) {
+      if (!rootsByTeam.has(root.equipe)) rootsByTeam.set(root.equipe, [])
+      rootsByTeam.get(root.equipe)!.push(root)
+    } else {
+      unassignedRoots.push(root)
+    }
+  })
+
+  const toggle = (id: number) => {
     setExpanded((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -405,204 +862,207 @@ function StaffingAttributionTab({ teams, tasks, projects, templates, loading, se
     })
   }
 
-  const selectNode = (selection: Selection) => {
-    setSelected(selection)
-    if (selection?.type === 'team') setExpanded((prev) => new Set(prev).add(selection.id))
+  const toggleTeam = (id: number) => {
+    setExpandedTeams((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const selectedTeam = selected?.type === 'team' ? teams.find((t) => t.id === selected.id) ?? null : null
-  const selectedMember = selected?.type === 'member'
-    ? teams.flatMap((t) => t.members).find((m) => m.id === selected.id) ?? null
-    : null
+  const expandToReveal = (node: TaskTemplate) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      let current: TaskTemplate | undefined = node
+      if (current.enfants_count > 0) next.add(current.id)
+      while (current?.parent !== null && current?.parent !== undefined) {
+        next.add(current.parent)
+        current = templates.find((t) => t.id === current!.parent)
+      }
+      return next
+    })
+    if (node.equipe !== null) setExpandedTeams((prev) => new Set(prev).add(node.equipe!))
+  }
 
-  const scoped = !selected ? tasks
-    : selected.type === 'team' ? tasks.filter((t) => t.equipe === selected.id)
-    : tasks.filter((t) => t.assignee === selected.id)
+  const handleSelect = (node: TemplateNode) => {
+    setSelectedTeamId(null)
+    setPanel({ kind: 'view', node })
+    expandToReveal(node)
+  }
+
+  const handleSelectTeam = (team: Team) => {
+    setPanel(null)
+    setSelectedTeamId(team.id)
+    setExpandedTeams((prev) => new Set(prev).add(team.id))
+  }
+
+  const handleNewClick = () => {
+    if (selectedId !== null) {
+      setPanel({ kind: 'create', parentId: selectedId })
+    } else if (selectedTeamId !== null) {
+      setPanel({ kind: 'create', parentId: null, equipeId: selectedTeamId })
+    } else {
+      setPanel({ kind: 'create', parentId: null })
+    }
+  }
+
+  const handleDeleteRequest = async (template: TaskTemplate) => {
+    if (!window.confirm(`Supprimer « ${template.nom} » du catalogue ?`)) return
+    setActionError(null)
+    try {
+      await deleteTaskTemplate(template.id)
+      onDeleted(template.id)
+      setPanel(null)
+    } catch (err) {
+      setActionError(errorMessage(err))
+    }
+  }
+
   const query = search.trim().toLowerCase()
-  const filteredTasks = scoped.filter((t) => !query || t.template_nom.toLowerCase().includes(query) || t.code.toLowerCase().includes(query))
-
-  const heading = !selected ? 'Toutes les tâches'
-    : selectedTeam ? `Tâches de l’équipe ${selectedTeam.name}`
-    : selectedMember ? `Tâches de ${selectedMember.first_name} ${selectedMember.last_name}`
-    : 'Tâches'
-
-  const tachesActives = tasks.filter((t) => t.actif).length
-  const derniere = tasks.length > 0 ? [...tasks].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] : null
-
-  const kpis = [
-    { icon: ListChecks, tone: 'purple', label: 'Tâches totales', value: String(tasks.length), sub: '' },
-    { icon: Building2, tone: 'indigo', label: 'Équipes', value: String(teams.length), sub: '' },
-    {
-      icon: CheckCircle2, tone: 'green', label: 'Tâches actives', value: String(tachesActives),
-      sub: tasks.length > 0 ? `${((tachesActives / tasks.length) * 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '',
-    },
-    {
-      icon: CalendarClock, tone: 'indigo', label: 'Dernière mise à jour',
-      value: derniere ? new Date(derniere.created_at).toLocaleDateString('fr-FR') : '-',
-      sub: derniere?.created_by_nom ? `Par ${derniere.created_by_nom}` : '',
-    },
-  ]
-
-  const handleCreateTask = async (values: { template: number; project_ligne: number; heures: number }) => {
-    const created = await createTask(values)
-    setTasks((prev) => [created, ...prev])
-    setShowCreate(false)
-  }
-
-  const handleDeleteTask = async (task: Task) => {
-    if (!window.confirm(`Supprimer la tâche « ${task.template_nom} » ?`)) return
-    setActionError(null)
-    try {
-      await deleteTask(task.id)
-      setTasks((prev) => prev.filter((t) => t.id !== task.id))
-      setViewTask(null)
-    } catch (err) {
-      setActionError(errorMessage(err))
-    }
-  }
-
-  const handleLaunchTask = async (task: Task) => {
-    setActionError(null)
-    try {
-      const updated = await launchTask(task.id)
-      setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t))
-    } catch (err) {
-      setActionError(errorMessage(err))
-    }
-  }
+  const searchMatches = query ? templates.filter((t) => t.nom.toLowerCase().includes(query) || t.code.toLowerCase().includes(query)) : []
 
   return (
-    <>
-      <div className="arch-modules-banner">
-        <span className="arch-modules-icon"><FolderKanban size={14} /></span>
-        <span>Ce référentiel alimente les modules :</span>
-        <div className="arch-modules-list">
-          {MODULES_LIES.map((module) => (
-            <span key={module.label} className="arch-module-chip"><module.icon size={12} />{module.label}</span>
-          ))}
-        </div>
-      </div>
-
-      <div className="arch-kpis">
-        {kpis.map((kpi) => (
-          <article key={kpi.label} className={`arch-kpi arch-kpi-${kpi.tone}`}>
-            <span className="arch-kpi-icon"><kpi.icon size={17} /></span>
-            <div>
-              <strong>{kpi.value}</strong>
-              <span>{kpi.label}</span>
-              {kpi.sub && <small>{kpi.sub}</small>}
-            </div>
-          </article>
-        ))}
-      </div>
+    <div className="arch-attribution">
+      <p className="arch-attribution-lead">Référentiel permanent des tâches disponibles pour attribution aux équipes.</p>
 
       {actionError && <p className="ge-form-error">{actionError}</p>}
 
+      <div className="arch-toolbar-row">
+        <button type="button" className="arch-btn-primary" onClick={handleNewClick}><Plus size={14} />Nouvelle tâche</button>
+        <button type="button" className="arch-btn-outline" onClick={() => exportTemplatesCsv(templates)} disabled={templates.length === 0}><Download size={14} />Exporter</button>
+        <label className="arch-search">
+          <Search size={13} />
+          <input placeholder="Rechercher une tâche, un code..." value={search} onChange={(event) => setSearch(event.target.value)} />
+        </label>
+      </div>
+
       <div className="arch-main">
         <div className="arch-tree-panel">
-          <h3>Équipes &amp; membres</h3>
+          <h3>Arbre de l’architecture</h3>
           <div className="arch-tree-wrap">
-            {loading ? <p className="ge-detail-empty">Chargement…</p> : (
-              <TeamTree teams={teams} expanded={expanded} onToggle={toggleTeam} selected={selected} onSelect={selectNode} />
+            {loading ? <p className="ge-detail-empty">Chargement…</p> : query ? (
+              searchMatches.length === 0 ? <p className="ge-detail-empty">Aucun résultat.</p> : (
+                <ul className="arch-tree">
+                  {searchMatches.map((t) => (
+                    <li key={t.id}>
+                      <div className={`arch-tree-row ${selectedId === t.id ? 'selected' : ''}`} onClick={() => setPanel({ kind: 'view', node: t })}>
+                        <span className="arch-tree-toggle-spacer" />
+                        <span className="arch-tree-node-icon">{t.type_element === 'tache_elementaire' ? <ListChecks size={13} /> : <Folder size={14} />}</span>
+                        <span className="arch-tree-code">{t.code}</span>
+                        <span className="arch-tree-label">- {t.nom}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <ul className="arch-tree">
+                {teams.map((team) => {
+                  const teamExpanded = expandedTeams.has(team.id)
+                  const roots = rootsByTeam.get(team.id) ?? []
+                  return (
+                    <li key={`team-${team.id}`}>
+                      <div className={`arch-tree-row ${selectedTeamId === team.id ? 'selected' : ''}`} onClick={() => handleSelectTeam(team)}>
+                        {roots.length > 0 ? (
+                          <button type="button" className="arch-tree-toggle" onClick={(event) => { event.stopPropagation(); toggleTeam(team.id) }} aria-label={teamExpanded ? 'Réduire' : 'Développer'}>
+                            {teamExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                          </button>
+                        ) : <span className="arch-tree-toggle-spacer" />}
+                        <span className="arch-tree-node-icon"><Building2 size={14} /></span>
+                        <span className="arch-tree-code">{team.code}</span>
+                        <span className="arch-tree-label">- {team.name}</span>
+                        <span className="arch-tree-count">{roots.length}</span>
+                      </div>
+                      {teamExpanded && roots.length > 0 && (
+                        <CatalogueTree nodes={roots} depth={1} expanded={expanded} onToggle={toggle} selectedId={selectedId} onSelect={handleSelect} />
+                      )}
+                    </li>
+                  )
+                })}
+                {unassignedRoots.length > 0 && (
+                  <li key="unassigned">
+                    <div className={`arch-tree-row ${selectedTeamId === -1 ? 'selected' : ''}`} onClick={() => { setPanel(null); setSelectedTeamId(-1); setExpandedTeams((prev) => new Set(prev).add(-1)) }}>
+                      {expandedTeams.has(-1) ? (
+                        <button type="button" className="arch-tree-toggle" onClick={(event) => { event.stopPropagation(); toggleTeam(-1) }} aria-label="Réduire"><ChevronDown size={13} /></button>
+                      ) : (
+                        <button type="button" className="arch-tree-toggle" onClick={(event) => { event.stopPropagation(); toggleTeam(-1) }} aria-label="Développer"><ChevronRight size={13} /></button>
+                      )}
+                      <span className="arch-tree-node-icon"><Building2 size={14} /></span>
+                      <span className="arch-tree-label">Sans équipe assignée</span>
+                      <span className="arch-tree-count">{unassignedRoots.length}</span>
+                    </div>
+                    {expandedTeams.has(-1) && (
+                      <CatalogueTree nodes={unassignedRoots} depth={1} expanded={expanded} onToggle={toggle} selectedId={selectedId} onSelect={handleSelect} />
+                    )}
+                  </li>
+                )}
+              </ul>
             )}
-            {!loading && teams.length === 0 && <p className="ge-detail-empty">Aucune équipe définie.</p>}
+            {!loading && !query && teams.length === 0 && <p className="ge-detail-empty">Aucune équipe définie : créez-en une depuis Gestion des équipes.</p>}
           </div>
         </div>
 
         <div className="arch-content">
-          <h3>{heading}</h3>
-          <div className="arch-filters">
-            <label className="arch-search">
-              <Search size={13} />
-              <input placeholder="Rechercher un code ou un nom de tâche..." value={search} onChange={(event) => setSearch(event.target.value)} />
-            </label>
-            {selected && <button type="button" className="arch-btn-outline" onClick={() => setSelected(null)}><Users size={13} />Voir toutes les tâches</button>}
-          </div>
-
-          {selected?.type === 'team' && (
-            <div className="arch-toolbar">
-              <button type="button" className="arch-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} />Nouvelle tâche</button>
+          {panel ? (
+            <CataloguePanel
+              key={panel.kind === 'create' ? `create-${panel.parentId ?? panel.equipeId ?? 'root'}` : `${panel.kind}-${panel.node.id}-${panel.node.updated_at}`}
+              mode={panel}
+              templates={templates}
+              dossiers={dossiers}
+              teams={teams}
+              onClose={() => setPanel(null)}
+              onCreated={(t) => { onCreated(t); setPanel({ kind: 'view', node: t }); expandToReveal(t) }}
+              onUpdated={(t) => { onUpdated(t); setPanel({ kind: 'view', node: t }); expandToReveal(t) }}
+              onDeleteRequest={handleDeleteRequest}
+            />
+          ) : selectedTeam ? (
+            <div className="arch-panel">
+              <div className="arch-panel-view">
+                <div className="arch-panel-view-head">
+                  <strong>{selectedTeam.code}</strong>
+                  <span className="arch-pill arch-pill-prio-moyenne">{rootsByTeam.get(selectedTeam.id)?.length ?? 0} élément(s) racine</span>
+                </div>
+                <h4>{selectedTeam.name}</h4>
+                <p className="ge-detail-empty" style={{ padding: 0, textAlign: 'left' }}>Premier niveau de l’arborescence pour cette équipe. Créez-y un dossier ou une tâche élémentaire.</p>
+                <div className="ge-modal-actions">
+                  <button type="button" className="ge-btn-primary" onClick={handleNewClick}><Plus size={13} />Nouvelle tâche pour cette équipe</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="arch-panel">
+              <div className="arch-panel-view" style={{ alignItems: 'center', textAlign: 'center' }}>
+                <p className="ge-detail-empty">Sélectionnez une équipe ou un élément de l’arbre pour voir son détail, ou créez-en un nouveau.</p>
+              </div>
             </div>
           )}
-
-          <div className="arch-table-panel">
-            <div className="arch-table-wrap">
-              <table className="arch-table">
-                <thead>
-                  <tr>
-                    <th>Code</th><th>Nom de la tâche</th><th>Équipe</th><th>Projet</th><th>Ligne budgétaire</th>
-                    <th>Montant</th><th>Heures</th><th>Assignée à</th><th>Statut</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading && <tr><td colSpan={10} className="ge-detail-empty">Chargement…</td></tr>}
-                  {!loading && filteredTasks.map((task) => (
-                    <tr key={task.id}>
-                      <td className="arch-code">{task.code}</td>
-                      <td className="arch-name">{task.template_nom}</td>
-                      <td>{task.equipe_code}</td>
-                      <td>{task.project_code}</td>
-                      <td>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</td>
-                      <td>{task.montant.toLocaleString('fr-FR')} FCFA</td>
-                      <td>{task.heures.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} h</td>
-                      <td>{task.assignee_nom ?? <File size={13} />}</td>
-                      <td><span className={`ge-pill ${task.actif ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{task.actif ? 'Active' : 'Inactive'}</span></td>
-                      <td>
-                        <div className="arch-actions">
-                          {task.lancee ? (
-                            <span className="arch-launched-pill" title={task.lancee_le ? `Lancée le ${new Date(task.lancee_le).toLocaleDateString('fr-FR')}` : 'Lancée'}><Rocket size={12} />Lancée</span>
-                          ) : (
-                            <button type="button" className="arch-row-action" aria-label="Lancer la tâche" title="Lancer la tâche (visible dans Nouveau staffing du manager)" onClick={() => handleLaunchTask(task)}><Rocket size={13} /></button>
-                          )}
-                          <button type="button" className="arch-row-action" aria-label="Voir le détail" onClick={() => setViewTask(task)}><Eye size={13} /></button>
-                          <button type="button" className="arch-row-action danger" aria-label="Supprimer" onClick={() => handleDeleteTask(task)}><Trash2 size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && filteredTasks.length === 0 && (
-                    <tr><td colSpan={10} className="ge-detail-empty">
-                      {selected ? 'Aucune tâche pour cette sélection.' : 'Aucune tâche définie pour le moment.'}
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="arch-table-foot">
-              <span>{filteredTasks.length} tâche{filteredTasks.length > 1 ? 's' : ''}</span>
-            </div>
-          </div>
         </div>
       </div>
-
-      {showCreate && selectedTeam && (
-        <TaskCreateModal team={selectedTeam} projects={projects} templates={templates} onClose={() => setShowCreate(false)} onSubmit={handleCreateTask} />
-      )}
-      {viewTask && (
-        <TaskDetailModal task={viewTask} onClose={() => setViewTask(null)} onDelete={() => handleDeleteTask(viewTask)} />
-      )}
-    </>
+    </div>
   )
 }
 
 export default function ArchitecturePage() {
-  const [pageTab, setPageTab] = useState<PageTab>('staffing')
+  const [pageTab, setPageTab] = useState<PageTab>('attribution')
 
   const [teams, setTeams] = useState<Team[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
+  const [lignes, setLignes] = useState<LigneBudgetaire[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchTaskTemplates()])
-      .then(([teamsData, tasksData, projectsData, templatesData]) => {
+    Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchTaskTemplates(), fetchLignesBudgetaires()])
+      .then(([teamsData, tasksData, projectsData, templatesData, lignesData]) => {
         setTeams(teamsData)
         setTasks(tasksData)
         setProjects(projectsData)
         setTemplates(templatesData)
+        setLignes(lignesData)
       })
       .catch(() => setLoadError('Impossible de charger l’architecture des tâches.'))
       .finally(() => setLoading(false))
@@ -611,8 +1071,8 @@ export default function ArchitecturePage() {
   return (
     <section className="arch-page">
       <nav className="arch-subtabs">
-        <button className={pageTab === 'staffing' ? 'active' : ''} onClick={() => setPageTab('staffing')}><UserCheck size={14} />Attribution staffing</button>
-        <button className={pageTab === 'banque' ? 'active' : ''} onClick={() => setPageTab('banque')}><Archive size={14} />Architecture des tâches</button>
+        <button className={pageTab === 'attribution' ? 'active' : ''} onClick={() => setPageTab('attribution')}><UserCheck size={14} />Attribution des tâches</button>
+        <button className={pageTab === 'banque' ? 'active' : ''} onClick={() => setPageTab('banque')}><Archive size={14} />Catalogue des tâches</button>
       </nav>
 
       {loadError && <p className="ge-form-error">{loadError}</p>}
@@ -620,14 +1080,15 @@ export default function ArchitecturePage() {
       {pageTab === 'banque' ? (
         <TaskTemplateBankTab
           templates={templates}
+          teams={teams}
           loading={loading}
           onCreated={(t) => setTemplates((prev) => [...prev, t])}
           onUpdated={(t) => setTemplates((prev) => prev.map((x) => x.id === t.id ? t : x))}
           onDeleted={(id) => setTemplates((prev) => prev.filter((x) => x.id !== id))}
         />
       ) : (
-        <StaffingAttributionTab
-          teams={teams} tasks={tasks} projects={projects} templates={templates} loading={loading}
+        <TaskAttributionTab
+          teams={teams} tasks={tasks} projects={projects} templates={templates} lignes={lignes} loading={loading}
           setTasks={setTasks} actionError={actionError} setActionError={setActionError}
         />
       )}

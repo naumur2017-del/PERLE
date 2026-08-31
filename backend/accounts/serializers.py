@@ -16,6 +16,7 @@ from .models import (
     Project,
     ProjectLigne,
     Task,
+    TaskAssignment,
     TaskTemplate,
     Team,
     User,
@@ -25,7 +26,6 @@ from .models import (
     next_project_code,
     next_project_ligne_code,
     next_task_code,
-    next_task_template_code,
 )
 
 
@@ -58,6 +58,20 @@ class OrganisationLevelsSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('Vous ne pouvez retirer que le dernier niveau.')
             if self.instance.teams.filter(niveau=current).exists():
                 raise serializers.ValidationError('Ce niveau contient encore des équipes : déplacez-les avant de le retirer.')
+        return value
+
+
+class OrganisationEhsSerializer(serializers.ModelSerializer):
+    """Taux de conversion EHS → FCFA utilisé par Nouveau staffing pour calculer, pendant le
+    staffing d'une tâche, ce que consomme chaque personne (grade × heures × ce taux) — voir
+    TaskAssignmentSerializer."""
+    class Meta:
+        model = Organisation
+        fields = ['taux_ehs_fcfa']
+
+    def validate_taux_ehs_fcfa(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le taux doit être supérieur à 0.')
         return value
 
 
@@ -242,7 +256,7 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'fonction', 'matricule', 'statut', 'is_manager']
+        fields = ['id', 'first_name', 'last_name', 'email', 'fonction', 'matricule', 'statut', 'grade', 'is_manager']
 
     def get_is_manager(self, obj):
         return obj.team_id is not None and obj.team.manager_id == obj.id
@@ -759,15 +773,28 @@ class ProjectLigneSerializer(serializers.ModelSerializer):
     equipe = serializers.IntegerField(source='ligne_budgetaire.equipe_id', read_only=True)
     equipe_nom = serializers.CharField(source='ligne_budgetaire.equipe.name', read_only=True)
     equipe_code = serializers.CharField(source='ligne_budgetaire.equipe.code', read_only=True)
+    montant_consomme_fcfa = serializers.SerializerMethodField()
+    montant_reste_fcfa = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectLigne
         fields = [
             'id', 'code', 'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
             'ligne_budgetaire_declinaison', 'ligne_budgetaire_montant_prevu', 'equipe', 'equipe_nom',
-            'equipe_code', 'montant', 'date_debut', 'date_fin', 'created_at',
+            'equipe_code', 'montant', 'montant_consomme_fcfa', 'montant_reste_fcfa',
+            'date_debut', 'date_fin', 'created_at',
         ]
         read_only_fields = ['id', 'code', 'created_at']
+
+    def get_montant_consomme_fcfa(self, obj):
+        # Somme des heures déjà staffées (Nouveau staffing) sur toutes les tâches de ce projet
+        # rattachées à cette même ligne budgétaire — voir TaskAssignment.
+        return TaskAssignment.objects.filter(
+            task__project=obj.project, task__ligne_budgetaire=obj.ligne_budgetaire,
+        ).aggregate(total=Sum('montant_fcfa'))['total'] or 0
+
+    def get_montant_reste_fcfa(self, obj):
+        return obj.montant - self.get_montant_consomme_fcfa(obj)
 
     def get_project(self):
         return self.context['project'] if self.instance is None else self.instance.project
@@ -840,107 +867,357 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class TaskTemplateSerializer(serializers.ModelSerializer):
-    """Banque de tâches réutilisables (onglet Architecture des tâches) : juste un nom, sans
-    équipe ni ligne budgétaire ni heures ni montant — voir TaskSerializer.template."""
+    """Catalogue des tâches (onglet Catalogue des tâches) : arborescence libre de dossiers et de
+    tâches élémentaires. Le premier niveau (racine) porte l'équipe réelle (choisie dans une liste
+    déroulante) ; les niveaux suivants l'héritent automatiquement — voir TaskSerializer.template
+    pour ce qui « affecte » réellement une tâche élémentaire à une équipe et un financement. Le
+    code est saisi manuellement à la création (voir validate_code)."""
+    parent_nom = serializers.CharField(source='parent.nom', read_only=True, default=None)
+    parent_code = serializers.CharField(source='parent.code', read_only=True, default=None)
+    equipe_nom = serializers.CharField(source='equipe.name', read_only=True, default=None)
+    equipe_code = serializers.CharField(source='equipe.code', read_only=True, default=None)
+    type_element_display = serializers.CharField(source='get_type_element_display', read_only=True)
+    frequence_display = serializers.CharField(source='get_frequence_display', read_only=True)
+    mode_declenchement_display = serializers.CharField(source='get_mode_declenchement_display', read_only=True)
+    priorite_defaut_display = serializers.CharField(source='get_priorite_defaut_display', read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+    updated_by_nom = serializers.SerializerMethodField()
+    enfants_count = serializers.SerializerMethodField()
+    attributions_count = serializers.SerializerMethodField()
+
     class Meta:
         model = TaskTemplate
-        fields = ['id', 'code', 'nom', 'description', 'actif', 'created_at']
-        read_only_fields = ['id', 'code', 'created_at']
-
-    def validate_nom(self, value):
-        request = self.context['request']
-        organisation = request.user.organisation
-        qs = TaskTemplate.objects.filter(organisation=organisation, nom__iexact=value)
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError('Une tâche porte déjà ce nom dans la banque.')
-        return value
-
-    def create(self, validated_data):
-        request = self.context['request']
-        organisation = request.user.organisation
-        code = next_task_template_code(organisation)
-        return TaskTemplate.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)
-
-
-class TaskSerializer(serializers.ModelSerializer):
-    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe (onglet Attribution
-    staffing). L'équipe est dérivée automatiquement de la ligne budgétaire choisie (celle-ci
-    « affecte » la tâche) : elle n'est pas saisie directement."""
-    template_nom = serializers.CharField(source='template.nom', read_only=True)
-    template_code = serializers.CharField(source='template.code', read_only=True)
-    template_description = serializers.CharField(source='template.description', read_only=True)
-    equipe_nom = serializers.CharField(source='equipe.name', read_only=True)
-    equipe_code = serializers.CharField(source='equipe.code', read_only=True)
-    equipe_manager_nom = serializers.SerializerMethodField()
-    assignee_nom = serializers.SerializerMethodField()
-    project_id = serializers.IntegerField(source='project_ligne.project_id', read_only=True)
-    project_nom = serializers.CharField(source='project_ligne.project.nom', read_only=True)
-    project_code = serializers.CharField(source='project_ligne.project.code', read_only=True)
-    ligne_budgetaire_nom = serializers.CharField(source='project_ligne.ligne_budgetaire.nom', read_only=True)
-    ligne_budgetaire_code = serializers.CharField(source='project_ligne.ligne_budgetaire.code', read_only=True)
-    montant = serializers.DecimalField(source='project_ligne.montant', max_digits=16, decimal_places=2, read_only=True)
-    created_by_nom = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Task
         fields = [
-            'id', 'code', 'template', 'template_nom', 'template_code', 'template_description',
-            'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
-            'assignee', 'assignee_nom', 'project_ligne', 'project_id', 'project_nom', 'project_code',
-            'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'montant', 'heures', 'lancee', 'lancee_le',
-            'actif', 'created_by_nom', 'created_at',
+            'id', 'code', 'nom', 'parent', 'parent_nom', 'parent_code', 'niveau',
+            'equipe', 'equipe_nom', 'equipe_code',
+            'type_element', 'type_element_display', 'attribuable', 'recurrente',
+            'details', 'explication', 'frequence', 'frequence_display',
+            'mode_declenchement', 'mode_declenchement_display', 'priorite_defaut', 'priorite_defaut_display',
+            'duree_estimee_heures', 'actif', 'created_by_nom', 'created_at', 'updated_by_nom', 'updated_at',
+            'enfants_count', 'attributions_count',
         ]
-        read_only_fields = ['id', 'code', 'equipe', 'lancee', 'lancee_le', 'created_at']
-
-    def get_equipe_manager_nom(self, obj):
-        manager = obj.equipe.manager
-        return f'{manager.first_name} {manager.last_name}' if manager else None
-
-    def validate_template(self, value):
-        request = self.context['request']
-        if value.organisation_id != request.user.organisation_id:
-            raise serializers.ValidationError('Cette tâche de la banque n’appartient pas à votre organisation.')
-        return value
-
-    def get_assignee_nom(self, obj):
-        return f'{obj.assignee.first_name} {obj.assignee.last_name}' if obj.assignee else None
+        read_only_fields = ['id', 'niveau', 'created_at', 'updated_at']
 
     def get_created_by_nom(self, obj):
         return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
 
-    def validate_project_ligne(self, value):
+    def get_updated_by_nom(self, obj):
+        return f'{obj.updated_by.first_name} {obj.updated_by.last_name}' if obj.updated_by else None
+
+    def get_enfants_count(self, obj):
+        return obj.enfants.count()
+
+    def get_attributions_count(self, obj):
+        return obj.attributions.count()
+
+    def validate_code(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Le code est obligatoire.')
         request = self.context['request']
-        if value.project.organisation_id != request.user.organisation_id:
-            raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
+        organisation = request.user.organisation
+        qs = TaskTemplate.objects.filter(organisation=organisation, code__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Ce code est déjà utilisé dans le catalogue.')
         return value
 
-    def validate_assignee(self, value):
+    def validate_equipe(self, value):
         if value is None:
             return value
         request = self.context['request']
         if value.organisation_id != request.user.organisation_id:
-            raise serializers.ValidationError('Ce membre n’appartient pas à votre organisation.')
+            raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+        return value
+
+    def validate_parent(self, value):
+        if value is None:
+            return value
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce nœud parent n’appartient pas à votre organisation.')
+        if value.type_element == 'tache_elementaire':
+            raise serializers.ValidationError('Une tâche élémentaire ne peut pas recevoir de sous-éléments : changez-la d’abord en dossier.')
+        if self.instance and value.pk == self.instance.pk:
+            raise serializers.ValidationError('Un nœud ne peut pas être son propre parent.')
         return value
 
     def validate(self, attrs):
-        project_ligne = attrs.get('project_ligne', getattr(self.instance, 'project_ligne', None))
-        assignee = attrs.get('assignee', getattr(self.instance, 'assignee', None))
-        if project_ligne and assignee:
-            equipe = project_ligne.ligne_budgetaire.equipe
-            # Le manager peut se l'attribuer lui-même (staffing), même s'il n'est pas lui-même
-            # membre de l'équipe, ou l'attribuer à un membre réel de l'équipe.
-            if assignee.id != equipe.manager_id and assignee.team_id != equipe.id:
-                raise serializers.ValidationError({'assignee': 'Ce membre doit être le manager de l’équipe ou l’un de ses membres.'})
+        if self.instance is not None and 'parent' in attrs and attrs['parent'] != self.instance.parent:
+            raise serializers.ValidationError({'parent': 'Le déplacement d’un nœud dans l’arborescence n’est pas pris en charge : supprimez-le et recréez-le sous le bon parent.'})
+        parent = attrs.get('parent', getattr(self.instance, 'parent', None)) if self.instance else attrs.get('parent')
+        if parent is None:
+            equipe = attrs.get('equipe', getattr(self.instance, 'equipe', None))
+            if equipe is None:
+                raise serializers.ValidationError({'equipe': 'Une équipe est obligatoire pour un nœud racine (premier niveau).'})
+        nom = attrs.get('nom', getattr(self.instance, 'nom', None))
+        if nom:
+            request = self.context['request']
+            organisation = request.user.organisation
+            qs = TaskTemplate.objects.filter(organisation=organisation, parent=parent, nom__iexact=nom)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({'nom': 'Un élément porte déjà ce nom à cet emplacement de l’arborescence.'})
         return attrs
 
     def create(self, validated_data):
         request = self.context['request']
         organisation = request.user.organisation
-        project_ligne = validated_data['project_ligne']
-        equipe = project_ligne.ligne_budgetaire.equipe
+        parent = validated_data.get('parent')
+        niveau = 1 if parent is None else parent.niveau + 1
+        if parent is not None:
+            validated_data['equipe'] = parent.equipe
+        return TaskTemplate.objects.create(
+            organisation=organisation, niveau=niveau,
+            created_by=request.user, updated_by=request.user, **validated_data,
+        )
+
+    def update(self, instance, validated_data):
+        if instance.parent is not None:
+            validated_data.pop('equipe', None)
+        validated_data['updated_by'] = self.context['request'].user
+        return super().update(instance, validated_data)
+
+
+class TaskAssignmentSerializer(serializers.ModelSerializer):
+    """Une personne staffée sur une tâche (Nouveau staffing), avec ses propres heures — une tâche
+    peut être répartie entre plusieurs personnes. La consommation en EHS (grade de la personne ×
+    heures) et son équivalent FCFA (× Organisation.taux_ehs_fcfa) sont calculés et figés à la
+    création (voir create/update) : un changement de grade ou de taux plus tard ne modifie pas
+    rétroactivement une attribution déjà faite. Le staffing est plafonné par ce qu'il reste sur
+    la ligne budgétaire du projet (voir validate) — sauf tâche transversale, sans suivi budgétaire."""
+    user_nom = serializers.SerializerMethodField()
+    user_grade = serializers.IntegerField(source='grade_snapshot', read_only=True)
+    execution_statut_display = serializers.CharField(source='get_execution_statut_display', read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+    # Résumé de la tâche portée, pour qu'Exécuté staffing n'ait besoin que d'un seul appel
+    # (?user=<moi>) sans avoir à recouper avec /tasks/ séparément.
+    task_code = serializers.CharField(source='task.code', read_only=True)
+    task_description = serializers.CharField(source='task.description', read_only=True)
+    template_nom = serializers.CharField(source='task.template.nom', read_only=True)
+    template_code = serializers.CharField(source='task.template.code', read_only=True)
+    project_nom = serializers.CharField(source='task.project.nom', read_only=True, default=None)
+    project_code = serializers.CharField(source='task.project.code', read_only=True, default=None)
+    equipe_nom = serializers.CharField(source='task.equipe.name', read_only=True)
+    equipe_code = serializers.CharField(source='task.equipe.code', read_only=True)
+    ligne_budgetaire_nom = serializers.CharField(source='task.ligne_budgetaire.nom', read_only=True)
+    ligne_budgetaire_code = serializers.CharField(source='task.ligne_budgetaire.code', read_only=True)
+    echeance = serializers.DateField(source='task.echeance', read_only=True)
+    priorite_display = serializers.CharField(source='task.get_priorite_display', read_only=True)
+    task_created_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskAssignment
+        # Le doublon (task, user) est déjà vérifié « à la main » dans validate(), avec un message
+        # clair — on désactive le UniqueTogetherValidator auto-généré par DRF pour ne pas le
+        # doubler d'une erreur générique moins lisible.
+        validators = []
+        fields = [
+            'id', 'task', 'user', 'user_nom', 'user_grade', 'heures', 'ehs_consomme', 'montant_fcfa',
+            'execution_statut', 'execution_statut_display', 'demarree_le', 'terminee_le',
+            'created_by_nom', 'created_at',
+            'task_code', 'task_description', 'template_nom', 'template_code',
+            'project_nom', 'project_code', 'equipe_nom', 'equipe_code',
+            'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'echeance', 'priorite_display',
+            'task_created_by_nom',
+        ]
+        read_only_fields = [
+            'id', 'ehs_consomme', 'montant_fcfa', 'execution_statut', 'demarree_le', 'terminee_le', 'created_at',
+        ]
+
+    def get_user_nom(self, obj):
+        return f'{obj.user.first_name} {obj.user.last_name}'
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def get_task_created_by_nom(self, obj):
+        creator = obj.task.created_by
+        return f'{creator.first_name} {creator.last_name}' if creator else None
+
+    def validate_task(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette tâche n’appartient pas à votre organisation.')
+        if value.statut != 'acceptee':
+            raise serializers.ValidationError('Cette tâche doit être acceptée par le manager avant d’être staffée.')
+        return value
+
+    def validate_user(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce membre n’appartient pas à votre organisation.')
+        return value
+
+    def validate_heures(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError('Le nombre d’heures doit être supérieur à 0.')
+        return value
+
+    def validate(self, attrs):
+        task = attrs.get('task', getattr(self.instance, 'task', None))
+        user = attrs.get('user', getattr(self.instance, 'user', None))
+        heures = attrs.get('heures', getattr(self.instance, 'heures', None))
+        if task and user:
+            equipe = task.equipe
+            # Le manager peut se staffer lui-même, même s'il n'est pas lui-même membre de
+            # l'équipe, ou staffer un membre réel de l'équipe.
+            if user.id != equipe.manager_id and user.team_id != equipe.id:
+                raise serializers.ValidationError({'user': 'Ce membre doit être le manager de l’équipe ou l’un de ses membres.'})
+            if self.instance is None and TaskAssignment.objects.filter(task=task, user=user).exists():
+                raise serializers.ValidationError({'user': 'Cette personne est déjà staffée sur cette tâche : modifiez plutôt son allocation d’heures.'})
+        if task and user and heures:
+            taux = task.organisation.taux_ehs_fcfa
+            ehs = user.grade * heures
+            montant = ehs * taux
+            if task.project_id:
+                project_ligne = ProjectLigne.objects.filter(project_id=task.project_id, ligne_budgetaire_id=task.ligne_budgetaire_id).first()
+                if project_ligne is not None:
+                    qs = TaskAssignment.objects.filter(task__project_id=task.project_id, task__ligne_budgetaire_id=task.ligne_budgetaire_id)
+                    if self.instance:
+                        qs = qs.exclude(pk=self.instance.pk)
+                    deja_consomme = qs.aggregate(total=Sum('montant_fcfa'))['total'] or 0
+                    reste = project_ligne.montant - deja_consomme
+                    if montant > reste:
+                        raise serializers.ValidationError({
+                            'heures': f'Cette allocation ({montant} FCFA, {ehs} EHS) dépasse le reste disponible sur la ligne budgétaire du projet : {reste} FCFA.',
+                        })
+            self._ehs = ehs
+            self._montant = montant
+            self._taux = taux
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        user = validated_data['user']
+        return TaskAssignment.objects.create(
+            grade_snapshot=user.grade, taux_snapshot=self._taux, ehs_consomme=self._ehs, montant_fcfa=self._montant,
+            created_by=request.user, **validated_data,
+        )
+
+    def update(self, instance, validated_data):
+        user = validated_data.get('user', instance.user)
+        instance.grade_snapshot = user.grade
+        instance.taux_snapshot = self._taux
+        instance.ehs_consomme = self._ehs
+        instance.montant_fcfa = self._montant
+        return super().update(instance, validated_data)
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe (onglet Attribution des
+    tâches). L'équipe est dérivée automatiquement de la ligne budgétaire choisie : elle n'est pas
+    saisie directement. Le projet est facultatif — une tâche « transversale » n'en a aucun. La
+    tâche est envoyée (statut « envoyee ») au manager de l'équipe, qui doit l'Accepter ou la
+    Refuser avant qu'elle apparaisse dans Nouveau staffing pour être répartie entre une ou
+    plusieurs personnes (voir TaskAssignmentSerializer et TaskDecisionView)."""
+    template_nom = serializers.CharField(source='template.nom', read_only=True)
+    template_code = serializers.CharField(source='template.code', read_only=True)
+    template_details = serializers.CharField(source='template.details', read_only=True)
+    template_priorite_defaut = serializers.CharField(source='template.priorite_defaut', read_only=True)
+    project_nom = serializers.CharField(source='project.nom', read_only=True, default=None)
+    project_code = serializers.CharField(source='project.code', read_only=True, default=None)
+    ligne_budgetaire_nom = serializers.CharField(source='ligne_budgetaire.nom', read_only=True)
+    ligne_budgetaire_code = serializers.CharField(source='ligne_budgetaire.code', read_only=True)
+    equipe_nom = serializers.CharField(source='equipe.name', read_only=True)
+    equipe_code = serializers.CharField(source='equipe.code', read_only=True)
+    equipe_manager_nom = serializers.SerializerMethodField()
+    statut_display = serializers.CharField(source='get_statut_display', read_only=True)
+    priorite_display = serializers.CharField(source='get_priorite_display', read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+    assignments = TaskAssignmentSerializer(many=True, read_only=True)
+    budget_ligne_montant = serializers.SerializerMethodField()
+    budget_reste_fcfa = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Task
+        fields = [
+            'id', 'code', 'template', 'template_nom', 'template_code', 'template_details',
+            'template_priorite_defaut',
+            'description', 'project', 'project_nom', 'project_code',
+            'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
+            'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
+            'echeance', 'priorite', 'priorite_display',
+            'statut', 'statut_display', 'statut_decide_le',
+            'assignments', 'budget_ligne_montant', 'budget_reste_fcfa',
+            'actif', 'created_by_nom', 'created_at',
+        ]
+        read_only_fields = ['id', 'code', 'equipe', 'statut', 'statut_decide_le', 'created_at']
+
+    def get_equipe_manager_nom(self, obj):
+        manager = obj.equipe.manager
+        return f'{manager.first_name} {manager.last_name}' if manager else None
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def _get_project_ligne(self, obj):
+        if not obj.project_id:
+            return None
+        return ProjectLigne.objects.filter(project_id=obj.project_id, ligne_budgetaire_id=obj.ligne_budgetaire_id).first()
+
+    def get_budget_ligne_montant(self, obj):
+        project_ligne = self._get_project_ligne(obj)
+        return project_ligne.montant if project_ligne else None
+
+    def get_budget_reste_fcfa(self, obj):
+        project_ligne = self._get_project_ligne(obj)
+        if project_ligne is None:
+            return None
+        consomme = TaskAssignment.objects.filter(
+            task__project_id=obj.project_id, task__ligne_budgetaire_id=obj.ligne_budgetaire_id,
+        ).aggregate(total=Sum('montant_fcfa'))['total'] or 0
+        return project_ligne.montant - consomme
+
+    def validate_template(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette tâche du catalogue n’appartient pas à votre organisation.')
+        if not value.actif:
+            raise serializers.ValidationError('Cette tâche du catalogue est inactive.')
+        return value
+
+    def validate_project(self, value):
+        if value is None:
+            return value
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce projet n’appartient pas à votre organisation.')
+        return value
+
+    def validate_ligne_budgetaire(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
+        return value
+
+    def validate(self, attrs):
+        project = attrs.get('project', getattr(self.instance, 'project', None))
+        ligne_budgetaire = attrs.get('ligne_budgetaire', getattr(self.instance, 'ligne_budgetaire', None))
+        # Tâche non transversale : la ligne budgétaire doit être une ligne effectivement
+        # attribuée à ce projet (voir Création de projet, étape 2).
+        if project is not None and ligne_budgetaire is not None:
+            if not ProjectLigne.objects.filter(project=project, ligne_budgetaire=ligne_budgetaire).exists():
+                raise serializers.ValidationError({
+                    'ligne_budgetaire': 'Cette ligne budgétaire n’est pas attribuée à ce projet.',
+                })
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        organisation = request.user.organisation
+        ligne_budgetaire = validated_data['ligne_budgetaire']
+        equipe = ligne_budgetaire.equipe
         code = next_task_code(organisation)
         return Task.objects.create(
             organisation=organisation, equipe=equipe, code=code, created_by=request.user, **validated_data
         )
+
+    def update(self, instance, validated_data):
+        # `equipe` est dérivée de la ligne budgétaire : si celle-ci change (ex. l'admin corrige
+        # l'attribution), l'équipe destinataire doit être recalculée pour rester cohérente.
+        ligne_budgetaire = validated_data.get('ligne_budgetaire', instance.ligne_budgetaire)
+        instance.equipe = ligne_budgetaire.equipe
+        return super().update(instance, validated_data)

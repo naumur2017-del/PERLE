@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('organisations/search/', views.OrganisationSearchView.as_view()),
     path('organisations/levels/', views.OrganisationLevelsView.as_view()),
+    path('organisations/ehs/', views.OrganisationEhsView.as_view()),
     path('organisations/register/personal/', views.RegisterPersonalOrganisationView.as_view()),
     path('organisations/register/company/', views.RegisterCompanyOrganisationView.as_view()),
     path('organisations/register/member/', views.RegisterMemberView.as_view()),
@@ -41,5 +42,8 @@ urlpatterns = [
     path('task-templates/<int:pk>/', views.TaskTemplateDetailView.as_view()),
     path('tasks/', views.TaskListCreateView.as_view()),
     path('tasks/<int:pk>/', views.TaskDetailView.as_view()),
-    path('tasks/<int:pk>/lancer/', views.TaskLaunchView.as_view()),
+    path('tasks/<int:pk>/decision/', views.TaskDecisionView.as_view()),
+    path('task-assignments/', views.TaskAssignmentListCreateView.as_view()),
+    path('task-assignments/<int:pk>/', views.TaskAssignmentDetailView.as_view()),
+    path('task-assignments/<int:pk>/execution/', views.TaskAssignmentExecutionView.as_view()),
 ]

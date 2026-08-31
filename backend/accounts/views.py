@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 
 from .models import (
     AvanceDemande, CongeDemande, CongeType, FermetureTechnique, LigneBudgetaire, Organisation,
-    Project, ProjectLigne, Task, TaskTemplate, Team, User,
+    Project, ProjectLigne, Task, TaskAssignment, TaskTemplate, Team, User,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -30,6 +30,7 @@ from .serializers import (
     LigneBudgetaireCreateSerializer,
     LigneBudgetaireSerializer,
     LoginSerializer,
+    OrganisationEhsSerializer,
     OrganisationLevelsSerializer,
     OrganisationSearchSerializer,
     ProjectLigneSerializer,
@@ -37,6 +38,7 @@ from .serializers import (
     RegisterCompanyOrganisationSerializer,
     RegisterMemberSerializer,
     RegisterPersonalOrganisationSerializer,
+    TaskAssignmentSerializer,
     TaskSerializer,
     TaskTemplateSerializer,
     TeamSerializer,
@@ -115,6 +117,22 @@ class OrganisationLevelsView(generics.RetrieveUpdateAPIView):
         if not organisation:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
         return organisation
+
+
+class OrganisationEhsView(generics.RetrieveUpdateAPIView):
+    serializer_class = OrganisationEhsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        return organisation
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
+        serializer.save()
 
 
 class _RegisterView(APIView):
@@ -779,8 +797,7 @@ class ProjectLigneDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class TaskTemplateListCreateView(generics.ListCreateAPIView):
-    """Banque de tâches réutilisables (onglet Architecture des tâches) : consultée par tous,
-    gérée par admin/directeur."""
+    """Catalogue des tâches (arborescence) : consulté par tous, géré par admin/directeur."""
     serializer_class = TaskTemplateSerializer
     permission_classes = [IsAuthenticated]
 
@@ -799,8 +816,9 @@ class TaskTemplateListCreateView(generics.ListCreateAPIView):
 
 
 class TaskTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Modification et suppression d'une tâche de la banque. Bloquée si elle est déjà attribuée
-    à une équipe (voir Task.template, PROTECT) : désactivez-la plutôt que de la supprimer."""
+    """Modification et suppression d'un nœud du catalogue. Bloquée si le nœud a des enfants
+    (videz d'abord la branche) ou si une tâche élémentaire est déjà attribuée à une équipe (voir
+    Task.template, PROTECT) : désactivez-la plutôt que de la supprimer."""
     serializer_class = TaskTemplateSerializer
     permission_classes = [IsAuthenticated]
 
@@ -812,22 +830,26 @@ class TaskTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         if self.request.user.role not in ('admin', 'directeur'):
-            raise PermissionDenied('Vous n’êtes pas autorisé à modifier cette tâche de la banque.')
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier cette tâche du catalogue.')
         serializer.save()
 
     def perform_destroy(self, instance):
         if self.request.user.role not in ('admin', 'directeur'):
-            raise PermissionDenied('Vous n’êtes pas autorisé à supprimer cette tâche de la banque.')
+            raise PermissionDenied('Vous n’êtes pas autorisé à supprimer cette tâche du catalogue.')
+        if instance.enfants.exists():
+            raise ValidationError({'detail': 'Ce nœud contient des sous-éléments : supprimez-les d’abord.'})
         if instance.attributions.exists():
             raise ValidationError({'detail': 'Cette tâche est déjà attribuée à une ou plusieurs équipes : désactivez-la plutôt que de la supprimer.'})
         instance.delete()
 
 
 class TaskListCreateView(generics.ListCreateAPIView):
-    """Référentiel Architecture des tâches : consulté par tous, géré par admin/directeur.
+    """Référentiel Attribution des tâches : consulté par tous, géré par admin/directeur.
     Filtrable via ?equipe=<id> ou ?assignee=<id> (utilisé par l'arborescence équipes/membres),
-    ou ?staffing=1 pour ne renvoyer que les tâches lancées dont l'utilisateur connecté est le
-    manager de l'équipe (utilisé par Nouveau staffing : une seule requête, un seul filtre)."""
+    ?a_valider=1 pour les tâches en attente de décision, ou ?staffing=1 pour les tâches acceptées
+    (utilisé par Nouveau staffing) : admin/directeur voient celles de toute l'organisation (ils
+    peuvent déjà statuer sur n'importe quelle tâche, voir _can_manage_task) ; les autres managers
+    ne voient que celles des équipes dont ils sont effectivement le manager."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
@@ -836,16 +858,23 @@ class TaskListCreateView(generics.ListCreateAPIView):
         if not organisation:
             return Task.objects.none()
         qs = Task.objects.filter(organisation=organisation).select_related(
-            'equipe', 'assignee', 'project_ligne__project', 'project_ligne__ligne_budgetaire',
-        )
+            'equipe', 'project', 'ligne_budgetaire',
+        ).prefetch_related('assignments__user')
         equipe_id = self.request.query_params.get('equipe')
         assignee_id = self.request.query_params.get('assignee')
         if equipe_id:
             qs = qs.filter(equipe_id=equipe_id)
         if assignee_id:
-            qs = qs.filter(assignee_id=assignee_id)
+            qs = qs.filter(assignments__user_id=assignee_id).distinct()
+        is_org_wide_manager = self.request.user.role in ('admin', 'directeur')
         if self.request.query_params.get('staffing'):
-            qs = qs.filter(lancee=True, equipe__manager_id=self.request.user.id)
+            qs = qs.filter(statut='acceptee')
+            if not is_org_wide_manager:
+                qs = qs.filter(equipe__manager_id=self.request.user.id)
+        if self.request.query_params.get('a_valider'):
+            qs = qs.filter(statut='envoyee')
+            if not is_org_wide_manager:
+                qs = qs.filter(equipe__manager_id=self.request.user.id)
         return qs
 
     def perform_create(self, serializer):
@@ -871,8 +900,8 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         if not organisation:
             return Task.objects.none()
         return Task.objects.filter(organisation=organisation).select_related(
-            'equipe', 'assignee', 'project_ligne__project', 'project_ligne__ligne_budgetaire',
-        )
+            'equipe', 'project', 'ligne_budgetaire',
+        ).prefetch_related('assignments__user')
 
     def perform_update(self, serializer):
         if not _can_manage_task(self.request.user, self.get_object()):
@@ -885,9 +914,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
-class TaskLaunchView(generics.GenericAPIView):
-    """Lance une tâche : elle devient visible dans Nouveau staffing pour le manager de son
-    équipe, qui décide alors de se l'attribuer ou de l'attribuer à un membre de son équipe."""
+class TaskDecisionView(generics.GenericAPIView):
+    """Le manager de l'équipe destinataire Accepte ou Refuse une tâche qui lui a été envoyée.
+    Une fois acceptée, la tâche devient visible dans Nouveau staffing pour qu'il se l'attribue
+    ou l'attribue à un membre de son équipe."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
@@ -900,9 +930,121 @@ class TaskLaunchView(generics.GenericAPIView):
     def post(self, request, pk):
         task = get_object_or_404(self.get_queryset(), pk=pk)
         if not _can_manage_task(request.user, task):
-            raise PermissionDenied('Vous n’êtes pas autorisé à lancer cette tâche.')
-        if not task.lancee:
-            task.lancee = True
-            task.lancee_le = timezone.now()
-            task.save(update_fields=['lancee', 'lancee_le'])
+            raise PermissionDenied('Vous n’êtes pas autorisé à statuer sur cette tâche.')
+        decision = request.data.get('decision')
+        if decision not in ('acceptee', 'refusee'):
+            raise ValidationError({'decision': 'La décision doit être « acceptee » ou « refusee ».'})
+        if task.statut != 'envoyee':
+            raise ValidationError({'detail': 'Cette tâche a déjà fait l’objet d’une décision.'})
+        task.statut = decision
+        task.statut_decide_le = timezone.now()
+        task.save(update_fields=['statut', 'statut_decide_le'])
         return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
+
+
+class TaskAssignmentListCreateView(generics.ListCreateAPIView):
+    """Nouveau staffing, section « Prêtes à staffer » : répartit une tâche acceptée entre une ou
+    plusieurs personnes, chacune avec ses propres heures. Filtrable via ?task=<id> (personnes déjà
+    staffées sur une tâche) ou ?user=<id> (mes propres attributions, utilisé par Exécuté staffing)."""
+    serializer_class = TaskAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return TaskAssignment.objects.none()
+        qs = TaskAssignment.objects.filter(task__organisation=organisation).select_related(
+            'task', 'task__template', 'task__project', 'task__ligne_budgetaire', 'task__equipe',
+            'task__created_by', 'user',
+        )
+        task_id = self.request.query_params.get('task')
+        user_id = self.request.query_params.get('user')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        return qs
+
+    def perform_create(self, serializer):
+        task = serializer.validated_data.get('task')
+        if task and not _can_manage_task(self.request.user, task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à staffer cette tâche.')
+        serializer.save()
+
+
+class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification (heures) ou retrait (« déstaffer ») d'une personne sur une tâche — réservé au
+    manager de l'équipe (ou admin/directeur). Supprimer une attribution libère immédiatement le
+    montant qu'elle consommait sur la ligne budgétaire du projet."""
+    serializer_class = TaskAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return TaskAssignment.objects.none()
+        return TaskAssignment.objects.filter(task__organisation=organisation).select_related('task', 'user')
+
+    def perform_update(self, serializer):
+        if not _can_manage_task(self.request.user, self.get_object().task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce staffing.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not _can_manage_task(self.request.user, instance.task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à retirer cette personne de la tâche.')
+        instance.delete()
+
+
+class TaskAssignmentExecutionView(generics.GenericAPIView):
+    """Exécuté staffing : la personne staffée (ou admin/directeur) démarre, met en pause, reprend
+    ou termine sa propre exécution — ou la décline, ce qui supprime son attribution (elle
+    redevient staffable par le manager, et le montant qu'elle consommait est libéré)."""
+    serializer_class = TaskAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return TaskAssignment.objects.none()
+        return TaskAssignment.objects.filter(task__organisation=organisation)
+
+    def post(self, request, pk):
+        assignment = get_object_or_404(self.get_queryset(), pk=pk)
+        user = request.user
+        if assignment.user_id != user.id and user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à exécuter cette attribution.')
+        action = request.data.get('action')
+        if action not in ('demarrer', 'pause', 'reprendre', 'terminer', 'decliner'):
+            raise ValidationError({'action': 'Action invalide.'})
+
+        if action == 'demarrer':
+            if assignment.execution_statut != 'a_demarrer':
+                raise ValidationError({'detail': 'Cette tâche a déjà été démarrée.'})
+            assignment.execution_statut = 'en_cours'
+            assignment.demarree_le = timezone.now()
+            assignment.save(update_fields=['execution_statut', 'demarree_le'])
+        elif action == 'pause':
+            if assignment.execution_statut != 'en_cours':
+                raise ValidationError({'detail': 'Cette tâche n’est pas en cours d’exécution.'})
+            assignment.execution_statut = 'en_pause'
+            assignment.save(update_fields=['execution_statut'])
+        elif action == 'reprendre':
+            if assignment.execution_statut != 'en_pause':
+                raise ValidationError({'detail': 'Cette tâche n’est pas en pause.'})
+            assignment.execution_statut = 'en_cours'
+            assignment.save(update_fields=['execution_statut'])
+        elif action == 'terminer':
+            if assignment.execution_statut not in ('en_cours', 'en_pause'):
+                raise ValidationError({'detail': 'Cette tâche doit être démarrée avant de pouvoir être terminée.'})
+            assignment.execution_statut = 'terminee'
+            assignment.terminee_le = timezone.now()
+            assignment.save(update_fields=['execution_statut', 'terminee_le'])
+        elif action == 'decliner':
+            if assignment.execution_statut == 'terminee':
+                raise ValidationError({'detail': 'Cette tâche est déjà terminée.'})
+            task = assignment.task
+            assignment.delete()
+            return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
+
+        return Response(TaskAssignmentSerializer(assignment, context=self.get_serializer_context()).data)

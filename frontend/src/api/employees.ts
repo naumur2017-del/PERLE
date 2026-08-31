@@ -72,6 +72,7 @@ export interface TeamMember {
   fonction: string
   matricule: string
   statut: StatutEmploye
+  grade: number
   is_manager: boolean
 }
 

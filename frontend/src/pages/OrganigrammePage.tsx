@@ -123,6 +123,7 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
                             fonction: employee.fonction,
                             matricule: employee.matricule,
                             statut: employee.statut,
+                            grade: employee.grade,
                             is_manager: false,
                           }}
                         />

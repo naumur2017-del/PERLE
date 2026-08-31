@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
-  Activity, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Info, Rocket, RotateCcw,
-  Search, UserCheck, UserX, Users, X,
+  Activity, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Info, RotateCcw,
+  Search, Trash2, UserCheck, UserPlus, UserX, Users, X, XCircle,
 } from 'lucide-react'
-import { fetchMe, fetchTeams, type MeProfile, type Team } from '../api/employees'
-import { fetchTasks, updateTask, type Task } from '../api/tasks'
+import { fetchMe, fetchTeams, type MeProfile, type Team, type TeamMember } from '../api/employees'
+import { fetchOrganisationEhs } from '../api/organisation'
+import { decideTask, fetchTask, fetchTasks, type Task } from '../api/tasks'
+import { createTaskAssignment, deleteTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import './StaffingPage.css'
 
@@ -21,75 +23,155 @@ const errorMessage = (error: unknown): string => {
   return 'Impossible de contacter le serveur.'
 }
 
-const fmtHeures = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+const fmtDate = (value: string | null) => value ? new Date(value).toLocaleDateString('fr-FR') : '—'
+const fmtFcfa = (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA`
+const fmtEhs = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+const JOUR_HEURES = 8
 
-type Tab = 'prete' | 'staffee'
+const initiales = (nom: string) => nom.split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+
+const assigneesLabel = (task: Task): string => {
+  if (task.assignments.length === 0) return 'Non attribuée'
+  if (task.assignments.length === 1) return task.assignments[0].user_nom
+  return `${task.assignments.length} personnes`
+}
+
+type Tab = 'a_valider' | 'prete' | 'staffee'
 
 export default function StaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [pendingTasks, setPendingTasks] = useState<Task[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [me, setMe] = useState<MeProfile | null>(null)
+  const [ehsRate, setEhsRate] = useState(150)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<Tab>('prete')
+  const [activeTab, setActiveTab] = useState<Tab>('a_valider')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [filterProjet, setFilterProjet] = useState('Tous')
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
   const [search, setSearch] = useState('')
-  const [assigneeChoice, setAssigneeChoice] = useState<number | null>(null)
+  const [assignMemberId, setAssignMemberId] = useState<number | null>(null)
+  const [assignHeures, setAssignHeures] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetchTasks({ staffing: true }), fetchTeams(), fetchMe()])
-      .then(([tasksData, teamsData, meData]) => {
+    Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchOrganisationEhs()])
+      .then(([tasksData, pendingData, teamsData, meData, ehsData]) => {
         setTasks(tasksData)
+        setPendingTasks(pendingData)
         setTeams(teamsData)
         setMe(meData)
+        setEhsRate(ehsData.taux_ehs_fcfa)
       })
       .catch(() => setLoadError('Impossible de charger les tâches à staffer.'))
       .finally(() => setLoading(false))
   }, [])
 
-  const selected = tasks.find((t) => t.id === selectedId) ?? null
+  const allTasks = [...pendingTasks, ...tasks]
+  const selected = activeTab === 'a_valider'
+    ? pendingTasks.find((t) => t.id === selectedId) ?? null
+    : tasks.find((t) => t.id === selectedId) ?? null
   const selectedTeam = selected ? teams.find((t) => t.id === selected.equipe) ?? null : null
+  // Le backend n'autorise le staffing que si la personne est le manager de l'équipe ou l'un de
+  // ses membres (voir TaskAssignmentSerializer.validate).
+  const meCanSelfAssign = me !== null && selectedTeam !== null
+    && (selectedTeam.manager?.id === me.id || me.team?.id === selectedTeam.id)
+  const alreadyAssignedIds = new Set(selected?.assignments.map((a) => a.user) ?? [])
+  const availableMembers: (TeamMember | MeProfile)[] = [
+    ...(me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) ? [me] : []),
+    ...(selectedTeam?.members.filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id)) ?? []),
+  ]
+  const assignMember = availableMembers.find((m) => m.id === assignMemberId) ?? null
+  const assignHeuresNumber = Number(assignHeures) || 0
+  const ehsPreview = assignMember ? assignMember.grade * assignHeuresNumber : 0
+  const montantPreview = ehsPreview * ehsRate
+  const resteApres = selected?.budget_reste_fcfa != null ? selected.budget_reste_fcfa - montantPreview : null
+  const depasseReste = resteApres !== null && resteApres < 0
+  const canAssign = assignMember !== null && assignHeuresNumber > 0 && !depasseReste
 
   const handleSelect = (task: Task) => {
     setSelectedId(task.id)
-    setAssigneeChoice(null)
+    setAssignMemberId(null)
+    setAssignHeures('')
     setActionError(null)
   }
 
   const closePanel = () => {
     setSelectedId(null)
-    setAssigneeChoice(null)
+    setAssignMemberId(null)
+    setAssignHeures('')
   }
 
-  const countPrete = tasks.filter((t) => !t.assignee).length
-  const countStaffee = tasks.filter((t) => t.assignee).length
-  const heuresAStaffer = tasks.filter((t) => !t.assignee).reduce((sum, t) => sum + t.heures, 0)
+  const changeTab = (tab: Tab) => { setActiveTab(tab); closePanel() }
 
-  const projets = Array.from(new Set(tasks.map((t) => t.project_nom)))
-  const equipes = Array.from(new Set(tasks.map((t) => t.equipe_nom)))
+  const countAValider = pendingTasks.length
+  const countPrete = tasks.filter((t) => t.assignments.length === 0).length
+  const countStaffee = tasks.filter((t) => t.assignments.length > 0).length
 
-  const filtered = tasks.filter((t) => (
-    (activeTab === 'prete' ? !t.assignee : !!t.assignee)
-    && (filterProjet === 'Tous' || t.project_nom === filterProjet)
+  const projets = Array.from(new Set(allTasks.map((t) => t.project_nom).filter((p): p is string => Boolean(p))))
+  const equipes = Array.from(new Set(allTasks.map((t) => t.equipe_nom)))
+
+  const scoped = activeTab === 'a_valider' ? pendingTasks
+    : activeTab === 'prete' ? tasks.filter((t) => t.assignments.length === 0)
+    : tasks.filter((t) => t.assignments.length > 0)
+
+  const filtered = scoped.filter((t) => (
+    (filterProjet === 'Tous' || t.project_nom === filterProjet)
     && (filterEquipe === 'Toutes' || t.equipe_nom === filterEquipe)
-    && (search.trim() === '' || `${t.code} ${t.template_nom} ${t.project_nom}`.toLowerCase().includes(search.trim().toLowerCase()))
+    && (search.trim() === '' || `${t.code} ${t.template_nom} ${t.project_nom ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
   ))
 
   const resetFiltres = () => { setFilterProjet('Tous'); setFilterEquipe('Toutes'); setSearch('') }
 
-  const handleAssign = async () => {
-    if (!selected || assigneeChoice === null) return
+  const refreshTask = async (id: number) => {
+    const updated = await fetchTask(id)
+    setTasks((prev) => prev.some((t) => t.id === id) ? prev.map((t) => t.id === id ? updated : t) : prev)
+    setPendingTasks((prev) => prev.some((t) => t.id === id) ? prev.map((t) => t.id === id ? updated : t) : prev)
+    return updated
+  }
+
+  const handleDecision = async (task: Task, decision: 'acceptee' | 'refusee') => {
     setSaving(true)
     setActionError(null)
     try {
-      const updated = await updateTask(selected.id, { assignee: assigneeChoice })
-      setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t))
-      setAssigneeChoice(null)
+      const updated = await decideTask(task.id, decision)
+      setPendingTasks((prev) => prev.filter((t) => t.id !== task.id))
+      if (decision === 'acceptee') setTasks((prev) => [updated, ...prev])
+      if (selectedId === task.id) closePanel()
+    } catch (err) {
+      setActionError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAssign = async () => {
+    if (!selected || !canAssign || assignMemberId === null) return
+    setSaving(true)
+    setActionError(null)
+    try {
+      await createTaskAssignment({ task: selected.id, user: assignMemberId, heures: assignHeuresNumber })
+      await refreshTask(selected.id)
+      setAssignMemberId(null)
+      setAssignHeures('')
+    } catch (err) {
+      setActionError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveAssignment = async (assignment: TaskAssignment) => {
+    if (!selected) return
+    if (!window.confirm(`Retirer ${assignment.user_nom} de cette tâche ?`)) return
+    setSaving(true)
+    setActionError(null)
+    try {
+      await deleteTaskAssignment(assignment.id)
+      await refreshTask(selected.id)
     } catch (err) {
       setActionError(errorMessage(err))
     } finally {
@@ -98,11 +180,11 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
   }
 
   const KPIS = [
-    { icon: Inbox, tone: 'blue', label: 'Tâches lancées', value: String(tasks.length), sub: 'Reçues depuis Architecture des tâches' },
-    { icon: UserX, tone: 'orange', label: 'Prêtes à staffer', value: String(countPrete), sub: "En attente d'attribution" },
-    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Attribuées à quelqu’un' },
-    { icon: Clock3, tone: 'indigo', label: 'Heures à staffer', value: fmtHeures(heuresAStaffer), sub: 'Sur les tâches non attribuées' },
-    { icon: Users, tone: 'purple', label: 'Équipes managées', value: String(new Set(tasks.map((t) => t.equipe)).size), sub: 'Concernées par ces tâches' },
+    { icon: Inbox, tone: 'blue', label: 'Tâches reçues', value: String(allTasks.length), sub: 'Reçues depuis Attribution des tâches' },
+    { icon: Clock3, tone: 'orange', label: 'En attente de décision', value: String(countAValider), sub: 'À accepter ou refuser' },
+    { icon: UserX, tone: 'indigo', label: 'Prêtes à staffer', value: String(countPrete), sub: 'Acceptées, sans personne attribuée' },
+    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Au moins une personne attribuée' },
+    { icon: Users, tone: 'purple', label: 'Équipes managées', value: String(new Set(allTasks.map((t) => t.equipe)).size), sub: 'Concernées par ces tâches' },
   ]
 
   if (loading) return <section className="ns-page"><p className="ns-empty">Chargement…</p></section>
@@ -117,13 +199,12 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
       <div className="ns-title-row">
         <div>
           <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>
-          <p>Attribuez-vous une tâche lancée par votre équipe, ou attribuez-la à l’un de vos membres.</p>
+          <p>Acceptez ou refusez les tâches envoyées à votre équipe, puis répartissez les tâches acceptées entre vous-même et/ou vos membres, avec les heures de chacun.</p>
         </div>
         <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}>Voir l'exécuté staffing</button>
       </div>
 
       {loadError && <p className="ns-empty">{loadError}</p>}
-      {actionError && <p className="ns-empty">{actionError}</p>}
 
       {!loadError && (
         <>
@@ -140,19 +221,22 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
             ))}
           </div>
 
-          {tasks.length === 0 ? (
+          {allTasks.length === 0 ? (
             <div className="ns-info-banner">
               <Info size={14} />
-              <span>Aucune tâche lancée ne vous attend pour l’instant. Une tâche apparaît ici dès qu’elle est « lancée » depuis Architecture des tâches, pour une équipe dont vous êtes le manager.</span>
+              <span>Aucune tâche ne vous attend pour l’instant. Une tâche apparaît ici dès qu’elle est attribuée depuis Attribution des tâches à une équipe dont vous êtes le manager.</span>
             </div>
           ) : (
             <div className={`ns-layout ${selected ? 'has-detail' : ''}`}>
               <div className="ns-main">
                 <nav className="ns-tabs">
-                  <button className={activeTab === 'prete' ? 'active' : ''} onClick={() => { setActiveTab('prete'); closePanel() }}>
+                  <button className={activeTab === 'a_valider' ? 'active' : ''} onClick={() => changeTab('a_valider')}>
+                    À valider <span className="ns-tab-count">{countAValider}</span>
+                  </button>
+                  <button className={activeTab === 'prete' ? 'active' : ''} onClick={() => changeTab('prete')}>
                     Prêtes à staffer <span className="ns-tab-count">{countPrete}</span>
                   </button>
-                  <button className={activeTab === 'staffee' ? 'active' : ''} onClick={() => { setActiveTab('staffee'); closePanel() }}>
+                  <button className={activeTab === 'staffee' ? 'active' : ''} onClick={() => changeTab('staffee')}>
                     Déjà staffées <span className="ns-tab-count">{countStaffee}</span>
                   </button>
                 </nav>
@@ -179,14 +263,21 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
 
                 <div className="ns-info-banner">
                   <Info size={14} />
-                  {activeTab === 'prete'
-                    ? <span>Ces tâches ont été lancées par leur équipe mais n'ont encore personne d'attribué.</span>
-                    : <span>Ces tâches ont déjà quelqu'un d'attribué. Vous pouvez le changer à tout moment.</span>}
+                  {activeTab === 'a_valider'
+                    ? <span>Ces tâches ont été envoyées à votre équipe. Acceptez-les pour pouvoir les staffer, ou refusez-les.</span>
+                    : activeTab === 'prete'
+                      ? <span>Ces tâches ont été acceptées mais n'ont encore personne d'attribué.</span>
+                      : <span>Ces tâches ont déjà au moins une personne attribuée. Vous pouvez en ajouter ou en retirer à tout moment.</span>}
                 </div>
+
+                {actionError && <p className="ns-empty">{actionError}</p>}
 
                 <section className="ns-table-panel">
                   <div className="ns-table-head">
-                    <h3>{activeTab === 'prete' ? 'Tâches prêtes à staffer' : 'Tâches déjà staffées'} <span className="ns-count-badge">{filtered.length}</span></h3>
+                    <h3>
+                      {activeTab === 'a_valider' ? 'Tâches à valider' : activeTab === 'prete' ? 'Tâches prêtes à staffer' : 'Tâches déjà staffées'}
+                      {' '}<span className="ns-count-badge">{filtered.length}</span>
+                    </h3>
                     <div className="ns-table-head-actions">
                       <span>{filtered.length} tâche{filtered.length > 1 ? 's' : ''}</span>
                       <button type="button" disabled><ChevronLeft size={14} /></button>
@@ -198,30 +289,41 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                       <thead>
                         <tr>
                           <th>Code</th><th>Projet</th><th>Tâche</th><th>Équipe</th><th>Ligne budgétaire</th>
-                          <th>Heures</th><th>Attribuée à</th><th>Action</th>
+                          <th>Échéance</th><th>Priorité</th>
+                          <th>{activeTab === 'a_valider' ? 'Décision' : 'Attribuée à'}</th><th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.length === 0 && (
-                          <tr><td colSpan={8} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                          <tr><td colSpan={9} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
                         )}
                         {filtered.map((task) => (
                           <tr key={task.id} className={selectedId === task.id ? 'ns-row-selected' : ''} onClick={() => handleSelect(task)}>
-                            <td className="ns-code">{task.code}</td>
-                            <td>{task.project_nom}</td>
+                            <td className="ns-code">{task.template_code}</td>
+                            <td>{task.project_nom ?? 'Transversale'}</td>
                             <td className="ns-name">{task.template_nom}</td>
                             <td>{task.equipe_nom}</td>
                             <td>{task.ligne_budgetaire_nom}</td>
-                            <td>{fmtHeures(task.heures)} h</td>
+                            <td>{fmtDate(task.echeance)}</td>
+                            <td>{task.priorite_display}</td>
                             <td>
-                              {task.assignee ? (
-                                <span className="ns-statut ns-statut-green">{task.assignee_nom}</span>
+                              {activeTab === 'a_valider' ? (
+                                <span className="ns-pill-warn">En attente</span>
+                              ) : task.assignments.length > 0 ? (
+                                <span className="ns-statut ns-statut-green">{assigneesLabel(task)}</span>
                               ) : (
                                 <span className="ns-pill-warn">Non attribuée</span>
                               )}
                             </td>
                             <td onClick={(e) => e.stopPropagation()}>
-                              <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>Staffer</button>
+                              {activeTab === 'a_valider' ? (
+                                <div className="ns-decision-actions">
+                                  <button type="button" className="ns-action-btn" disabled={saving} onClick={() => handleDecision(task, 'acceptee')}><Check size={13} />Accepter</button>
+                                  <button type="button" className="ns-action-btn ns-action-btn-danger" disabled={saving} onClick={() => handleDecision(task, 'refusee')}><XCircle size={13} />Refuser</button>
+                                </div>
+                              ) : (
+                                <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>Staffer</button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -239,53 +341,99 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                   </div>
 
                   <div className="ns-detail-head">
-                    <span className="ns-detail-check ns-statut-blue"><Rocket size={14} /></span>
+                    <span className="ns-detail-check ns-statut-blue">{activeTab === 'a_valider' ? <Clock3 size={14} /> : <CheckCircle2 size={14} />}</span>
                     <strong>{selected.code}</strong>
-                    <span className="ns-detail-badge">Lancée</span>
+                    <span className="ns-detail-badge">{selected.statut_display}</span>
                   </div>
 
                   <dl className="ns-detail-info">
                     <div><dt>Tâche</dt><dd>{selected.template_nom}</dd></div>
-                    <div><dt>Projet</dt><dd>{selected.project_code} — {selected.project_nom}</dd></div>
+                    <div><dt>Projet</dt><dd>{selected.project_nom ? `${selected.project_code} — ${selected.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
                     <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
                     <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>
-                    <div><dt>Montant</dt><dd>{selected.montant.toLocaleString('fr-FR')} FCFA</dd></div>
-                    <div><dt>Heures</dt><dd>{fmtHeures(selected.heures)} h</dd></div>
+                    <div><dt>Échéance</dt><dd>{fmtDate(selected.echeance)}</dd></div>
+                    <div><dt>Priorité</dt><dd>{selected.priorite_display}</dd></div>
+                    {selected.budget_ligne_montant != null && (
+                      <div><dt>Reste sur la ligne (projet)</dt><dd>{fmtFcfa(selected.budget_reste_fcfa ?? 0)} <small>/ {fmtFcfa(selected.budget_ligne_montant)}</small></dd></div>
+                    )}
                   </dl>
+                  {selected.description && <p className="ns-detail-desc">{selected.description}</p>}
 
-                  {selected.assignee && (
+                  {activeTab === 'a_valider' ? (
                     <div className="ns-detail-section">
-                      <h4>Actuellement attribuée à</h4>
-                      <ul className="ns-affectations-list">
-                        <li>
-                          <span className="ns-employee">
-                            <span className="ns-employee-dot">{selected.assignee_nom?.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}</span>
-                            <span><strong>{selected.assignee_nom}</strong></span>
-                          </span>
-                        </li>
-                      </ul>
+                      <h4>Décision</h4>
+                      <div className="ns-detail-actions">
+                        <button type="button" className="ns-btn-primary" disabled={saving} onClick={() => handleDecision(selected, 'acceptee')}>
+                          <Check size={14} />{saving ? 'Enregistrement…' : 'Accepter'}
+                        </button>
+                        <button type="button" className="ns-btn-outline" disabled={saving} onClick={() => handleDecision(selected, 'refusee')}>
+                          <XCircle size={14} />Refuser
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {selected.assignments.length > 0 && (
+                        <div className="ns-detail-section">
+                          <h4>Personnes attribuées</h4>
+                          <ul className="ns-affectations-list">
+                            {selected.assignments.map((a) => (
+                              <li key={a.id}>
+                                <span className="ns-employee">
+                                  <span className="ns-employee-dot">{initiales(a.user_nom)}</span>
+                                  <span>
+                                    <strong>{a.user_nom}</strong>
+                                    <small>{a.heures} h (grade {a.user_grade}) · {fmtEhs(a.ehs_consomme)} EHS · {fmtFcfa(a.montant_fcfa)} · {a.execution_statut_display}</small>
+                                  </span>
+                                </span>
+                                {a.execution_statut !== 'terminee' && (
+                                  <button type="button" className="ge-row-action ge-row-action-danger" aria-label={`Retirer ${a.user_nom}`} disabled={saving} onClick={() => handleRemoveAssignment(a)}>
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                  <div className="ns-detail-section">
-                    <h4>{selected.assignee ? 'Réattribuer' : 'Attribuer'} la tâche</h4>
-                    {actionError && <p className="ns-empty">{actionError}</p>}
-                    <label className="ns-detail-field">
-                      Attribuer à *
-                      <select value={assigneeChoice ?? ''} onChange={(e) => setAssigneeChoice(e.target.value === '' ? null : Number(e.target.value))}>
-                        <option value="">Sélectionner</option>
-                        {me && <option value={me.id}>Moi-même — {me.first_name} {me.last_name}</option>}
-                        {selectedTeam?.members
-                          .filter((m) => m.id !== me?.id)
-                          .map((m) => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
-                      </select>
-                    </label>
-                    <div className="ns-detail-actions">
-                      <button type="button" className="ns-btn-primary" disabled={assigneeChoice === null || saving} onClick={handleAssign}>
-                        {saving ? 'Enregistrement…' : 'Enregistrer le staffing'}
-                      </button>
-                    </div>
-                  </div>
+                      <div className="ns-detail-section">
+                        <h4><UserPlus size={14} />Attribuer à une personne</h4>
+                        <label className="ns-detail-field">
+                          Personne *
+                          <select value={assignMemberId ?? ''} onChange={(e) => setAssignMemberId(e.target.value === '' ? null : Number(e.target.value))}>
+                            <option value="">{availableMembers.length === 0 ? 'Personne disponible' : 'Sélectionner'}</option>
+                            {me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) && <option value={me.id}>Moi-même — {me.first_name} {me.last_name} (grade {me.grade})</option>}
+                            {selectedTeam?.members
+                              .filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id))
+                              .map((m) => <option key={m.id} value={m.id}>{m.first_name} {m.last_name} (grade {m.grade})</option>)}
+                          </select>
+                        </label>
+                        <label className="ns-detail-field">
+                          Heures sur cette tâche *
+                          <input type="number" min={0} step="0.5" value={assignHeures} placeholder="Ex. 8" onChange={(e) => setAssignHeures(e.target.value)} />
+                        </label>
+
+                        {assignMember && assignHeuresNumber > 0 && (
+                          <div className={`charge-hint${depasseReste ? ' charge-hint-danger' : ''}`}>
+                            {fmtEhs(ehsPreview)} EHS ({assignMember.grade} EHS/h × {assignHeuresNumber} h) = {fmtFcfa(montantPreview)}
+                            {' '}(≈ {(assignHeuresNumber / JOUR_HEURES).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} jour(s) de 8h)
+                            {selected.budget_ligne_montant != null && resteApres !== null && (
+                              depasseReste
+                                ? <> — dépasse le reste disponible ({fmtFcfa(selected.budget_reste_fcfa ?? 0)}).</>
+                                : <> — reste après attribution : {fmtFcfa(resteApres)}.</>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="ns-detail-actions">
+                          <button type="button" className="ns-btn-primary" disabled={!canAssign || saving} onClick={handleAssign}>
+                            {saving ? 'Enregistrement…' : 'Ajouter cette personne'}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </aside>
               )}
             </div>
