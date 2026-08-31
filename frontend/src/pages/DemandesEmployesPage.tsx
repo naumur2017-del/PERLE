@@ -7,6 +7,7 @@ import {
 } from '../api/demandes'
 import { fetchEmployees, fetchTeams, type Employee, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
+import { formatMontant } from '../utils/currency'
 import './DemandesEmployesPage.css'
 
 type Tab = 'conges' | 'avances' | 'technique'
@@ -137,11 +138,11 @@ function AvanceRow({ demande, busy, onReview }: { demande: AvanceDemande; busy: 
   return (
     <tr>
       <td><strong>{demande.employee_nom}</strong><br /><small>{demande.employee_fonction || 'Sans fonction'}</small></td>
-      <td><strong>{demande.montant.toLocaleString('fr-FR')} FCFA</strong></td>
+      <td><strong>{formatMontant(demande.montant)}</strong></td>
       <td className="de-motif">{demande.motif || 'Aucun motif renseigné'}</td>
       <td>
         {demande.nombre_mois} salaire{demande.nombre_mois > 1 ? 's' : ''}
-        <br /><small>({Math.round(demande.montant / demande.nombre_mois).toLocaleString('fr-FR')} FCFA/mois)</small>
+        <br /><small>({formatMontant(Math.round(demande.montant / demande.nombre_mois))}/mois)</small>
       </td>
       <td><span className={`ge-pill ${STATUT_CLASS[demande.statut]}`}>{STATUT_LABELS[demande.statut]}</span></td>
       <td>{traitePar(demande)}</td>

@@ -28,6 +28,9 @@
 
 .param-hint { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f4f1ff; color: #6b46c1; font-size: 11px; font-weight: 600; line-height: 1.5; }
 
+.param-checkbox-field { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: #35335c; }
+.param-checkbox-field input { width: 16px; height: 16px; }
+
 .param-toggle-btn { height: 26px; padding: 0 10px; font-size: 10.5px; }
 
 .param-type-desc { margin: 3px 0 0; font-size: 10.5px; font-weight: 500; color: #8b8ba3; max-width: 320px; line-height: 1.5; }

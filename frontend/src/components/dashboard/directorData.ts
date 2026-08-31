@@ -1,6 +1,8 @@
 // Jeux de données de démonstration du tableau de bord de direction (directeur =
-// administrateur d'une entreprise cliente de PERLE). Montants en milliers de FCFA
-// sauf mention contraire.
+// administrateur d'une entreprise cliente de PERLE). Montants en milliers de la
+// devise de l'organisation (FCFA par défaut) sauf mention contraire.
+
+import { currencySuffix } from '../../utils/currency'
 
 export type DirPeriod = 'month' | 'quarter' | 'year'
 
@@ -24,11 +26,11 @@ export const DIR_COLORS = {
 
 export const DIR_PALETTE = [DIR_COLORS.primary, DIR_COLORS.primaryLight, DIR_COLORS.teal, DIR_COLORS.green, DIR_COLORS.amber, DIR_COLORS.slate]
 
-/** Formate un montant exprimé en milliers de FCFA. */
+/** Formate un montant exprimé en milliers de la devise de l'organisation. */
 export const formatFcfa = (thousands: number) =>
   thousands >= 1000
-    ? `${(thousands / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M FCFA`
-    : `${thousands.toLocaleString('fr-FR')} k FCFA`
+    ? `${(thousands / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M ${currencySuffix()}`
+    : `${thousands.toLocaleString('fr-FR')} k ${currencySuffix()}`
 
 const MONTHS = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.']
 
@@ -172,7 +174,7 @@ export const dirAlerts: DirAlert[] = [
   { id: 'DA-11', level: 'high', title: 'Budget dépassé sur PRJ.005', detail: '98,9 % du budget consommé pour 34 % d’avancement. Marge négative de 2,1 %.', target: 'pilotage' },
   { id: 'DA-12', level: 'high', title: '2 projets en retard de livraison', detail: 'PRJ.005 et PRJ.003 dépassent leur échéance prévisionnelle de plus de 10 jours.', target: 'pilotage' },
   { id: 'DA-13', level: 'medium', title: 'Commercial sous-staffé à 60 %', detail: '4 collaborateurs disponibles sur 10 : capacité non affectée sur le trimestre.', target: 'staffing' },
-  { id: 'DA-14', level: 'medium', title: 'Trésorerie sous le seuil de confort', detail: 'Le solde projeté passe sous 80 M FCFA en septembre si les encaissements glissent.', target: 'tresorerie' },
+  { id: 'DA-14', level: 'medium', title: 'Trésorerie sous le seuil de confort', detail: `Le solde projeté passe sous 80 M ${currencySuffix()} en septembre si les encaissements glissent.`, target: 'tresorerie' },
   { id: 'DA-15', level: 'info', title: '5 échéances dans les 15 jours', detail: 'Cinq jalons contractuels arrivent à terme avant le 15/08/2026.', target: 'pilotage' },
 ]
 

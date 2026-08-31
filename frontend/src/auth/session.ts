@@ -15,6 +15,8 @@ export type Session = {
   firstName: string
   lastName: string
   organisationName: string
+  /* Devise réelle de l'organisation (ISO 4217, ex. « XAF », « EUR ») — voir utils/currency.ts. */
+  currencyCode: string
   phone: string
   fonction: string
   matricule: string

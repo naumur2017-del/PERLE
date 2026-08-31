@@ -3,6 +3,7 @@ import {
   ArrowDownCircle, ArrowUpCircle, Calendar, Columns3, EyeOff, GripVertical,
   Landmark, Plus, RotateCcw, Search, SlidersHorizontal, Wallet,
 } from 'lucide-react'
+import { currencySuffix } from '../utils/currency'
 import './ComptesOperationsPage.css'
 
 interface CompteDef {
@@ -47,10 +48,10 @@ const MOUVEMENTS: Mouvement[] = [
 ]
 
 const KPIS = [
-  { icon: Landmark, tone: 'purple', label: 'Solde total disponible', value: '18 475 320 FCFA' },
+  { icon: Landmark, tone: 'purple', label: 'Solde total disponible', value: `18 475 320 ${currencySuffix()}` },
   { icon: Wallet, tone: 'green', label: 'Comptes actifs', value: String(COMPTES.length) },
-  { icon: ArrowUpCircle, tone: 'green', label: 'Entrées période', value: '36 845 200 FCFA' },
-  { icon: ArrowDownCircle, tone: 'red', label: 'Sorties période', value: '18 369 880 FCFA' },
+  { icon: ArrowUpCircle, tone: 'green', label: 'Entrées période', value: `36 845 200 ${currencySuffix()}` },
+  { icon: ArrowDownCircle, tone: 'red', label: 'Sorties période', value: `18 369 880 ${currencySuffix()}` },
 ]
 
 const PROJETS = Array.from(new Set(MOUVEMENTS.map((m) => m.projet)))
@@ -189,7 +190,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
           </select>
           <span className="co-solde-initial-meta">{compteSoldeInitialDef.code} - {compteSoldeInitialDef.sousLibelle}</span>
         </div>
-        <strong className="co-solde-initial-value">{fmtMontant(compteSoldeInitialDef.soldeInitial)} FCFA</strong>
+        <strong className="co-solde-initial-value">{fmtMontant(compteSoldeInitialDef.soldeInitial)} {currencySuffix()}</strong>
       </article>
 
       <div className="co-filters">

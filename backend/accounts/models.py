@@ -27,7 +27,14 @@ class Organisation(models.Model):
     email = models.EmailField()
     phone = models.CharField(max_length=30)
     country = models.CharField(max_length=100)
+    # Code ISO 3166-1 alpha-2 du pays (ex. « CM ») — sert au drapeau et à dériver currency_code ;
+    # `city` contient en réalité la région/l'état du pays choisi (liste dépendante du pays côté
+    # frontend), pas une ville précise.
+    country_code = models.CharField(max_length=2, blank=True)
     city = models.CharField(max_length=100)
+    # Devise réelle de l'organisation (ISO 4217, ex. « XAF », « EUR »), dérivée du pays choisi à
+    # l'inscription — remplace le FCFA autrefois figé dans l'affichage de tous les montants.
+    currency_code = models.CharField(max_length=3, default='XAF')
     address = models.CharField(max_length=255, blank=True)
     website = models.URLField(blank=True)
     registration_number = models.CharField(max_length=100, blank=True)
@@ -97,6 +104,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     matricule = models.CharField(max_length=50, blank=True)
     date_naissance = models.DateField(null=True, blank=True)
     pays = models.CharField(max_length=100, blank=True)
+    pays_code = models.CharField(max_length=2, blank=True)
+    # Contient en réalité la région/l'état du pays choisi, pas une ville précise (voir
+    # Organisation.city).
     ville = models.CharField(max_length=100, blank=True)
     profile_photo = models.ImageField(upload_to='documents/photos/', null=True, blank=True)
     cni_document = models.ImageField(upload_to='documents/cni/', null=True, blank=True)
@@ -313,6 +323,25 @@ class CongeType(models.Model):
 
     def __str__(self):
         return f'{self.nom} ({self.organisation})'
+
+
+class PublicHoliday(models.Model):
+    """Jour férié géré manuellement par l'admin/directeur (Paramètres > EHS ou onglet dédié),
+    propre au pays de l'organisation — aucune base de données de jours fériés externe n'est
+    utilisée, faute de couverture fiable pour tous les pays."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='public_holidays')
+    nom = models.CharField(max_length=150)
+    date = models.DateField()
+    recurrente_annuelle = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date']
+        unique_together = ('organisation', 'date', 'nom')
+
+    def __str__(self):
+        return f'{self.nom} — {self.date}'
 
 
 DEFAULT_CONGE_TYPES = (

@@ -20,6 +20,8 @@ urlpatterns = [
     path('teams/<int:pk>/remove-member/', views.TeamRemoveMemberView.as_view()),
     path('parametres/conges-types/', views.CongeTypeListCreateView.as_view()),
     path('parametres/conges-types/<int:pk>/', views.CongeTypeDetailView.as_view()),
+    path('parametres/jours-feries/', views.PublicHolidayListCreateView.as_view()),
+    path('parametres/jours-feries/<int:pk>/', views.PublicHolidayDetailView.as_view()),
     path('demandes/conges/', views.CongeDemandeListCreateView.as_view()),
     path('demandes/conges/solde/', views.CongeSoldeView.as_view()),
     path('demandes/conges/organisation/', views.OrganisationCongeDemandeListView.as_view()),

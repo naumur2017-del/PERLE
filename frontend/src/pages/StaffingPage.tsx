@@ -8,6 +8,7 @@ import { fetchOrganisationEhs } from '../api/organisation'
 import { decideTask, fetchTask, fetchTasks, type Task } from '../api/tasks'
 import { createTaskAssignment, deleteTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import { formatMontant } from '../utils/currency'
 import './StaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -24,7 +25,7 @@ const errorMessage = (error: unknown): string => {
 }
 
 const fmtDate = (value: string | null) => value ? new Date(value).toLocaleDateString('fr-FR') : '—'
-const fmtFcfa = (value: number) => `${value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA`
+const fmtFcfa = (value: number) => formatMontant(value)
 const fmtEhs = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 const JOUR_HEURES = 8
 

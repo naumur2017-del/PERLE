@@ -4,6 +4,7 @@ import {
   CircleDot, FileText, Info, MoreVertical, Paperclip, Receipt, Search, Upload, Wallet, X,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { currencySuffix } from '../utils/currency'
 import './PaiementsExecutesPage.css'
 
 interface PaiementAExecuter {
@@ -23,11 +24,11 @@ interface PaiementAExecuter {
 }
 
 const PAIEMENTS_A_EXECUTER_INITIAL: PaiementAExecuter[] = [
-  { numero: 'PAY-2025-167', echeance: '15/06/2025', demandeCode: 'DP-2025-085', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00156', montant: 485000, devise: 'FCFA', modePaiement: 'Virement bancaire', justificatifNom: 'Facture.pdf', justificatifTaille: '245 Ko', statut: 'En attente d’exécution' },
-  { numero: 'PAY-2025-166', echeance: '14/06/2025', demandeCode: 'DP-2025-096', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00155', montant: 2350000, devise: 'FCFA', modePaiement: 'Virement bancaire', justificatifNom: 'Reçu.pdf', justificatifTaille: '180 Ko', statut: 'En attente d’exécution' },
-  { numero: 'PAY-2025-165', echeance: '13/06/2025', demandeCode: 'DP-2025-093', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00154', montant: 320000, devise: 'FCFA', modePaiement: 'Virement bancaire', justificatifNom: 'Facture.jpg', justificatifTaille: '320 Ko', statut: 'En attente d’exécution' },
-  { numero: 'PAY-2025-164', echeance: '12/06/2025', demandeCode: 'DP-2025-098', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00153', montant: 150000, devise: 'FCFA', modePaiement: 'Mobile Money', justificatifNom: 'Reçu.jpg', justificatifTaille: '200 Ko', statut: 'En attente d’exécution' },
-  { numero: 'PAY-2025-163', echeance: '11/06/2025', demandeCode: 'DP-2025-091', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: 'FCFA', modePaiement: 'Virement bancaire', justificatifNom: 'Rapport.pdf', justificatifTaille: '560 Ko', statut: 'En attente d’exécution' },
+  { numero: 'PAY-2025-167', echeance: '15/06/2025', demandeCode: 'DP-2025-085', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00156', montant: 485000, devise: currencySuffix(), modePaiement: 'Virement bancaire', justificatifNom: 'Facture.pdf', justificatifTaille: '245 Ko', statut: 'En attente d’exécution' },
+  { numero: 'PAY-2025-166', echeance: '14/06/2025', demandeCode: 'DP-2025-096', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00155', montant: 2350000, devise: currencySuffix(), modePaiement: 'Virement bancaire', justificatifNom: 'Reçu.pdf', justificatifTaille: '180 Ko', statut: 'En attente d’exécution' },
+  { numero: 'PAY-2025-165', echeance: '13/06/2025', demandeCode: 'DP-2025-093', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00154', montant: 320000, devise: currencySuffix(), modePaiement: 'Virement bancaire', justificatifNom: 'Facture.jpg', justificatifTaille: '320 Ko', statut: 'En attente d’exécution' },
+  { numero: 'PAY-2025-164', echeance: '12/06/2025', demandeCode: 'DP-2025-098', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00153', montant: 150000, devise: currencySuffix(), modePaiement: 'Mobile Money', justificatifNom: 'Reçu.jpg', justificatifTaille: '200 Ko', statut: 'En attente d’exécution' },
+  { numero: 'PAY-2025-163', echeance: '11/06/2025', demandeCode: 'DP-2025-091', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: currencySuffix(), modePaiement: 'Virement bancaire', justificatifNom: 'Rapport.pdf', justificatifTaille: '560 Ko', statut: 'En attente d’exécution' },
 ]
 
 const TOTAL_A_EXECUTER = 18
@@ -70,7 +71,7 @@ const PAIEMENT_COLUMNS: ColumnDef<PaiementColumnId>[] = [
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
   { id: 'fournisseur', label: 'Fournisseur / Bénéficiaire' },
   { id: 'mercurial', label: 'Mercurial' },
-  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'montant', label: `Montant (${currencySuffix()})` },
   { id: 'devise', label: 'Devise' },
   { id: 'modePaiement', label: 'Mode de paiement' },
   { id: 'justificatif', label: 'Justificatif' },
@@ -271,7 +272,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
           <div className="pe-table-wrap">
             <table className="pe-table">
               <thead>
-                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Bénéficiaire</th><th>Montant (FCFA)</th><th>Date</th><th>Statut</th></tr>
+                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Bénéficiaire</th><th>{`Montant (${currencySuffix()})`}</th><th>Date</th><th>Statut</th></tr>
               </thead>
               <tbody>
                 {HISTORIQUE.map((entry) => (

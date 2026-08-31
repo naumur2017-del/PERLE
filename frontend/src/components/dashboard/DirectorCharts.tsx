@@ -9,6 +9,7 @@ import {
   formatFcfa, marginPercent, projects, teamLoad,
   type CashPoint, type DeliverablePoint, type FinancePoint, type Project,
 } from './directorData'
+import { currencySuffix } from '../../utils/currency'
 
 /** Infobulle habillée aux styles du tableau de bord de direction. */
 function useDirTooltip() {
@@ -202,7 +203,7 @@ export function BudgetDonut({ onSliceClick }: { onSliceClick: (view: string, lab
           onMouseLeave={tooltip.hide}
         />)}
         <text x="108" y="104" className="dsh-donut-value" textAnchor="middle">{(total / 1000).toFixed(0)} M</text>
-        <text x="108" y="124" className="dsh-donut-sub" textAnchor="middle">FCFA engagés</text>
+        <text x="108" y="124" className="dsh-donut-sub" textAnchor="middle">{currencySuffix()} engagés</text>
       </svg>
 
       <ul className="dsh-donut-legend">

@@ -1,10 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Calendar, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Calendar, CalendarHeart, Gauge, Pencil, Plus, Trash2, X } from 'lucide-react'
 import {
   createCongeType, deleteCongeType, fetchCongeTypes, updateCongeType,
   type CongeModePeriode, type CongeType, type CongeUnite,
 } from '../api/demandes'
+import { fetchOrganisationEhs, updateOrganisationEhs } from '../api/organisation'
+import {
+  createPublicHoliday, deletePublicHoliday, fetchPublicHolidays, updatePublicHoliday, type PublicHoliday,
+} from '../api/publicHolidays'
 import { ApiError } from '../api/client'
+import { currencySuffix, formatMontant } from '../utils/currency'
 import './ParametresPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -238,8 +243,262 @@ function CongesTab() {
   )
 }
 
+interface PublicHolidayFormValues {
+  nom: string
+  date: string
+  recurrente_annuelle: boolean
+}
+
+function PublicHolidayModal({ initial, onClose, onSubmit }: {
+  initial?: PublicHoliday
+  onClose: () => void
+  onSubmit: (values: PublicHolidayFormValues) => Promise<void>
+}) {
+  const [nom, setNom] = useState(initial?.nom ?? '')
+  const [date, setDate] = useState(initial?.date ?? '')
+  const [recurrente, setRecurrente] = useState(initial?.recurrente_annuelle ?? true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSave = nom.trim() !== '' && date.trim() !== '' && !saving
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSave) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSubmit({ nom: nom.trim(), date, recurrente_annuelle: recurrente })
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label={initial ? 'Modifier le jour férié' : 'Ajouter un jour férié'} onMouseDown={() => { if (!saving) onClose() }}>
+      <div className="ge-modal param-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <div>
+            <h3>{initial ? 'Modifier le jour férié' : 'Ajouter un jour férié'}</h3>
+            <p className="ge-modal-subtitle">Ce jour sera exclu du calcul des jours ouvrables pour toute l'organisation.</p>
+          </div>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
+        </div>
+
+        <form className="param-form" onSubmit={handleSubmit}>
+          {error && <p className="ge-form-error">{error}</p>}
+
+          <label className="param-field">Nom du jour férié *
+            <input required value={nom} placeholder="Ex. Fête du Travail" onChange={(event) => setNom(event.target.value)} />
+          </label>
+
+          <label className="param-field">Date *
+            <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+
+          <label className="param-checkbox-field">
+            <input type="checkbox" checked={recurrente} onChange={(event) => setRecurrente(event.target.checked)} />
+            Se répète chaque année à la même date
+          </label>
+
+          <div className="ge-modal-actions">
+            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+            <button type="submit" className="ge-btn-primary" disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const formatHolidayDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+function JoursFeriesTab() {
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [editingHoliday, setEditingHoliday] = useState<PublicHoliday | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const loadHolidays = () => fetchPublicHolidays().then(setHolidays)
+
+  useEffect(() => {
+    let cancelled = false
+    loadHolidays()
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger les jours fériés.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const handleCreate = async (values: PublicHolidayFormValues) => {
+    const created = await createPublicHoliday(values)
+    setHolidays((prev) => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)))
+    setShowCreate(false)
+  }
+
+  const handleUpdate = async (id: number, values: PublicHolidayFormValues) => {
+    const updated = await updatePublicHoliday(id, values)
+    setHolidays((prev) => prev.map((item) => item.id === id ? updated : item).sort((a, b) => a.date.localeCompare(b.date)))
+    setEditingHoliday(null)
+  }
+
+  const handleDelete = async (holiday: PublicHoliday) => {
+    if (!window.confirm(`Supprimer le jour férié « ${holiday.nom} » ?`)) return
+    setDeleteError(null)
+    try {
+      await deletePublicHoliday(holiday.id)
+      setHolidays((prev) => prev.filter((item) => item.id !== holiday.id))
+    } catch (err) {
+      setDeleteError(errorMessage(err))
+    }
+  }
+
+  return (
+    <div className="param-tab">
+      <div className="param-tab-heading">
+        <div>
+          <h2>Jours fériés</h2>
+          <p>Gérez la liste des jours fériés de votre organisation. Ces dates s'appliquent à l'ensemble des équipes et projets.</p>
+        </div>
+        <button type="button" className="ge-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} />Ajouter un jour férié</button>
+      </div>
+
+      {loading && <p className="ge-detail-empty">Chargement…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+      {deleteError && <p className="ge-form-error">{deleteError}</p>}
+
+      {!loading && !loadError && (
+        <div className="ge-table-panel">
+          <div className="ge-table-wrap">
+            <table className="ge-table">
+              <thead>
+                <tr><th>Nom</th><th>Date</th><th>Récurrence</th><th>Ajouté par</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {holidays.map((holiday) => (
+                  <tr key={holiday.id}>
+                    <td><strong>{holiday.nom}</strong></td>
+                    <td>{formatHolidayDate(holiday.date)}</td>
+                    <td>{holiday.recurrente_annuelle ? 'Chaque année' : 'Cette année seulement'}</td>
+                    <td>{holiday.created_by_nom ?? '—'}</td>
+                    <td className="de-actions">
+                      <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier" onClick={() => setEditingHoliday(holiday)}><Pencil size={13} /></button>
+                      <button type="button" className="ge-row-action ge-row-action-danger" aria-label="Supprimer" title="Supprimer" onClick={() => handleDelete(holiday)}><Trash2 size={13} /></button>
+                    </td>
+                  </tr>
+                ))}
+                {holidays.length === 0 && (
+                  <tr><td colSpan={5} className="ge-detail-empty">Aucun jour férié défini pour le moment.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showCreate && <PublicHolidayModal onClose={() => setShowCreate(false)} onSubmit={handleCreate} />}
+      {editingHoliday && (
+        <PublicHolidayModal
+          initial={editingHoliday}
+          onClose={() => setEditingHoliday(null)}
+          onSubmit={(values) => handleUpdate(editingHoliday.id, values)}
+        />
+      )}
+    </div>
+  )
+}
+
+function EhsTab() {
+  const [tauxEhsFcfa, setTauxEhsFcfa] = useState<number | null>(null)
+  const [tauxInput, setTauxInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchOrganisationEhs()
+      .then((data) => {
+        if (cancelled) return
+        setTauxEhsFcfa(data.taux_ehs_fcfa)
+        setTauxInput(String(data.taux_ehs_fcfa))
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger ce paramètre.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const tauxNumber = Number(tauxInput)
+  const canSave = tauxInput.trim() !== '' && tauxNumber > 0 && !saving
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSave) return
+    setSaving(true)
+    setSaveError(null)
+    setSaved(false)
+    try {
+      const updated = await updateOrganisationEhs(tauxNumber)
+      setTauxEhsFcfa(updated.taux_ehs_fcfa)
+      setTauxInput(String(updated.taux_ehs_fcfa))
+      setSaved(true)
+    } catch (err) {
+      setSaveError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="param-tab">
+      <div className="param-tab-heading">
+        <div>
+          <h2>EHS</h2>
+          <p>{`Les EHS (équivalents heure standard) ne sont pas une unité universelle : c'est vous qui définissez ici combien vaut 1 EHS en ${currencySuffix()}. Ce taux sert dans Nouveau staffing pour calculer, quand une personne est staffée sur une tâche, ce qu'elle consomme sur la ligne budgétaire du projet : chaque heure travaillée consomme un nombre d'EHS égal à son grade (ex. grade 5 → 5 EHS par heure), converti en ${currencySuffix()} avec ce taux.`}</p>
+        </div>
+      </div>
+
+      {loading && <p className="ge-detail-empty">Chargement…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+
+      {!loading && !loadError && (
+        <div className="ge-table-panel">
+          <form className="param-form" onSubmit={handleSubmit}>
+            {saveError && <p className="ge-form-error">{saveError}</p>}
+
+            <label className="param-field">{`Taux de conversion EHS → ${currencySuffix()} *`}
+              <input
+                required type="number" min={0} step="0.01" value={tauxInput}
+                onChange={(event) => { setTauxInput(event.target.value); setSaved(false) }}
+              />
+            </label>
+            <p className="param-hint">
+              1 EHS = {tauxInput.trim() !== '' && tauxNumber > 0 ? formatMontant(tauxNumber) : '…'}.
+              {' '}Une personne de grade 5 staffée 1 heure consommera donc {tauxInput.trim() !== '' && tauxNumber > 0 ? formatMontant(5 * tauxNumber) : '…'} sur la ligne budgétaire du projet.
+            </p>
+            {tauxEhsFcfa !== null && (
+              <p className="param-hint">Valeur actuelle : {formatMontant(tauxEhsFcfa)} par EHS.</p>
+            )}
+
+            <div className="ge-modal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+              {saved && <span className="ge-pill ge-pill-actif" style={{ marginRight: 'auto' }}>Enregistré</span>}
+              <button type="submit" className="ge-btn-primary" disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const tabs = [
   { id: 'conges', label: 'Congés', icon: Calendar },
+  { id: 'ehs', label: 'EHS', icon: Gauge },
+  { id: 'jours-feries', label: 'Jours fériés', icon: CalendarHeart },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']
@@ -261,6 +520,8 @@ export default function ParametresPage() {
       </nav>
 
       {activeTab === 'conges' && <CongesTab />}
+      {activeTab === 'ehs' && <EhsTab />}
+      {activeTab === 'jours-feries' && <JoursFeriesTab />}
     </section>
   )
 }

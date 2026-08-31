@@ -50,6 +50,7 @@ import {
   type FermetureTechnique,
 } from '../api/demandes'
 import { ApiError } from '../api/client'
+import { currencySuffix, formatMontant } from '../utils/currency'
 import type { Session } from '../auth/session'
 import 'flag-icons/css/flag-icons.min.css'
 import './SalariePage.css'
@@ -147,7 +148,7 @@ const toDisplayAvance = (item: ApiAvanceDemande): AvanceDemande => ({
   montant: item.montant,
   motif: item.motif || 'Aucun motif renseigné',
   remboursement: `Prélèvement sur ${item.nombre_mois} salaire${item.nombre_mois > 1 ? 's' : ''}`,
-  remboursementDetail: `(${Math.round(item.montant / item.nombre_mois).toLocaleString('fr-FR')} FCFA / mois)`,
+  remboursementDetail: `(${formatMontant(Math.round(item.montant / item.nombre_mois))} / mois)`,
   statut: STATUT_FROM_API[item.statut],
   approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
   approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
@@ -422,7 +423,7 @@ function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (v
 
   return (
     <form className="salarie-form" onSubmit={handleSubmit}>
-      <label>Montant demandé (FCFA)<input type="number" required min={1000} step={1000} value={montant} placeholder="Ex. 150000" onChange={(event) => setMontant(event.target.value)} /></label>
+      <label>{`Montant demandé (${currencySuffix()})`}<input type="number" required min={1000} step={1000} value={montant} placeholder="Ex. 150000" onChange={(event) => setMontant(event.target.value)} /></label>
       <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
       <label>Remboursement proposé
         <select value={mois} onChange={(event) => setMois(event.target.value)}>
@@ -654,7 +655,7 @@ function DemandesTab({ session }: { session: Session }) {
         <div className="salarie-table-wrap">
           <table>
             <thead>
-              <tr><th>N° Demande</th><th>Date de demande</th><th>Montant demandé (FCFA)</th><th>Motif</th><th>Remboursement proposé</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
+              <tr><th>N° Demande</th><th>Date de demande</th><th>{`Montant demandé (${currencySuffix()})`}</th><th>Motif</th><th>Remboursement proposé</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
             </thead>
             <tbody>
               {avanceDemandes.map((demande) => (
@@ -721,7 +722,7 @@ function DemandesTab({ session }: { session: Session }) {
         <Lightbox title={`Demande ${viewAvance.id}`} onClose={() => setViewAvance(null)}>
           <div className="salarie-info-col">
             <InfoRow label="Date de demande" value={viewAvance.dateDemande} />
-            <InfoRow label="Montant demandé" value={`${viewAvance.montant.toLocaleString('fr-FR')} FCFA`} />
+            <InfoRow label="Montant demandé" value={formatMontant(viewAvance.montant)} />
             <InfoRow label="Motif" value={viewAvance.motif} />
             <InfoRow label="Remboursement proposé" value={`${viewAvance.remboursement} ${viewAvance.remboursementDetail}`} />
             <InfoRow label="Statut" value={<StatutPill statut={viewAvance.statut} />} />
@@ -1108,20 +1109,20 @@ const dashboardStats = [
   { icon: Clock, iconClass: 'temps', label: 'Temps total travaillé ce mois', value: '154h 20m', sub: 'Sur 168h ce mois', progress: 91.8 },
   { icon: CheckCircle2, iconClass: 'taches', label: 'Tâches terminées ce mois', value: '18', sub: 'Sur 24 tâches', progress: 75.0 },
   { icon: Briefcase, iconClass: 'projets', label: 'Projets actifs', value: '4', sub: 'Sur 7 projets ce mois' },
-  { icon: Wallet, iconClass: 'salaire', label: 'Salaire estimatif', value: '542 000', unit: 'FCFA', sub: 'Détails dans Rémunération', link: true },
-  { icon: Gift, iconClass: 'prime', label: 'Prime estimative', value: '58 000', unit: 'FCFA', sub: 'Détails dans Rémunération', link: true },
+  { icon: Wallet, iconClass: 'salaire', label: 'Salaire estimatif', value: '542 000', unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true },
+  { icon: Gift, iconClass: 'prime', label: 'Prime estimative', value: '58 000', unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true },
 ]
 
 const bottomStats = [
   { icon: Calendar, iconClass: 'conge', label: 'Solde de congés', value: '12', unit: 'jours', sub: 'Sur 25 jours/an', link: 'Voir le détail' },
   { icon: FileText, iconClass: 'attente', label: 'Demandes en attente', value: '1', sub: null, link: 'Voir mes demandes' },
   { icon: ShieldAlert, iconClass: 'sanction', label: 'Sanctions actives', value: '0', sub: null, link: 'Voir le détail' },
-  { icon: Wallet, iconClass: 'avance', label: 'Avances en cours', value: '150 000', unit: 'FCFA', sub: 'Reste à rembourser 120 000 FCFA', link: 'Voir le détail' },
+  { icon: Wallet, iconClass: 'avance', label: 'Avances en cours', value: '150 000', unit: currencySuffix(), sub: `Reste à rembourser 120 000 ${currencySuffix()}`, link: 'Voir le détail' },
 ]
 
 const notifications = [
   { icon: Calendar, iconClass: 'conge', text: <>Votre demande de congé du <strong>05/06/2025</strong> au <strong>07/06/2025</strong> est en attente.</>, time: 'Il y a 1 heure' },
-  { icon: CheckCircle2, iconClass: 'avance', text: <>Votre demande d’avance de <strong>150 000 FCFA</strong> a été acceptée.</>, time: 'Il y a 1 jour' },
+  { icon: CheckCircle2, iconClass: 'avance', text: <>Votre demande d’avance de <strong>{`150 000 ${currencySuffix()}`}</strong> a été acceptée.</>, time: 'Il y a 1 jour' },
   { icon: FileText, iconClass: 'paie', text: <>Votre fiche de paie de <strong>Mai 2025</strong> est disponible.</>, time: 'Il y a 2 jours' },
   { icon: ShieldAlert, iconClass: 'sanction', text: 'Une nouvelle sanction a été enregistrée.', time: 'Il y a 3 jours' },
   { icon: Bell, iconClass: 'rappel', text: <><strong>Rappel :</strong> Réunion d’équipe prévue demain à 10h00.</>, time: 'Il y a 5 jours' },
@@ -1253,8 +1254,8 @@ function DashboardTab({ session }: { session: Session }) {
           <h3>Bonjour {session.firstName} {session.lastName},</h3>
           <p>
             Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
-            pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>542 000 FCFA</strong>,
-            dont <strong>58 000 FCFA</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
+            pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>{`542 000 ${currencySuffix()}`}</strong>,
+            dont <strong>{`58 000 ${currencySuffix()}`}</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
           </p>
         </div>
         <span className="salarie-dash-illustration" aria-hidden="true">
@@ -1361,12 +1362,12 @@ const penalitesDetails = [
 ]
 
 const remuStats = [
-  { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(2000000), unit: 'FCFA', sub: 'Fixe mensuel' },
-  { icon: Gift, iconClass: 'prime', label: 'Primes du mois', value: frMontant(58000), unit: 'FCFA', sub: 'Selon résultats' },
-  { icon: Clock, iconClass: 'rattrapage', label: 'Prime de rattrapage', value: frMontant(40000), unit: 'FCFA', sub: 'Ajustement exceptionnel', tooltip: 'Régularisation exceptionnelle décidée par le pilotage.' },
+  { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(2000000), unit: currencySuffix(), sub: 'Fixe mensuel' },
+  { icon: Gift, iconClass: 'prime', label: 'Primes du mois', value: frMontant(58000), unit: currencySuffix(), sub: 'Selon résultats' },
+  { icon: Clock, iconClass: 'rattrapage', label: 'Prime de rattrapage', value: frMontant(40000), unit: currencySuffix(), sub: 'Ajustement exceptionnel', tooltip: 'Régularisation exceptionnelle décidée par le pilotage.' },
   { icon: Percent, iconClass: 'taux', label: 'Taux de charges sociales', value: '10,5', unit: '%', sub: 'Employeur' },
-  { icon: ArrowDownToLine, iconClass: 'deductions', label: 'Total déductions', value: `- ${frMontant(totalDeductionsLegales + totalPenalites)}`, unit: 'FCFA', sub: 'Retenues & sanctions' },
-  { icon: Wallet2, iconClass: 'net', label: 'Net à payer', value: frMontant(netAPayer), unit: 'FCFA', sub: 'Après déductions' },
+  { icon: ArrowDownToLine, iconClass: 'deductions', label: 'Total déductions', value: `- ${frMontant(totalDeductionsLegales + totalPenalites)}`, unit: currencySuffix(), sub: 'Retenues & sanctions' },
+  { icon: Wallet2, iconClass: 'net', label: 'Net à payer', value: frMontant(netAPayer), unit: currencySuffix(), sub: 'Après déductions' },
 ]
 
 const repartitionElements = [
@@ -1422,7 +1423,7 @@ function RemuDonut() {
         </g>
         <text x={center} y={center - 6} textAnchor="middle" className="salarie-donut-label">Total brut</text>
         <text x={center} y={center + 14} textAnchor="middle" className="salarie-donut-total">{frMontant(totalPositifs)}</text>
-        <text x={center} y={center + 30} textAnchor="middle" className="salarie-donut-label">FCFA</text>
+        <text x={center} y={center + 30} textAnchor="middle" className="salarie-donut-label">{currencySuffix()}</text>
       </svg>
       <ul className="salarie-donut-legend remu">
         {segments.map((segment) => (
@@ -1431,7 +1432,7 @@ function RemuDonut() {
             <strong>{segment.name}</strong>
             <div className="salarie-remu-legend-values">
               <b>{frNumber(segment.percent, 1)}%</b>
-              <small>{frMontant(segment.montant)} FCFA</small>
+              <small>{frMontant(segment.montant)} {currencySuffix()}</small>
             </div>
           </li>
         ))}
@@ -1497,7 +1498,7 @@ function RemunerationTab() {
                 <div className="salarie-remu-total net"><span>Net à payer (A - B - C)</span><b>{frMontant(netAPayer)}</b></div>
               </div>
             </div>
-            <Note>Les montants sont exprimés en FCFA.</Note>
+            <Note>{`Les montants sont exprimés en ${currencySuffix()}.`}</Note>
           </section>
         )}
 
@@ -1515,7 +1516,7 @@ function RemunerationTab() {
               <div className="salarie-table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Type de pénalité</th><th>Motif</th><th>Montant (FCFA)</th><th>Statut</th></tr>
+                    <tr><th>Type de pénalité</th><th>Motif</th><th>{`Montant (${currencySuffix()})`}</th><th>Statut</th></tr>
                   </thead>
                   <tbody>
                     {penalitesDetails.map((ligne) => (
@@ -1529,7 +1530,7 @@ function RemunerationTab() {
                   </tbody>
                 </table>
               </div>
-              <div className="salarie-remu-total penalites"><span>Total pénalités</span><b>- {frMontant(totalPenalites)} FCFA</b></div>
+              <div className="salarie-remu-total penalites"><span>Total pénalités</span><b>- {frMontant(totalPenalites)} {currencySuffix()}</b></div>
             </section>
           )}
 
@@ -1538,7 +1539,7 @@ function RemunerationTab() {
             <div>
               <strong>Informations importantes</strong>
               <ul>
-                <li>La valeur d’un EHS est fixée à 3 000 FCFA.</li>
+                <li>{`La valeur d’un EHS est fixée à 3 000 ${currencySuffix()}.`}</li>
                 <li>Les primes sont calculées selon les critères définis par le pilotage.</li>
                 <li>Les bulletins de paie sont disponibles après validation.</li>
               </ul>

@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 
 from .models import (
     AvanceDemande, CongeDemande, CongeType, FermetureTechnique, LigneBudgetaire, Organisation,
-    Project, ProjectLigne, Task, TaskAssignment, TaskTemplate, Team, User,
+    Project, ProjectLigne, PublicHoliday, Task, TaskAssignment, TaskTemplate, Team, User,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -35,6 +35,7 @@ from .serializers import (
     OrganisationSearchSerializer,
     ProjectLigneSerializer,
     ProjectSerializer,
+    PublicHolidaySerializer,
     RegisterCompanyOrganisationSerializer,
     RegisterMemberSerializer,
     RegisterPersonalOrganisationSerializer,
@@ -371,6 +372,47 @@ class CongeTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
             raise PermissionDenied('Ce type de congé par défaut ne peut pas être supprimé.')
         if instance.demandes.exists():
             raise ValidationError({'detail': 'Ce type est utilisé par des demandes existantes : désactivez-le plutôt que de le supprimer.'})
+        instance.delete()
+
+
+class PublicHolidayListCreateView(generics.ListCreateAPIView):
+    """Jours fériés de l'organisation (Paramètres > EHS) : consultés par tous, gérés par
+    admin/directeur — liste tenue manuellement, propre au pays de l'organisation."""
+    serializer_class = PublicHolidaySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return PublicHoliday.objects.none()
+        return PublicHoliday.objects.filter(organisation=organisation)
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
+        if not self.request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        serializer.save()
+
+
+class PublicHolidayDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = PublicHolidaySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return PublicHoliday.objects.none()
+        return PublicHoliday.objects.filter(organisation=organisation)
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         instance.delete()
 
 

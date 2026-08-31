@@ -10,6 +10,7 @@ import {
   executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment, type TaskExecutionStatut,
 } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import { formatMontant } from '../utils/currency'
 import './ExecuteStaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -53,7 +54,7 @@ function fmtEhs(value: number) {
 }
 
 function fmtFcfa(value: number) {
-  return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA`
+  return formatMontant(value)
 }
 
 function formatDDHHMMSS(totalSeconds: number) {

@@ -6,6 +6,7 @@ import {
 import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
 import { fetchTeams, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
+import { currencySuffix, formatMontant } from '../utils/currency'
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
@@ -20,7 +21,7 @@ const errorMessage = (error: unknown): string => {
   return 'Impossible de contacter le serveur.'
 }
 
-const fmtFcfa = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`
+const fmtFcfa = (n: number) => formatMontant(n)
 const fmtPercent = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
 const fmtDate = (value: string | null) => {
   if (!value) return '-'
@@ -317,7 +318,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
           <label className="field full project-text-field"><span>Nom du client <em>*</em></span><input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
           <label className="field full project-text-field"><span>Description du projet</span><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} rows={4} /></label>
           <div className="form-grid three">
-            <label className="field"><span>Montant HT du projet <em>*</em></span><div className="input-suffix"><input type="number" min={0} value={montant} onChange={(event) => setMontant(Number(event.target.value))} /><i>FCFA</i></div></label>
+            <label className="field"><span>Montant HT du projet <em>*</em></span><div className="input-suffix"><input type="number" min={0} value={montant} onChange={(event) => setMontant(Number(event.target.value))} /><i>{currencySuffix()}</i></div></label>
             <label className="field"><span>Type de montant <em>*</em></span><select value={typeMontant} onChange={(event) => setTypeMontant(event.target.value as TypeMontant)}><option value="HT">HT</option><option value="TTC">TTC</option></select></label>
             <label className="field"><span>Marge (%) <em>*</em></span><div className="input-suffix"><input type="number" min={0} max={100} value={margePct} onChange={(event) => setMargePct(Number(event.target.value))} /><i>%</i></div></label>
             <label className="field"><span>Charges transversales (%) <em>*</em></span><div className="input-suffix"><input type="number" min={0} max={100} value={chargesPct} onChange={(event) => setChargesPct(Number(event.target.value))} /><i>%</i></div><small>Entre 10% et 15%</small></label>
@@ -387,7 +388,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
           <div className="task-table-wrap">
             <table className="task-table">
-              <thead><tr><th>Code</th><th>Équipe</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>Montant (FCFA)</th><th>Début</th><th>Fin</th></tr></thead>
+              <thead><tr><th>Code</th><th>Équipe</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th></tr></thead>
               <tbody>
                 {lignes.map((ligne) => (
                   <tr key={ligne.id}>
@@ -551,7 +552,7 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
           {error && <p className="form-error">{error}</p>}
           <div className="charge-table-wrap">
             <table>
-              <thead><tr><th>Code</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>Montant (FCFA)</th><th>Début</th><th>Fin</th><th>CRUD</th></tr></thead>
+              <thead><tr><th>Code</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th><th>CRUD</th></tr></thead>
               <tbody>
                 {attributedLignes.map((ligne) => (
                   <tr key={ligne.id}>
@@ -580,15 +581,15 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                     {availableLignes.map((l) => <option key={l.id} value={l.id}>{l.code} — {l.nom} ({l.equipe_code})</option>)}
                   </select>
                 </label>
-                <label className="field"><span>Montant à consommer (FCFA) <em>*</em></span><input type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} /></label>
+                <label className="field"><span>{`Montant à consommer (${currencySuffix()}) `}<em>*</em></span><input type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} /></label>
               </div>
               <p className={`charge-hint${depasseReste ? ' charge-hint-danger' : ''}`}>
-                Budget restant du projet : {resteProjet.toLocaleString('fr-FR')} FCFA{depasseReste ? ' — ce montant le dépasse.' : '.'}
+                Budget restant du projet : {formatMontant(resteProjet)}{depasseReste ? ' — ce montant le dépasse.' : '.'}
               </p>
               {selectedLigne && (
                 <p className={`charge-hint${depassePrevu ? ' charge-hint-danger' : ''}`}>
                   {montantPrevu !== null
-                    ? `Prévu pour cette ligne dans ce projet : ${montantPrevu.toLocaleString('fr-FR')} FCFA${depassePrevu ? ' — ce montant le dépasse.' : '.'}`
+                    ? `Prévu pour cette ligne dans ce projet : ${formatMontant(montantPrevu)}${depassePrevu ? ' — ce montant le dépasse.' : '.'}`
                     : 'Aucun plafond défini pour cette ligne.'}
                 </p>
               )}

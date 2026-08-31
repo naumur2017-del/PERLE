@@ -15,6 +15,7 @@ from .models import (
     Organisation,
     Project,
     ProjectLigne,
+    PublicHoliday,
     Task,
     TaskAssignment,
     TaskTemplate,
@@ -34,7 +35,7 @@ class OrganisationSearchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organisation
-        fields = ['id', 'name', 'email', 'sector', 'city', 'members']
+        fields = ['id', 'name', 'email', 'sector', 'country', 'country_code', 'city', 'currency_code', 'members']
 
     def get_members(self, obj):
         return obj.members.count()
@@ -89,7 +90,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role', 'organisation',
-            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'ville', 'team',
+            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'team',
         ]
 
 
@@ -98,6 +99,8 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
     sector = serializers.CharField(max_length=150)
     phone = serializers.CharField(max_length=30)
     country = serializers.CharField(max_length=100)
+    country_code = serializers.CharField(max_length=2, required=False, allow_blank=True)
+    currency_code = serializers.CharField(max_length=3, required=False, allow_blank=True)
     city = serializers.CharField(max_length=100)
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
@@ -122,7 +125,9 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
             email=validated_data['email'],
             phone=validated_data['phone'],
             country=validated_data['country'],
+            country_code=validated_data.get('country_code', ''),
             city=validated_data['city'],
+            **({'currency_code': validated_data['currency_code']} if validated_data.get('currency_code') else {}),
         )
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -147,6 +152,8 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
     org_phone = serializers.CharField(max_length=30)
     address = serializers.CharField(max_length=255)
     country = serializers.CharField(max_length=100)
+    country_code = serializers.CharField(max_length=2, required=False, allow_blank=True)
+    currency_code = serializers.CharField(max_length=3, required=False, allow_blank=True)
     city = serializers.CharField(max_length=100)
     website = serializers.URLField(required=False, allow_blank=True)
 
@@ -179,11 +186,13 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
             email=validated_data['org_email'],
             phone=validated_data['org_phone'],
             country=validated_data['country'],
+            country_code=validated_data.get('country_code', ''),
             city=validated_data['city'],
             address=validated_data['address'],
             website=validated_data.get('website', ''),
             registration_number=validated_data['registration_number'],
             headcount=validated_data['headcount'],
+            **({'currency_code': validated_data['currency_code']} if validated_data.get('currency_code') else {}),
         )
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -210,6 +219,7 @@ class RegisterMemberSerializer(serializers.Serializer):
     matricule = serializers.CharField(max_length=50, required=False, allow_blank=True)
     date_naissance = serializers.DateField()
     pays = serializers.CharField(max_length=100)
+    pays_code = serializers.CharField(max_length=2, required=False, allow_blank=True)
     ville = serializers.CharField(max_length=100)
 
     def validate_email(self, value):
@@ -231,6 +241,7 @@ class RegisterMemberSerializer(serializers.Serializer):
             matricule=validated_data.get('matricule', ''),
             date_naissance=validated_data['date_naissance'],
             pays=validated_data['pays'],
+            pays_code=validated_data.get('pays_code', ''),
             ville=validated_data['ville'],
             role='salarie',
             organisation=validated_data['organisation'],
@@ -295,7 +306,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
-            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'is_active',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'is_active',
             'team', 'date_joined', 'date_embauche',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
             'type_contrat', 'periode_essai', 'temps_travail',
@@ -316,7 +327,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
@@ -383,7 +394,7 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
@@ -439,7 +450,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
-            'date_naissance', 'pays', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
+            'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
             'departement', 'responsable_hierarchique', 'date_embauche', 'type_contrat',
             'periode_essai', 'temps_travail', 'anciennete',
@@ -553,6 +564,38 @@ class CongeTypeSerializer(serializers.ModelSerializer):
         organisation = self.context['request'].user.organisation
         validated_data['categorie'] = 'standard'
         return CongeType.objects.create(organisation=organisation, **validated_data)
+
+
+class PublicHolidaySerializer(serializers.ModelSerializer):
+    """Jour férié géré manuellement par l'admin/directeur, propre au pays de l'organisation
+    (Paramètres > EHS)."""
+    created_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PublicHoliday
+        fields = ['id', 'nom', 'date', 'recurrente_annuelle', 'created_by_nom', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def validate(self, attrs):
+        request = self.context['request']
+        organisation = request.user.organisation
+        nom = attrs.get('nom', getattr(self.instance, 'nom', None))
+        date = attrs.get('date', getattr(self.instance, 'date', None))
+        qs = PublicHoliday.objects.filter(organisation=organisation, date=date, nom__iexact=nom)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('Ce jour férié est déjà enregistré à cette date.')
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        return PublicHoliday.objects.create(
+            organisation=request.user.organisation, created_by=request.user, **validated_data,
+        )
 
 
 class CongeDemandeSerializer(serializers.ModelSerializer):

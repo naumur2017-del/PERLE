@@ -3,6 +3,7 @@ import {
   Archive, ArrowUpDown, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Copy, Download, ListChecks, Pencil, Plus, Recycle, RotateCcw, Search, Trash2, TrendingUp, Upload,
 } from 'lucide-react'
+import { currencySuffix } from '../utils/currency'
 import './MercurialesPage.css'
 
 type Statut = 'Active' | 'Expirée' | 'Programmée'
@@ -199,7 +200,7 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
                 <th>Catégorie</th>
                 <th>Sous-catégorie</th>
                 <SortHeader sortKey="unite" label="Unité" activeKey={sort.key} onSort={toggleSort} />
-                <SortHeader sortKey="prix" label="Prix de référence (FCFA)" activeKey={sort.key} onSort={toggleSort} />
+                <SortHeader sortKey="prix" label={`Prix de référence (${currencySuffix()})`} activeKey={sort.key} onSort={toggleSort} />
                 <SortHeader sortKey="dateEffet" label="Date d'effet" activeKey={sort.key} onSort={toggleSort} />
                 <SortHeader sortKey="dateFin" label="Date de fin" activeKey={sort.key} onSort={toggleSort} />
                 <SortHeader sortKey="statut" label="Statut" activeKey={sort.key} onSort={toggleSort} />

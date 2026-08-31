@@ -7,6 +7,8 @@ import {
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, type Employee, type StatutEmploye, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
+import CountrySelect from '../components/CountrySelect'
+import RegionSelect from '../components/RegionSelect'
 import './GestionEquipesPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -378,6 +380,7 @@ type CreateEmployeeForm = {
   matricule: string
   date_naissance: string
   pays: string
+  pays_code: string
   ville: string
   statut: StatutEmploye
   grade: string
@@ -410,7 +413,7 @@ type Credentials = { name: string; email: string; password: string }
 
 const EMPTY_CREATE_FORM: CreateEmployeeForm = {
   first_name: '', last_name: '', email: '', password: '', phone: '', fonction: '', matricule: '',
-  date_naissance: '', pays: '', ville: '', statut: 'actif', grade: '0', team_id: '', date_embauche: '',
+  date_naissance: '', pays: '', pays_code: '', ville: '', statut: 'actif', grade: '0', team_id: '', date_embauche: '',
   type_contrat: '', periode_essai: '', temps_travail: '', competences_principales: '',
   competences_secondaires: '', cnps: '', contribuable: '', banque: '', compte_bancaire: '',
   groupe_sanguin: '', contact_urgence_nom: '', contact_urgence_telephone: '', assurance_sante: '',
@@ -430,6 +433,7 @@ const employeeToForm = (employee: Employee): CreateEmployeeForm => ({
   matricule: employee.matricule,
   date_naissance: employee.date_naissance ?? '',
   pays: employee.pays,
+  pays_code: employee.pays_code,
   ville: employee.ville,
   statut: employee.statut,
   grade: String(employee.grade),
@@ -533,8 +537,14 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
               <label>Téléphone<input value={form.phone} onChange={handleChange('phone')} /></label>
               <label>Matricule<input value={form.matricule} onChange={handleChange('matricule')} /></label>
               <label>Date de naissance<input type="date" value={form.date_naissance} onChange={handleChange('date_naissance')} /></label>
-              <label>Pays<input value={form.pays} onChange={handleChange('pays')} /></label>
-              <label>Ville<input value={form.ville} onChange={handleChange('ville')} /></label>
+              <CountrySelect
+                name="pays" label="Pays" value={form.pays_code || null}
+                onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '' }))}
+              />
+              <RegionSelect
+                name="ville" label="Ville" countryCode={form.pays_code || null} value={form.ville}
+                onChange={(v) => setForm((previous) => ({ ...previous, ville: v }))}
+              />
               <label>Photo de profil<input type="file" accept="image/*" onChange={handleFile('profile_photo')} /></label>
             </div>
           </fieldset>

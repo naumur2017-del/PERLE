@@ -4,7 +4,10 @@ import {
   ClipboardList, Columns3, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
   RotateCcw, Search, SlidersHorizontal, Users, Wallet,
 } from 'lucide-react'
+import { currencySuffix } from '../utils/currency'
 import './PilotagePage.css'
+
+const MONETAIRE_LABEL = `Total Monétaire (${currencySuffix()})`
 
 interface Project {
   code: string
@@ -288,10 +291,10 @@ const COLUMNS: { id: ColumnId; label: string; group?: string }[] = [
   { id: 'ehsConsomme', label: 'Consommé', group: 'Total EHS' },
   { id: 'ehsRestant', label: 'Restant', group: 'Total EHS' },
   { id: 'ehsPct', label: '%', group: 'Total EHS' },
-  { id: 'budgetPrevu', label: 'Prévu', group: 'Total Monétaire (FCFA)' },
-  { id: 'budgetConsomme', label: 'Consommé', group: 'Total Monétaire (FCFA)' },
-  { id: 'budgetRestant', label: 'Restant', group: 'Total Monétaire (FCFA)' },
-  { id: 'budgetPct', label: '%', group: 'Total Monétaire (FCFA)' },
+  { id: 'budgetPrevu', label: 'Prévu', group: MONETAIRE_LABEL },
+  { id: 'budgetConsomme', label: 'Consommé', group: MONETAIRE_LABEL },
+  { id: 'budgetRestant', label: 'Restant', group: MONETAIRE_LABEL },
+  { id: 'budgetPct', label: '%', group: MONETAIRE_LABEL },
   { id: 'eqEhsPrevu', label: 'Prévu', group: 'Équivalent EHS' },
   { id: 'eqEhsConsomme', label: 'Consommé', group: 'Équivalent EHS' },
   { id: 'eqEhsRestant', label: 'Restant', group: 'Équivalent EHS' },
@@ -354,7 +357,7 @@ const KPIS = [
   { icon: <Briefcase size={18} />, tone: 'purple', label: 'PROJETS ACTIFS', value: '96', sub: '75,00% du total', pct: 75, bar: 75, barColor: '#6b46c1' },
   { icon: <Users size={18} />, tone: 'blue', label: 'EHS CONSOMMÉS', value: '1 746,50 EHS', sub: 'Sur 2 560,00 EHS prévus', pct: 68, bar: 68, barColor: '#3b82f6' },
   { icon: <Boxes size={18} />, tone: 'teal', label: 'ÉQUIVALENCE EHS CONSOMMÉ', value: '1 324,60 EHS', sub: 'Sur 1 950,00 EHS prévus', pct: 68, bar: 68, barColor: '#0d9488' },
-  { icon: <Wallet size={18} />, tone: 'green', label: 'MONTANTS CONSOMMÉS', value: '682 400 000 FCFA', sub: 'Sur 980 000 000 FCFA prévus', pct: 70, bar: 70, barColor: '#16a34a' },
+  { icon: <Wallet size={18} />, tone: 'green', label: 'MONTANTS CONSOMMÉS', value: `682 400 000 ${currencySuffix()}`, sub: `Sur 980 000 000 ${currencySuffix()} prévus`, pct: 70, bar: 70, barColor: '#16a34a' },
   { icon: <Hourglass size={18} />, tone: 'slate', label: 'DURÉE CONSOMMÉE', value: '165 jours', sub: 'Sur 245 jours prévus', pct: 67, bar: 67, barColor: '#4c3a8f' },
   { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: '62%', sub: 'Taux global opérationnel', pct: 62, bar: 62, barColor: '#4338ca' },
 ]
@@ -607,7 +610,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
                                 <tr>
                                   <th colSpan={3}>Lignes budgétaires</th>
                                   <th colSpan={3}>Total EHS</th>
-                                  <th colSpan={3}>Total Monétaire (FCFA)</th>
+                                  <th colSpan={3}>{MONETAIRE_LABEL}</th>
                                   <th colSpan={3}>Équivalent EHS</th>
                                   <th colSpan={3}>Progression</th>
                                   <th rowSpan={2}>Actions</th>
@@ -664,7 +667,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
         <div className="pil-table-note">
           <Info size={14} />
           <p>
-            <strong>Logique de calcul du Statut :</strong> pour les colonnes Total EHS, Total Monétaire (FCFA) et Équivalent EHS, le taux <b>Consommé / Prévu</b> détermine un niveau de risque —
+            <strong>Logique de calcul du Statut :</strong> pour les colonnes Total EHS, {MONETAIRE_LABEL} et Équivalent EHS, le taux <b>Consommé / Prévu</b> détermine un niveau de risque —
             {' '}<b>0 à 25 % = Faible (A)</b>, <b>26 à 50 % = Modérée (B)</b>, <b>51 à 75 % = Élevée (C)</b>, <b>76 % et plus = Critique (D)</b>.
             {' '}La colonne <b>Statut</b> reprend ces trois lettres, dans l'ordre EHS, Monétaire puis Équivalent EHS, pour donner une vue synthétique du niveau de risque du projet.
           </p>

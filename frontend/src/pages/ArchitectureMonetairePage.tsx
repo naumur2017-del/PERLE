@@ -10,6 +10,7 @@ import {
 } from '../api/architectureMonetaire'
 import { fetchTeams, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
+import { formatMontant } from '../utils/currency'
 import './ArchitectureMonetairePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -387,7 +388,7 @@ export default function ArchitectureMonetairePage() {
                     <td>{ligne.equipe_code}</td>
                     <td><span className="ge-pill am-niveau-pill">{ligne.niveau}</span></td>
                     <td className="am-declinaison">{ligne.declinaison || '—'}</td>
-                    <td>{ligne.montant_prevu != null ? `${ligne.montant_prevu.toLocaleString('fr-FR')} FCFA` : '—'}</td>
+                    <td>{ligne.montant_prevu != null ? formatMontant(ligne.montant_prevu) : '—'}</td>
                     <td>
                       <RowActionsMenu
                         ligne={ligne}

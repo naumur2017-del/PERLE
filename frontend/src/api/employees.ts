@@ -35,6 +35,7 @@ export interface Employee {
   matricule: string
   date_naissance: string | null
   pays: string
+  pays_code: string
   ville: string
   statut: StatutEmploye
   grade: number
@@ -117,7 +118,10 @@ export interface OrganisationSummary {
   name: string
   email: string
   sector: string
+  country: string
+  country_code: string
   city: string
+  currency_code: string
   members: number
 }
 
@@ -135,6 +139,7 @@ export interface MeProfile {
   matricule: string
   date_naissance: string | null
   pays: string
+  pays_code: string
   ville: string
   statut: StatutEmploye
   grade: number
@@ -168,7 +173,7 @@ export interface MeProfile {
 
 export type MeProfileEditableFields = Pick<
   MeProfile,
-  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'matricule' | 'date_naissance' | 'pays' | 'ville'
+  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'matricule' | 'date_naissance' | 'pays' | 'pays_code' | 'ville'
   | 'date_embauche' | 'type_contrat' | 'periode_essai'
   | 'temps_travail' | 'competences_principales' | 'competences_secondaires'
   | 'cnps' | 'contribuable' | 'banque' | 'compte_bancaire' | 'groupe_sanguin'

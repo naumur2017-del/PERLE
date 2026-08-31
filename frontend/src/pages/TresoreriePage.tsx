@@ -4,6 +4,7 @@ import {
   CircleDot, Download, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { currencySuffix } from '../utils/currency'
 import './TresoreriePage.css'
 
 interface Brouillon {
@@ -20,11 +21,11 @@ interface Brouillon {
 }
 
 const BROUILLONS: Brouillon[] = [
-  { numero: 'DP-2025-096', dateCreation: '11/06/2025', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00156', montant: 2350000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '11/06/2025' },
-  { numero: 'DP-2025-095', dateCreation: '10/06/2025', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00155', montant: 485000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '10/06/2025' },
-  { numero: 'DP-2025-094', dateCreation: '09/06/2025', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00154', montant: 150000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '09/06/2025' },
-  { numero: 'DP-2025-093', dateCreation: '09/06/2025', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00153', montant: 320000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '09/06/2025' },
-  { numero: 'DP-2025-092', dateCreation: '08/06/2025', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: 'FCFA', statut: 'Brouillon', dateMaj: '08/06/2025' },
+  { numero: 'DP-2025-096', dateCreation: '11/06/2025', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00156', montant: 2350000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '11/06/2025' },
+  { numero: 'DP-2025-095', dateCreation: '10/06/2025', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00155', montant: 485000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '10/06/2025' },
+  { numero: 'DP-2025-094', dateCreation: '09/06/2025', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00154', montant: 150000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '09/06/2025' },
+  { numero: 'DP-2025-093', dateCreation: '09/06/2025', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00153', montant: 320000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '09/06/2025' },
+  { numero: 'DP-2025-092', dateCreation: '08/06/2025', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '08/06/2025' },
 ]
 
 interface HistoriqueEntry {
@@ -73,7 +74,7 @@ const BROUILLON_COLUMNS: ColumnDef<BrouillonColumnId>[] = [
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
   { id: 'fournisseur', label: 'Fournisseur / Bénéficiaire' },
   { id: 'mercurial', label: 'Mercurial' },
-  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'montant', label: `Montant (${currencySuffix()})` },
   { id: 'devise', label: 'Devise' },
   { id: 'statut', label: 'Statut' },
   { id: 'dateMaj', label: 'Dernière mise à jour' },
@@ -122,7 +123,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
       fournisseur: form.fournisseur || '-',
       mercurial: '-',
       montant: Number(form.montant) || 0,
-      devise: 'FCFA',
+      devise: currencySuffix(),
       statut: 'Brouillon',
       dateMaj: today,
     }
@@ -190,11 +191,11 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
             </div>
 
             <div className="tr-request-grid three">
-              <label>Montant demandé (FCFA) <em>*</em>
+              <label>{`Montant demandé (${currencySuffix()}) `}<em>*</em>
                 <input type="number" min="0" value={form.montant} onChange={(event) => updateField('montant', event.target.value)} placeholder="0" />
               </label>
               <label>Devise
-                <input value="FCFA" readOnly />
+                <input value={currencySuffix()} readOnly />
               </label>
               <label>Date de la dépense <em>*</em>
                 <input type="date" value={form.dateDepense} onChange={(event) => updateField('dateDepense', event.target.value)} />
@@ -307,7 +308,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
           <div className="tr-table-wrap">
             <table className="tr-table">
               <thead>
-                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Montant (FCFA)</th><th>Initié par</th><th>Date</th><th>Statut</th></tr>
+                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>{`Montant (${currencySuffix()})`}</th><th>Initié par</th><th>Date</th><th>Statut</th></tr>
               </thead>
               <tbody>
                 {HISTORIQUE.map((entry) => (

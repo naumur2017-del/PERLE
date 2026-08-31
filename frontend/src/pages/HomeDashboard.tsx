@@ -12,6 +12,7 @@ import {
   DIR_PERIOD_LABELS, cashSeries, deliverableSeries, dirAlerts, dirKpi, financeSeries,
   formatFcfa, marginPercent, projects, type DirPeriod,
 } from '../components/dashboard/directorData'
+import { currencySuffix } from '../utils/currency'
 
 const FILTER_KEY = 'perle-direction-filters'
 
@@ -115,7 +116,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
       <KpiCard loading={loading} icon="◉" tone="ok" label="Trésorerie disponible"
         value={formatFcfa(dirKpi.cash)}
         trend={{ direction: 'down', text: `${dirKpi.cashDelta} % vs période précédente`, good: false }}
-        details="Seuil de confort : 80 M FCFA"
+        details={`Seuil de confort : 80 M ${currencySuffix()}`}
         onOpen={() => navigateTo('tresorerie')} />
       <KpiCard loading={loading} icon="⛔" tone="danger" label="Tâches en retard"
         value={String(dirKpi.lateTasks)}

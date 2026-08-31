@@ -5,6 +5,7 @@ import {
   Search, X,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import { currencySuffix } from '../utils/currency'
 import './JournalTresoreriePage.css'
 
 type TypeOperation = 'Entrée' | 'Sortie' | 'Transfert'
@@ -41,9 +42,9 @@ const OPERATIONS: OperationJournal[] = [
 
 const TOTAL_OPERATIONS = 68
 const KPIS = [
-  { icon: ArrowDownToLine, tone: 'blue', label: 'Total entrées', value: '125 450 000 FCFA' },
-  { icon: ArrowUpRight, tone: 'red', label: 'Total sorties', value: '87 320 000 FCFA' },
-  { icon: ArrowLeftRight, tone: 'green', label: 'Total transferts', value: '18 750 000 FCFA' },
+  { icon: ArrowDownToLine, tone: 'blue', label: 'Total entrées', value: `125 450 000 ${currencySuffix()}` },
+  { icon: ArrowUpRight, tone: 'red', label: 'Total sorties', value: `87 320 000 ${currencySuffix()}` },
+  { icon: ArrowLeftRight, tone: 'green', label: 'Total transferts', value: `18 750 000 ${currencySuffix()}` },
   { icon: ListChecks, tone: 'purple', label: "Nombre d'opérations", value: String(TOTAL_OPERATIONS) },
 ]
 
@@ -64,7 +65,7 @@ const JOURNAL_COLUMNS: ColumnDef<JournalColumnId>[] = [
   { id: 'ordonnateur', label: 'Ordonnateur' },
   { id: 'beneficiaire', label: 'Bénéficiaire' },
   { id: 'mercuriale', label: 'Mercuriale' },
-  { id: 'montant', label: 'Montant (FCFA)' },
+  { id: 'montant', label: `Montant (${currencySuffix()})` },
   { id: 'justificatif', label: 'Justificatif' },
   { id: 'executeur', label: 'Exécuteur' },
 ]
@@ -105,7 +106,7 @@ function OperationDetailModal({ operation, onClose }: { operation: OperationJour
         </div>
 
         <div className={`jt-modal-montant jt-modal-montant-${typeTone(operation.type)}`}>
-          <span>{fmtMontant(operation.montant)} FCFA</span>
+          <span>{fmtMontant(operation.montant)} {currencySuffix()}</span>
           <small>{operation.type}</small>
         </div>
 
