@@ -5,10 +5,7 @@ import {
   UserCheck, X, XCircle,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
-import { fetchMe } from '../api/employees'
-import {
-  executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment, type TaskExecutionStatut,
-} from '../api/taskAssignments'
+import { executeTaskAssignmentAction, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
 import './ExecuteStaffingPage.css'
@@ -68,14 +65,35 @@ function formatDDHHMMSS(totalSeconds: number) {
   return `${neg ? '-' : ''}${pad(jours)}:${pad(heures)}:${pad(minutes)}:${pad(secondes)}`
 }
 
-function tempsRestantInfo(echeance: string | null, exec: TaskExecutionStatut, nowMs: number) {
-  if (exec === 'terminee') return { label: 'Terminée', tone: 'done' } as const
-  if (!echeance) return { label: '—', tone: 'ok' } as const
-  const totalSeconds = Math.floor((new Date(echeance).getTime() - nowMs) / 1000)
-  const label = formatDDHHMMSS(totalSeconds)
-  if (totalSeconds < 0) return { label, tone: 'retard' } as const
-  if (totalSeconds <= 3 * 86400) return { label, tone: 'urgent' } as const
+/** Temps réellement travaillé, dérivé en direct de ce qui est confirmé côté serveur
+ * (TaskAssignment.temps_travaille_secondes) plus le segment actif en cours le cas échéant —
+ * jamais un compteur local qui pourrait diverger de ce qui est enregistré en base. */
+function tempsTravailleLive(assignment: TaskAssignment, nowMs: number): number {
+  const base = assignment.temps_travaille_secondes
+  if (assignment.execution_statut === 'en_cours' && assignment.demarree_le) {
+    return base + Math.max(0, (nowMs - new Date(assignment.demarree_le).getTime()) / 1000)
+  }
+  return base
+}
+
+/** Temps restant à la personne pour terminer sa tâche — heures allouées moins temps réellement
+ * travaillé (pas un décompte jusqu'à l'échéance : voir échéanceDepassee ci-dessous pour ça). */
+function tempsRestantTravailInfo(a: TaskAssignment, nowMs: number) {
+  if (a.execution_statut === 'terminee') return { label: 'Terminée', tone: 'done' } as const
+  const alloueesSecondes = a.heures * 3600
+  const restantSecondes = alloueesSecondes - tempsTravailleLive(a, nowMs)
+  const label = formatDDHHMMSS(Math.floor(restantSecondes))
+  if (restantSecondes < 0) return { label, tone: 'retard' } as const
+  if (alloueesSecondes > 0 && restantSecondes <= alloueesSecondes * 0.2) return { label, tone: 'urgent' } as const
   return { label, tone: 'ok' } as const
+}
+
+/** L'échéance de la tâche (date limite fixée par le manager) est-elle déjà dépassée ?
+ * Distinct du temps restant alloué : une tâche peut être en avance sur son quota d'heures
+ * tout en étant après son échéance calendaire, et inversement. */
+function echeanceDepassee(echeance: string | null, exec: TaskExecutionStatut, nowMs: number): boolean {
+  if (exec === 'terminee' || !echeance) return false
+  return new Date(echeance).getTime() - nowMs < 0
 }
 
 const DETAIL_CLOSE_MS = 220
@@ -109,7 +127,7 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (a: T
   echeance: { render: (a) => <span className={a.execution_statut === 'a_demarrer' ? 'es-echeance' : undefined}>{formatDate(a.echeance)}</span> },
   tempsRestant: {
     render: (a, nowMs) => {
-      const info = tempsRestantInfo(a.echeance, a.execution_statut, nowMs)
+      const info = tempsRestantTravailInfo(a, nowMs)
       return <span className={`es-temps-restant es-temps-restant-${info.tone}`}>{info.label}</span>
     },
   },
@@ -118,16 +136,24 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (a: T
 
 interface ExecuteStaffingPageProps {
   navigateTo: (page: string) => void
-  onStartTimer: (code: string, nom: string) => void
-  onToggleTimer: (code: string) => void
-  onStopTimer: (code: string) => void
-  timers: { code: string; running: boolean }[]
+  // « Mes » attributions de tâches viennent de l'App parente — c'est la même source unique que
+  // consomme le minuteur flottant, donc une pause faite ici ou depuis le minuteur reste toujours
+  // synchronisée entre les deux affichages.
+  assignments: TaskAssignment[]
+  loading: boolean
+  loadError: string | null
+  onAssignmentUpdate: (updated: TaskAssignment) => void
+  onAssignmentRemove: (id: number) => void
+  // Code de tâche à ouvrir directement en arrivant (ex. depuis le « Voir » du minuteur flottant) —
+  // sans ça, la tâche en cours/en pause resterait invisible tant qu'on est sur l'onglet
+  // « À démarrer » par défaut.
+  focusCode?: string | null
+  onFocusConsumed?: () => void
 }
 
-export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggleTimer, onStopTimer, timers }: ExecuteStaffingPageProps) {
-  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+export default function ExecuteStaffingPage({
+  navigateTo, assignments, loading, loadError, onAssignmentUpdate, onAssignmentRemove, focusCode, onFocusConsumed,
+}: ExecuteStaffingPageProps) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
 
@@ -143,14 +169,6 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
 
   useEffect(() => {
-    fetchMe()
-      .then((meData) => fetchTaskAssignments({ user: meData.id }))
-      .then((data) => setAssignments(data))
-      .catch(() => setLoadError('Impossible de charger vos tâches à exécuter.'))
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
     const interval = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(interval)
   }, [])
@@ -161,7 +179,6 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
   const equipes = useMemo(() => Array.from(new Set(assignments.map((a) => a.equipe_nom))), [assignments])
 
   const selected = assignments.find((a) => a.id === selectedId) ?? null
-  const timerFor = (assignment: TaskAssignment) => timers.find((tm) => tm.code === assignment.task_code)
 
   const counts: Record<Tab, number> = { a_demarrer: 0, en_cours: 0, en_pause: 0, terminee: 0 }
   assignments.forEach((a) => { counts[a.execution_statut] += 1 })
@@ -186,6 +203,22 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     setSelectedId(assignment.id)
   }
 
+  // Ouvre directement la bonne tâche (et le bon onglet — sinon une tâche en cours/en pause reste
+  // invisible sous « À démarrer », l'onglet par défaut) quand on arrive via une demande externe
+  // (ex. le « Voir » du minuteur flottant). N'agit qu'une fois les données chargées.
+  useEffect(() => {
+    if (!focusCode || loading) return
+    const assignment = assignments.find((a) => a.task_code === focusCode)
+    if (assignment) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusCode), pas dérivé du rendu
+      setPageTab('mes-taches')
+      setActiveTab(assignment.execution_statut)
+      handleSelect(assignment)
+    }
+    onFocusConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSelect est stable pour ce composant ; ne doit réagir qu'à focusCode/loading/assignments
+  }, [focusCode, loading, assignments])
+
   const closePanel = () => {
     setPanelClosing(true)
     closeTimeoutRef.current = window.setTimeout(() => {
@@ -195,23 +228,18 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
     }, DETAIL_CLOSE_MS)
   }
 
-  const applyUpdate = (updated: TaskAssignment) => setAssignments((list) => list.map((a) => a.id === updated.id ? updated : a))
-  const removeAssignment = (id: number) => setAssignments((list) => list.filter((a) => a.id !== id))
-
   const runAction = async (assignment: TaskAssignment, action: 'demarrer' | 'pause' | 'reprendre' | 'terminer' | 'decliner') => {
     setActing(true)
     setActionError(null)
     try {
       const result = await executeTaskAssignmentAction(assignment.id, action)
       // Décliner supprime l'attribution : elle ne m'appartient plus, elle doit disparaître de ma liste.
-      if (action === 'decliner') removeAssignment(assignment.id)
-      else applyUpdate(result as TaskAssignment)
-      if (action === 'demarrer') {
-        if (!timerFor(assignment)) onStartTimer(assignment.task_code, assignment.template_nom)
-      } else if (action === 'pause' || action === 'reprendre') {
-        if (timerFor(assignment)) onToggleTimer(assignment.task_code)
-      } else if (action === 'terminer' || action === 'decliner') {
-        if (timerFor(assignment)) onStopTimer(assignment.task_code)
+      if (action === 'decliner') {
+        onAssignmentRemove(assignment.id)
+      } else {
+        // Écrit dans la source unique partagée avec le minuteur flottant — les deux affichages
+        // restent donc toujours synchronisés, quel que soit celui depuis lequel l'action est faite.
+        onAssignmentUpdate(result as TaskAssignment)
       }
       if (action === 'demarrer') setActiveTab('en_cours')
       if (action === 'decliner') closePanel()
@@ -424,6 +452,9 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                   <div><dt>Échéance</dt><dd className="es-echeance">{formatDate(selected.echeance)}</dd></div>
                   <div><dt>Priorité</dt><dd>{selected.priorite_display}</dd></div>
                   <div><dt>Heures attribuées</dt><dd>{selected.heures} h</dd></div>
+                  {selected.execution_statut !== 'a_demarrer' && (
+                    <div><dt>Temps travaillé</dt><dd className="es-temps-travaille">{formatDDHHMMSS(Math.floor(tempsTravailleLive(selected, nowMs)))}</dd></div>
+                  )}
                   <div><dt>Consommation</dt><dd>{fmtEhs(selected.ehs_consomme)} EHS (grade {selected.user_grade}) · {fmtFcfa(selected.montant_fcfa)}</dd></div>
                   {selected.demarree_le && <div><dt>Démarrée le</dt><dd>{formatDateTime(selected.demarree_le)}</dd></div>}
                   {selected.terminee_le && <div><dt>Terminée le</dt><dd>{formatDateTime(selected.terminee_le)}</dd></div>}
@@ -437,7 +468,7 @@ export default function ExecuteStaffingPage({ navigateTo, onStartTimer, onToggle
                       <span><Info size={13} />Votre réponse au staffing</span>
                       <p>Vous devez démarrer cette tâche pour pouvoir l'exécuter.</p>
                     </div>
-                    {tempsRestantInfo(selected.echeance, selected.execution_statut, nowMs).tone === 'retard' && (
+                    {echeanceDepassee(selected.echeance, selected.execution_statut, nowMs) && (
                       <div className="es-overtime-warning">
                         <AlertTriangle size={15} />
                         <div>

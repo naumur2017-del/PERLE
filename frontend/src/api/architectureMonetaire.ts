@@ -17,7 +17,7 @@ export interface LigneBudgetaire {
 
 export const fetchLignesBudgetaires = () => apiGet<LigneBudgetaire[]>('/architecture-monetaire/lignes/')
 
-export const createLigneBudgetaire = (data: { nom: string; equipe: number; declinaison?: string; montant_prevu?: number | null; parent?: number | null }) =>
+export const createLigneBudgetaire = (data: { code: string; nom: string; equipe: number; declinaison?: string; montant_prevu?: number | null; parent?: number | null }) =>
   apiPost<LigneBudgetaire>('/architecture-monetaire/lignes/', data)
 
 export const updateLigneBudgetaire = (id: number, data: Partial<{ nom: string; equipe: number; declinaison: string; montant_prevu: number | null; actif: boolean }>) =>

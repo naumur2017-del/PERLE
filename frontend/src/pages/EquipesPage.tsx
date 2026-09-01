@@ -18,6 +18,20 @@ const initiales = (first: string, last: string) => `${first[0] ?? ''}${last[0] ?
 const couleurPour = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.length]
 const nomComplet = (person: { first_name: string; last_name: string }) => `${person.first_name} ${person.last_name}`
 
+/** Toute équipe déjà sous `rootId` (directement ou via une chaîne de sous-équipes) — à exclure
+ * du choix d'équipe de direction pour éviter une boucle hiérarchique évidente côté client (le
+ * backend revalide de toute façon). */
+const getDescendantIds = (teams: Team[], rootId: number): Set<number> => {
+  const ids = new Set<number>()
+  const walk = (id: number) => {
+    for (const child of teams.filter((t) => t.parent === id)) {
+      if (!ids.has(child.id)) { ids.add(child.id); walk(child.id) }
+    }
+  }
+  walk(rootId)
+  return ids
+}
+
 const errorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
     const payload = error.payload as Record<string, unknown> | null
@@ -49,9 +63,16 @@ function SortHeader({ sortKey, label, activeKey, onSort }: { sortKey: SortKey; l
   )
 }
 
-function CreateEquipeModal({ employees, onClose, onCreate }: { employees: Employee[]; onClose: () => void; onCreate: (nom: string, managerId: number | null, memberIds: number[]) => Promise<void> }) {
+function CreateEquipeModal({ employees, teams, onClose, onCreate }: {
+  employees: Employee[]
+  teams: Team[]
+  onClose: () => void
+  onCreate: (code: string, nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => Promise<void>
+}) {
+  const [code, setCode] = useState('')
   const [nom, setNom] = useState('')
   const [managerId, setManagerId] = useState<number | null>(null)
+  const [parentId, setParentId] = useState<number | null>(null)
   const [memberIds, setMemberIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,14 +94,14 @@ function CreateEquipeModal({ employees, onClose, onCreate }: { employees: Employ
     if (id !== null && !memberIds.includes(id)) addMembre(id)
   }
 
-  const canCreate = nom.trim() !== '' && !submitting
+  const canCreate = code.trim() !== '' && nom.trim() !== '' && !submitting
 
   const handleSubmit = async () => {
     if (!canCreate) return
     setSubmitting(true)
     setError(null)
     try {
-      await onCreate(nom.trim(), managerId, memberIds.filter((id) => id !== managerId))
+      await onCreate(code.trim(), nom.trim(), managerId, parentId, memberIds.filter((id) => id !== managerId))
     } catch (err) {
       setError(errorMessage(err))
       setSubmitting(false)
@@ -93,16 +114,30 @@ function CreateEquipeModal({ employees, onClose, onCreate }: { employees: Employ
         <div className="eq-modal-head">
           <div>
             <h3>Créer une équipe</h3>
-            <p>Définissez son nom, son manager et ses membres.</p>
+            <p>Définissez son code, son nom, son manager et ses membres.</p>
           </div>
           <button type="button" className="eq-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
 
         {error && <p className="form-error">{error}</p>}
 
-        <label className="eq-modal-field">Nom de l'équipe *
-          <input autoFocus placeholder="Ex. Support Client" value={nom} onChange={(event) => setNom(event.target.value)} />
+        <label className="eq-modal-field">Code de l'équipe *
+          <input autoFocus placeholder="Ex. EQ-COM" value={code} onChange={(event) => setCode(event.target.value)} />
         </label>
+
+        <label className="eq-modal-field">Nom de l'équipe *
+          <input placeholder="Ex. Support Client" value={nom} onChange={(event) => setNom(event.target.value)} />
+        </label>
+
+        <label className="eq-modal-field">Équipe de direction (facultatif)
+          <select value={parentId ?? ''} onChange={(event) => setParentId(event.target.value ? Number(event.target.value) : null)}>
+            <option value="">Aucune — équipe racine</option>
+            {teams.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+          </select>
+        </label>
+        {parentId !== null && (
+          <p className="eq-modal-hint">Cette équipe apparaîtra comme sous-équipe de « {teams.find((t) => t.id === parentId)?.name} » sur l'organigramme.</p>
+        )}
 
         <label className="eq-modal-field">Manager
           <select value={managerId ?? ''} onChange={(event) => chooseManager(event.target.value ? Number(event.target.value) : null)}>
@@ -148,16 +183,21 @@ function CreateEquipeModal({ employees, onClose, onCreate }: { employees: Employ
   )
 }
 
-function EditEquipeModal({ team, employees, onClose, onSave }: {
+function EditEquipeModal({ team, employees, teams, onClose, onSave }: {
   team: Team
   employees: Employee[]
+  teams: Team[]
   onClose: () => void
-  onSave: (name: string, managerId: number | null) => Promise<void>
+  onSave: (name: string, managerId: number | null, parentId: number | null) => Promise<void>
 }) {
   const [nom, setNom] = useState(team.name)
   const [managerId, setManagerId] = useState<number | null>(team.manager?.id ?? null)
+  const [parentId, setParentId] = useState<number | null>(team.parent)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const excluded = useMemo(() => getDescendantIds(teams, team.id), [teams, team.id])
+  const parentOptions = teams.filter((t) => t.id !== team.id && !excluded.has(t.id))
 
   const canSave = nom.trim() !== '' && !submitting
 
@@ -166,7 +206,7 @@ function EditEquipeModal({ team, employees, onClose, onSave }: {
     setSubmitting(true)
     setError(null)
     try {
-      await onSave(nom.trim(), managerId)
+      await onSave(nom.trim(), managerId, parentId)
     } catch (err) {
       setError(errorMessage(err))
       setSubmitting(false)
@@ -179,7 +219,7 @@ function EditEquipeModal({ team, employees, onClose, onSave }: {
         <div className="eq-modal-head">
           <div>
             <h3>Modifier l'équipe</h3>
-            <p>{team.is_protected ? 'Équipe protégée : seul le manager peut être modifié.' : 'Mettez à jour son nom et son manager.'}</p>
+            <p>{team.is_protected ? 'Équipe protégée : seuls le manager et l\'équipe de direction peuvent être modifiés.' : 'Mettez à jour son nom, son manager et son équipe de direction.'}</p>
           </div>
           <button type="button" className="eq-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
@@ -195,6 +235,16 @@ function EditEquipeModal({ team, employees, onClose, onSave }: {
             title={team.is_protected ? 'Le nom de cette équipe protégée ne peut pas être modifié.' : undefined}
           />
         </label>
+
+        <label className="eq-modal-field">Équipe de direction (facultatif)
+          <select value={parentId ?? ''} onChange={(event) => setParentId(event.target.value ? Number(event.target.value) : null)}>
+            <option value="">Aucune — équipe racine</option>
+            {parentOptions.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+          </select>
+        </label>
+        {parentId !== null && (
+          <p className="eq-modal-hint">Cette équipe apparaît comme sous-équipe de « {teams.find((t) => t.id === parentId)?.name} » sur l'organigramme.</p>
+        )}
 
         <label className="eq-modal-field">Manager
           <select value={managerId ?? ''} onChange={(event) => setManagerId(event.target.value ? Number(event.target.value) : null)}>
@@ -330,8 +380,8 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     })
   }
 
-  const handleCreateEquipe = async (nom: string, managerId: number | null, memberIds: number[]) => {
-    const team = await createTeam(nom, managerId)
+  const handleCreateEquipe = async (code: string, nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => {
+    const team = await createTeam(code, nom, managerId, parentId)
     for (const memberId of memberIds) {
       await addTeamMember(team.id, memberId)
     }
@@ -351,8 +401,8 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
     await loadData()
   }
 
-  const handleUpdateEquipe = async (teamId: number, nom: string, managerId: number | null) => {
-    await updateTeam(teamId, { name: nom, manager_id: managerId })
+  const handleUpdateEquipe = async (teamId: number, nom: string, managerId: number | null, parentId: number | null) => {
+    await updateTeam(teamId, { name: nom, manager_id: managerId, parent: parentId })
     await loadData()
     setEditingTeamId(null)
   }
@@ -483,6 +533,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                   <SortHeader sortKey="code" label="Code" activeKey={sort.key} onSort={toggleSort} />
                   <SortHeader sortKey="nom" label="Nom d'équipe" activeKey={sort.key} onSort={toggleSort} />
                   <SortHeader sortKey="manager" label="Manager" activeKey={sort.key} onSort={toggleSort} />
+                  <th>Équipe de direction</th>
                   <SortHeader sortKey="membres" label="Membres" activeKey={sort.key} onSort={toggleSort} />
                   <SortHeader sortKey="membresActifs" label="Membres actifs" activeKey={sort.key} onSort={toggleSort} />
                   <th>Niveau</th>
@@ -491,7 +542,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="eq-empty-row">Aucune équipe ne correspond à votre recherche.</td></tr>
+                  <tr><td colSpan={9} className="eq-empty-row">Aucune équipe ne correspond à votre recherche.</td></tr>
                 )}
                 {filtered.map((equipe) => {
                   const isExpanded = expanded.has(equipe.id)
@@ -522,6 +573,11 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                               <span className="eq-manager-name is-unassigned">Non assigné</span>
                             </div>
                           )}
+                        </td>
+                        <td>
+                          {equipe.parent_name
+                            ? <span className="eq-parent-cell">{equipe.parent_code} — {equipe.parent_name}</span>
+                            : <span className="eq-parent-cell is-root">Équipe racine</span>}
                         </td>
                         <td className="eq-count">{equipe.members.length}</td>
                         <td className={`eq-count ${actifs < equipe.members.length ? 'eq-count-warn' : ''}`}>{actifs}</td>
@@ -554,7 +610,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                       </tr>
                       {isExpanded && (
                         <tr className="eq-detail-row">
-                          <td colSpan={8}>
+                          <td colSpan={9}>
                             <div className="eq-detail-panel">
                               <div className="eq-detail-panel-head">
                                 <span className="eq-detail-panel-title"><Users2 size={14} />Membres de l'équipe</span>
@@ -630,6 +686,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
       {showCreateModal && (
         <CreateEquipeModal
           employees={employees}
+          teams={equipes}
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateEquipe}
         />
@@ -639,8 +696,9 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
         <EditEquipeModal
           team={editingTeam}
           employees={employees}
+          teams={equipes}
           onClose={() => setEditingTeamId(null)}
-          onSave={(nom, managerId) => handleUpdateEquipe(editingTeam.id, nom, managerId)}
+          onSave={(nom, managerId, parentId) => handleUpdateEquipe(editingTeam.id, nom, managerId, parentId)}
         />
       )}
     </section>

@@ -24,8 +24,11 @@ function MemberCard({ member }: { member: TeamMember }) {
   )
 }
 
-function TeamCard({ team }: { team: Team }) {
+/** Une équipe se dessine avec ses membres puis, juste en dessous, ses propres sous-équipes
+ * (celles dont elle est l'équipe de direction) — récursif, sans limite de profondeur. */
+function TeamCard({ team, childrenByParent }: { team: Team; childrenByParent: Map<number, Team[]> }) {
   const orderedMembers = [...team.members].sort((a, b) => Number(b.is_manager) - Number(a.is_manager))
+  const sousEquipes = childrenByParent.get(team.id) ?? []
   return (
     <div className="og-branch">
       <div className={`og-card og-card-team ${team.is_protected ? 'is-protected' : ''}`}>
@@ -37,6 +40,16 @@ function TeamCard({ team }: { team: Team }) {
           ? orderedMembers.map((member) => <MemberCard key={member.id} member={member} />)
           : <p className="og-empty-hint">Aucun membre</p>}
       </div>
+      {sousEquipes.length > 0 && (
+        <div className="og-sub-branches">
+          <span className="og-sub-branches-tag">{sousEquipes.length > 1 ? 'Sous-équipes' : 'Sous-équipe'}</span>
+          {sousEquipes.map((sousEquipe) => (
+            <div className="og-sub-branch" key={sousEquipe.id}>
+              <TeamCard team={sousEquipe} childrenByParent={childrenByParent} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -62,11 +75,26 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
 
   const unassigned = useMemo(() => employees.filter((employee) => !employee.team), [employees])
 
-  /* Chaque niveau d'équipe forme une ligne de l'organigramme : les équipes qui partagent
-     un niveau apparaissent côte à côte sur cette même ligne, triées par niveau croissant. */
+  /* Les sous-équipes (celles ayant une équipe de direction) se dessinent nichées sous leur
+     parent — voir TeamCard — donc seules les équipes racines (sans parent) forment les lignes
+     de niveau de l'organigramme. */
+  const childrenByParent = useMemo(() => {
+    const map = new Map<number, Team[]>()
+    for (const team of teams) {
+      if (team.parent === null) continue
+      const bucket = map.get(team.parent) ?? []
+      bucket.push(team)
+      map.set(team.parent, bucket)
+    }
+    return map
+  }, [teams])
+
+  /* Chaque niveau d'équipe forme une ligne de l'organigramme : les équipes racines qui
+     partagent un niveau apparaissent côte à côte sur cette même ligne, triées par niveau croissant. */
   const levels = useMemo(() => {
     const byNiveau = new Map<number, Team[]>()
     for (const team of teams) {
+      if (team.parent !== null) continue
       const bucket = byNiveau.get(team.niveau) ?? []
       bucket.push(team)
       byNiveau.set(team.niveau, bucket)
@@ -101,7 +129,7 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
               <div className="og-tree-level" key={niveau}>
                 <div className="og-tree-connector"><span className="og-level-tag">Niveau {niveau}</span></div>
                 <div className="og-branches">
-                  {teamsInLevel.map((team) => <TeamCard key={team.id} team={team} />)}
+                  {teamsInLevel.map((team) => <TeamCard key={team.id} team={team} childrenByParent={childrenByParent} />)}
                 </div>
               </div>
             ))}

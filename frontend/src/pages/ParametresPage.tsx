@@ -1,15 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Calendar, CalendarHeart, Gauge, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Calendar, CalendarHeart, Gauge, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import {
   createCongeType, deleteCongeType, fetchCongeTypes, updateCongeType,
   type CongeModePeriode, type CongeType, type CongeUnite,
 } from '../api/demandes'
 import { fetchOrganisationEhs, updateOrganisationEhs } from '../api/organisation'
 import {
-  createPublicHoliday, deletePublicHoliday, fetchPublicHolidays, updatePublicHoliday, type PublicHoliday,
+  createPublicHoliday, deletePublicHoliday, fetchPublicHolidays, syncPublicHolidays, updatePublicHoliday,
+  type PublicHoliday,
 } from '../api/publicHolidays'
 import { ApiError } from '../api/client'
 import { currencySuffix, formatMontant } from '../utils/currency'
+import HolidayCalendar from '../components/HolidayCalendar'
+import DatePicker from '../components/DatePicker'
 import './ParametresPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -293,9 +296,7 @@ function PublicHolidayModal({ initial, onClose, onSubmit }: {
             <input required value={nom} placeholder="Ex. Fête du Travail" onChange={(event) => setNom(event.target.value)} />
           </label>
 
-          <label className="param-field">Date *
-            <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-          </label>
+          <DatePicker label="Date *" className="param-field" required value={date} onChange={setDate} />
 
           <label className="param-checkbox-field">
             <input type="checkbox" checked={recurrente} onChange={(event) => setRecurrente(event.target.checked)} />
@@ -321,16 +322,48 @@ function JoursFeriesTab() {
   const [showCreate, setShowCreate] = useState(false)
   const [editingHoliday, setEditingHoliday] = useState<PublicHoliday | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
-  const loadHolidays = () => fetchPublicHolidays().then(setHolidays)
+  const loadHolidays = () => fetchPublicHolidays()
 
   useEffect(() => {
     let cancelled = false
     loadHolidays()
+      .then(async (list) => {
+        if (cancelled) return
+        setHolidays(list)
+        // Première visite, liste vide : import automatique silencieux (comme Google Calendar),
+        // sans message d'erreur si le pays n'est pas reconnu — l'admin peut toujours saisir à la main.
+        if (list.length === 0) {
+          try {
+            const result = await syncPublicHolidays()
+            if (!cancelled) setHolidays(result.holidays)
+          } catch {
+            /* silencieux : pays non reconnu ou org sans pays défini */
+          }
+        }
+      })
       .catch(() => { if (!cancelled) setLoadError('Impossible de charger les jours fériés.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    setSyncError(null)
+    setSyncMessage(null)
+    try {
+      const result = await syncPublicHolidays()
+      setHolidays(result.holidays)
+      setSyncMessage(result.created > 0 ? `${result.created} jour(s) férié(s) importé(s).` : 'Déjà à jour.')
+    } catch (err) {
+      setSyncError(errorMessage(err))
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleCreate = async (values: PublicHolidayFormValues) => {
     const created = await createPublicHoliday(values)
@@ -338,7 +371,7 @@ function JoursFeriesTab() {
     setShowCreate(false)
   }
 
-  const handleUpdate = async (id: number, values: PublicHolidayFormValues) => {
+  const handleUpdate = async (id: number, values: Partial<PublicHolidayFormValues>) => {
     const updated = await updatePublicHoliday(id, values)
     setHolidays((prev) => prev.map((item) => item.id === id ? updated : item).sort((a, b) => a.date.localeCompare(b.date)))
     setEditingHoliday(null)
@@ -360,21 +393,34 @@ function JoursFeriesTab() {
       <div className="param-tab-heading">
         <div>
           <h2>Jours fériés</h2>
-          <p>Gérez la liste des jours fériés de votre organisation. Ces dates s'appliquent à l'ensemble des équipes et projets.</p>
+          <p>La plupart sont importés automatiquement selon le pays de votre organisation, comme les jours fériés de Google Calendar. Vous pouvez aussi en ajouter, modifier ou supprimer manuellement.</p>
         </div>
-        <button type="button" className="ge-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} />Ajouter un jour férié</button>
+        <div className="param-tab-actions">
+          <button type="button" className="ge-btn-outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={14} className={syncing ? 'param-spin' : ''} />{syncing ? 'Importation…' : 'Importer automatiquement'}
+          </button>
+          <button type="button" className="ge-btn-primary" onClick={() => setShowCreate(true)}><Plus size={14} />Ajouter un jour férié</button>
+        </div>
       </div>
 
       {loading && <p className="ge-detail-empty">Chargement…</p>}
       {loadError && <p className="ge-detail-empty">{loadError}</p>}
       {deleteError && <p className="ge-form-error">{deleteError}</p>}
+      {syncError && <p className="ge-form-error">{syncError}</p>}
+      {syncMessage && <p className="param-hint">{syncMessage}</p>}
+
+      {!loading && !loadError && (
+        <div className="ge-table-panel">
+          <HolidayCalendar holidays={holidays} onCreate={handleCreate} onUpdate={handleUpdate} onDelete={handleDelete} />
+        </div>
+      )}
 
       {!loading && !loadError && (
         <div className="ge-table-panel">
           <div className="ge-table-wrap">
             <table className="ge-table">
               <thead>
-                <tr><th>Nom</th><th>Date</th><th>Récurrence</th><th>Ajouté par</th><th>Actions</th></tr>
+                <tr><th>Nom</th><th>Date</th><th>Récurrence</th><th>Origine</th><th>Ajouté par</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {holidays.map((holiday) => (
@@ -382,6 +428,7 @@ function JoursFeriesTab() {
                     <td><strong>{holiday.nom}</strong></td>
                     <td>{formatHolidayDate(holiday.date)}</td>
                     <td>{holiday.recurrente_annuelle ? 'Chaque année' : 'Cette année seulement'}</td>
+                    <td><span className={`ge-pill ${holiday.source === 'auto' ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{holiday.source === 'auto' ? 'Auto' : 'Manuel'}</span></td>
                     <td>{holiday.created_by_nom ?? '—'}</td>
                     <td className="de-actions">
                       <button type="button" className="ge-row-action" aria-label="Modifier" title="Modifier" onClick={() => setEditingHoliday(holiday)}><Pencil size={13} /></button>
@@ -390,7 +437,7 @@ function JoursFeriesTab() {
                   </tr>
                 ))}
                 {holidays.length === 0 && (
-                  <tr><td colSpan={5} className="ge-detail-empty">Aucun jour férié défini pour le moment.</td></tr>
+                  <tr><td colSpan={6} className="ge-detail-empty">Aucun jour férié défini pour le moment.</td></tr>
                 )}
               </tbody>
             </table>

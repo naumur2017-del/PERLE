@@ -137,6 +137,8 @@
 .es-temps-restant-ok { color: #15803d; }
 .es-temps-restant-urgent { color: #b45309; }
 .es-temps-restant-retard { color: #b91c1c; }
+
+.es-temps-travaille { font-weight: 700; font-variant-numeric: tabular-nums; color: #6b46c1; }
 .es-temps-restant-done { color: #a8a8bd; font-weight: 600; }
 
 .es-priorite { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }

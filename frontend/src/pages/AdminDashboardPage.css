@@ -321,6 +321,7 @@
 
 .adm-range { display: flex; gap: 8px; }
 .adm-range label, .adm-select-labelled { display: flex; flex-direction: column; gap: 4px; color: var(--adm-muted); font-size: 11px; }
+.adm-range .date-picker-trigger { height: 32px; padding: 0 8px; font-size: 11px; border-color: var(--adm-border-strong); }
 .adm-range input, .adm-select-labelled select {
   height: 32px;
   padding: 0 8px;

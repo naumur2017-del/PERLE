@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import {
-  Archive, Building2, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Folder, FolderOpen,
+  Archive, Building2, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Folder, FolderOpen,
   ListChecks, Pencil, Plus, Search, Trash2, UserCheck, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
@@ -15,6 +15,7 @@ import {
   type TaskTemplateDeclenchement, type TaskTemplateFrequence, type TaskTemplatePriorite, type TaskTemplateType,
 } from '../api/taskTemplates'
 import { ApiError } from '../api/client'
+import DatePicker from '../components/DatePicker'
 import './ArchitecturePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -225,9 +226,7 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
                 {equipeOptions.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
               </select>
             </label>
-            <label className="param-field">Échéance *
-              <input required type="date" value={echeance} onChange={(event) => setEcheance(event.target.value)} />
-            </label>
+            <DatePicker label="Échéance *" className="param-field" required value={echeance} onChange={setEcheance} />
 
             <label className="param-checkbox-field">
               <input type="checkbox" checked={transversale} onChange={(event) => handleTransversaleChange(event.target.checked)} />
@@ -380,10 +379,10 @@ function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading
         </select>
 
         <label className="arch-date-filter">Échéance du
-          <input type="date" value={filterEcheanceDebut} onChange={(event) => changeFilter(() => setFilterEcheanceDebut(event.target.value))} />
+          <DatePicker value={filterEcheanceDebut} onChange={(v) => changeFilter(() => setFilterEcheanceDebut(v))} />
         </label>
         <label className="arch-date-filter">au
-          <input type="date" value={filterEcheanceFin} onChange={(event) => changeFilter(() => setFilterEcheanceFin(event.target.value))} />
+          <DatePicker value={filterEcheanceFin} min={filterEcheanceDebut || undefined} onChange={(v) => changeFilter(() => setFilterEcheanceFin(v))} />
         </label>
 
         <label className="arch-search">
@@ -486,14 +485,6 @@ function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading
 const TEMPLATE_TYPE_OPTIONS: { value: TaskTemplateType; label: string }[] = [
   { value: 'dossier', label: 'Dossier' },
   { value: 'tache_elementaire', label: 'Tâche élémentaire' },
-]
-const TEMPLATE_FREQUENCE_OPTIONS: { value: 'ponctuelle' | 'recurrente'; label: string }[] = [
-  { value: 'ponctuelle', label: 'Ponctuelle' },
-  { value: 'recurrente', label: 'Récurrente' },
-]
-const TEMPLATE_DECLENCHEMENT_OPTIONS: { value: 'manuel' | 'automatique'; label: string }[] = [
-  { value: 'manuel', label: 'Manuel' },
-  { value: 'automatique', label: 'Automatique' },
 ]
 
 interface TemplateNode extends TaskTemplate { children: TemplateNode[] }
@@ -598,10 +589,13 @@ function CataloguePanel({ mode, templates, dossiers, teams, onClose, onCreated, 
   const [recurrente, setRecurrente] = useState(seed?.recurrente ?? false)
   const [details, setDetails] = useState(seed?.details ?? '')
   const [explication, setExplication] = useState(seed?.explication ?? '')
-  const [frequence, setFrequence] = useState<TaskTemplateFrequence>(seed?.frequence ?? 'ponctuelle')
-  const [modeDeclenchement, setModeDeclenchement] = useState<TaskTemplateDeclenchement>(seed?.mode_declenchement ?? 'manuel')
-  const [prioriteDefaut, setPrioriteDefaut] = useState<TaskTemplatePriorite>(seed?.priorite_defaut ?? 'moyenne')
-  const [dureeEstimee, setDureeEstimee] = useState(seed?.duree_estimee_heures != null ? String(seed.duree_estimee_heures) : '')
+  // Section « Paramétrage » retirée du formulaire de création/édition (Catalogue des tâches) :
+  // ces valeurs restent envoyées avec leur défaut (ou celui déjà en place en édition) plutôt que
+  // saisies à la main, mais restent affichées en lecture seule dans le détail d'une tâche.
+  const frequence: TaskTemplateFrequence = seed?.frequence ?? 'ponctuelle'
+  const modeDeclenchement: TaskTemplateDeclenchement = seed?.mode_declenchement ?? 'manuel'
+  const prioriteDefaut: TaskTemplatePriorite = seed?.priorite_defaut ?? 'moyenne'
+  const dureeEstimee = seed?.duree_estimee_heures != null ? String(seed.duree_estimee_heures) : ''
   const [actif, setActif] = useState(seed?.actif ?? true)
   const [saving, setSaving] = useState(false)
   const [togglingActif, setTogglingActif] = useState(false)
@@ -785,32 +779,6 @@ function CataloguePanel({ mode, templates, dossiers, teams, onClose, onCreated, 
               </label>
             </div>
           </div>
-
-          {typeElement === 'tache_elementaire' && (
-            <div className="arch-form-section">
-              <span className="arch-form-section-title"><CalendarClock size={12} />Paramétrage</span>
-              <div className="arch-panel-grid">
-                <label className="param-field">Fréquence
-                  <select value={frequence} onChange={(event) => setFrequence(event.target.value as TaskTemplateFrequence)}>
-                    {TEMPLATE_FREQUENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </label>
-                <label className="param-field">Mode de déclenchement
-                  <select value={modeDeclenchement} onChange={(event) => setModeDeclenchement(event.target.value as TaskTemplateDeclenchement)}>
-                    {TEMPLATE_DECLENCHEMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </label>
-                <label className="param-field">Priorité par défaut
-                  <select value={prioriteDefaut} onChange={(event) => setPrioriteDefaut(event.target.value as TaskTemplatePriorite)}>
-                    {PRIORITE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </label>
-                <label className="param-field">Durée estimée (heures)
-                  <input type="number" min={0} step="0.5" value={dureeEstimee} placeholder="-" onChange={(event) => setDureeEstimee(event.target.value)} />
-                </label>
-              </div>
-            </div>
-          )}
 
           <div className="ge-modal-actions">
             <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>

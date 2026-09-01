@@ -1,8 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowRight, Calendar, Clock, Clock3, ClipboardList, Info, Star, User, UserCheck, UserX, Users,
+  Calendar, ClipboardList, Clock, Clock3, Info, Star, User, UserCheck, UserX, Users,
 } from 'lucide-react'
+import { fetchTaskAssignments, type TaskAssignment } from '../api/taskAssignments'
+import { fetchEmployees, fetchTeams, type Employee, type Team } from '../api/employees'
+import { ApiError } from '../api/client'
+import DatePicker from '../components/DatePicker'
 import './PerformanceStaffingPage.css'
+
+const errorMessage = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as Record<string, unknown> | null
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+      if (typeof firstValue === 'string') return firstValue
+      if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0]
+    }
+    return 'La requête a échoué.'
+  }
+  return 'Impossible de contacter le serveur.'
+}
 
 type Tab = 'ehs' | 'temps' | 'notes'
 
@@ -12,160 +29,257 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'notes', label: 'Notes & Performance' },
 ]
 
-const KPIS = [
-  { icon: Users, tone: 'indigo', label: 'EHS consommés / total', value: '1 235 / 2 100', sub: '58,81 %' },
-  { icon: Users, tone: 'orange', label: "Équipe la plus consommatrice d'EHS", value: 'RE - Ressources', sub: '428 EHS (34,65 %)' },
-  { icon: ClipboardList, tone: 'blue', label: 'Nombre total de staffings', value: '245', sub: 'staffings' },
-  { icon: UserCheck, tone: 'green', label: 'Personnes staffées', value: '36', sub: 'personnes' },
-  { icon: UserX, tone: 'red', label: 'Personnes non staffées', value: '6', sub: 'personnes' },
-]
-
-const CONSO_PAR_EQUIPE = [
-  { equipe: 'RE - Ressources', consomme: 428, total: 720, pct: 59.44 },
-  { equipe: 'FO - Front Office', consomme: 312, total: 540, pct: 57.78 },
-  { equipe: 'PI - Pilotage / Ingénierie', consomme: 198, total: 360, pct: 55.00 },
-  { equipe: 'DIR - Direction', consomme: 152, total: 240, pct: 63.33 },
-  { equipe: 'DG - Direction Générale', consomme: 145, total: 240, pct: 60.42 },
-]
-const CONSO_PAR_EQUIPE_TOTAL = { consomme: 1235, total: 2100, pct: 58.81 }
-
-const CONSO_PAR_EMPLOYE = [
-  { nom: 'Essogo Erine', equipe: 'RE', consomme: 162, pct: 13.12 },
-  { nom: 'Ibrahim Mbouombouo', equipe: 'PI', consomme: 128, pct: 10.36 },
-  { nom: 'Pamella Guebediang', equipe: 'PI', consomme: 124, pct: 10.04 },
-  { nom: 'Ajara Lamare', equipe: 'FO', consomme: 118, pct: 9.55 },
-  { nom: 'Herman Tsaffack', equipe: 'RE', consomme: 95, pct: 7.69 },
-]
-const CONSO_PAR_EMPLOYE_TOTAL = { consomme: 627, pct: 50.77 }
-
-const STATUT_STAFFING = [
-  { statut: 'Correctement staffés', tone: 'green', nb: 24, pct: 66.67 },
-  { statut: 'Sous-staffés', tone: 'orange', nb: 8, pct: 22.22 },
-  { statut: 'Surstaffés', tone: 'red', nb: 4, pct: 11.11 },
-]
-const STATUT_STAFFING_TOTAL = { nb: 36, pct: 100 }
-
-const STAFFINGS_PAR_MANAGER = [
-  { nom: 'Ajara Lamare', nb: 78, employes: 32 },
-  { nom: 'Ibrahim Mbouombouo', nb: 62, employes: 28 },
-  { nom: 'Pamella Guebediang', nb: 48, employes: 24 },
-  { nom: 'Théodore Bessala', nb: 32, employes: 18 },
-  { nom: 'Ngando Djakou Garnier', nb: 25, employes: 16 },
-]
-const STAFFINGS_PAR_MANAGER_TOTAL = 245
-
-const STAFFINGS_PAR_EMPLOYE = [
-  { nom: 'Essogo Erine', nb: 32, equipe: 'RE' },
-  { nom: 'Ibrahim Mbouombouo', nb: 28, equipe: 'PI' },
-  { nom: 'Pamella Guebediang', nb: 24, equipe: 'PI' },
-  { nom: 'Ajara Lamare', nb: 22, equipe: 'FO' },
-  { nom: 'Herman Tsaffack', nb: 18, equipe: 'RE' },
-]
-const STAFFINGS_PAR_EMPLOYE_TOTAL = 124
-
-const NON_STAFFES = [
-  { nom: 'Mballa Christian', equipe: 'PI', role: 'Analyste de données', motif: 'Aucune tâche affectée' },
-  { nom: 'Kengne Alice', equipe: 'FO', role: 'Chargée de communication', motif: "En attente d'affectation" },
-  { nom: 'Nana Paul', equipe: 'RE', role: 'Assistant administratif', motif: 'Aucune tâche affectée' },
-  { nom: 'Nguimatsia Bruno', equipe: 'PI', role: 'Développeur', motif: "En attente d'affectation" },
-  { nom: 'Zanga Linda', equipe: 'FO', role: 'Téléopératrice', motif: "En attente d'affectation" },
-  { nom: 'Oumarou Idriss', equipe: 'PI', role: 'Stagiaire', motif: 'Aucune tâche affectée' },
-]
-
-const MOYENNE_HEURES = '71 h 10'
-
-const TEMPS_KPIS = [
-  { icon: Clock, tone: 'indigo', label: 'Heures consommées (total)', value: '2 846 h 30', sub: 'Sur la période sélectionnée' },
-  { icon: Calendar, tone: 'blue', label: 'Jours travaillés (total)', value: '427', sub: 'Jours' },
-  { icon: User, tone: 'purple', label: 'Moyenne d\'heures par personne', value: MOYENNE_HEURES, sub: 'En moyenne' },
-  { icon: Clock3, tone: 'indigo', label: 'Heures prévues (total)', value: '3 560 h 00', sub: 'Taux réalisation : 79,91 %' },
-]
-
-const HEURES_PAR_EQUIPE = [
-  { equipe: 'PI - Pilotage / Ingénierie', heures: '812 h 45', pct: 28.55 },
-  { equipe: 'RE - Ressources', heures: '678 h 20', pct: 23.84 },
-  { equipe: 'FO - Front Office', heures: '562 h 10', pct: 19.75 },
-  { equipe: 'DIR - Direction', heures: '431 h 15', pct: 15.16 },
-  { equipe: 'DG - Direction Générale', heures: '362 h 00', pct: 12.70 },
-]
-const HEURES_PAR_EQUIPE_TOTAL = { heures: '2 846 h 30', pct: 100 }
-
-const HEURES_PAR_PROJET = [
-  { projet: 'PADESCE', heures: '1 124 h 20', pct: 39.50 },
-  { projet: 'TRANSFAGRI', heures: '642 h 15', pct: 22.57 },
-  { projet: 'PASNFI', heures: '418 h 30', pct: 14.71 },
-  { projet: 'CGA - Prestations internes', heures: '352 h 45', pct: 12.39 },
-  { projet: 'Autres projets', heures: '308 h 40', pct: 10.83 },
-]
-const HEURES_PAR_PROJET_TOTAL = { heures: '2 846 h 30', pct: 100 }
-
-const EVOLUTION_HEURES = [
-  { periode: '26/05/2025 - 31/05/2025', consomme: '497 h 30', prevu: '600 h 00', taux: 82.92 },
-  { periode: '19/05/2025 - 25/05/2025', consomme: '586 h 05', prevu: '720 h 00', taux: 81.40 },
-  { periode: '12/05/2025 - 18/05/2025', consomme: '712 h 10', prevu: '900 h 00', taux: 79.12 },
-  { periode: '05/05/2025 - 11/05/2025', consomme: '638 h 15', prevu: '820 h 00', taux: 77.84 },
-  { periode: '01/05/2025 - 04/05/2025', consomme: '412 h 30', prevu: '520 h 00', taux: 79.33 },
-]
-const EVOLUTION_HEURES_TOTAL = { consomme: '2 846 h 30', prevu: '3 560 h 00', taux: 79.91 }
-
-const EMPLOYES_SOUS_MOYENNE = [
-  { nom: 'Mballa Christian', equipe: 'PI - Pilotage / Ingénierie', heures: '42 h 30', ecart: '-28 h 40', pct: 59.74, role: 'Analyste de données' },
-  { nom: 'Kengne Alice', equipe: 'FO - Front Office', heures: '48 h 10', ecart: '-23 h 00', pct: 67.63, role: 'Chargée de communication' },
-  { nom: 'Nana Paul', equipe: 'RE - Ressources', heures: '51 h 20', ecart: '-19 h 50', pct: 72.13, role: 'Assistant administratif' },
-  { nom: 'Nguimatsia Bruno', equipe: 'PI - Pilotage / Ingénierie', heures: '55 h 40', ecart: '-15 h 30', pct: 78.25, role: 'Développeur' },
-  { nom: 'Zanga Linda', equipe: 'FO - Front Office', heures: '58 h 00', ecart: '-13 h 10', pct: 81.56, role: 'Téléopératrice' },
-]
-
 const SUBTITLES: Record<Tab, string> = {
   ehs: 'Suivez la performance de vos équipes et la mobilisation des ressources.',
   temps: 'Suivez la performance de vos équipes et la mobilisation des ressources.',
   notes: 'Suivez la performance de vos équipes et la qualité des réalisations.',
 }
 
-const NOTES_KPIS: { icon: typeof Star; tone: string; label: string; value: string; value2?: string; value2Tone?: string; sub: string }[] = [
-  { icon: Star, tone: 'indigo', label: 'Note moyenne globale', value: '4,18 / 5', sub: 'Sur la période sélectionnée' },
-  { icon: Users, tone: 'green', label: 'Équipe la mieux notée', value: 'PI - Pilotage / Ingénierie', value2: '4,58 / 5', value2Tone: 'green', sub: 'Note moyenne' },
-  { icon: User, tone: 'purple', label: 'Employé le mieux noté', value: 'Essogo Erine', value2: '4,85 / 5', value2Tone: 'blue', sub: 'Note moyenne' },
-  { icon: ClipboardList, tone: 'orange', label: 'Nombre de tâches évaluées', value: '1 248', sub: 'Tâches' },
-]
+const nomComplet = (p: { first_name: string; last_name: string }) => `${p.first_name} ${p.last_name}`
+const fmtHeures = (h: number) => `${h.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} h`
+const fmtEhs = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+const fmtPct = (v: number) => `${v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+const fmtNote = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const NOTE_PAR_EQUIPE = [
-  { equipe: 'PI - Pilotage / Ingénierie', note: 4.58, nb: 312 },
-  { equipe: 'FO - Front Office', note: 4.32, nb: 248 },
-  { equipe: 'RE - Ressources', note: 4.17, nb: 236 },
-  { equipe: 'DIR - Direction', note: 4.05, nb: 184 },
-  { equipe: 'DG - Direction Générale', note: 3.92, nb: 132 },
-]
-
-const NOTE_PAR_EMPLOYE = [
-  { nom: 'Essogo Erine', equipe: 'RE', note: 4.85, nb: 56 },
-  { nom: 'Ibrahim Mbouombouo', equipe: 'PI', note: 4.62, nb: 63 },
-  { nom: 'Pamella Guebediang', equipe: 'PI', note: 4.47, nb: 52 },
-  { nom: 'Ajara Lamare', equipe: 'FO', note: 4.38, nb: 47 },
-  { nom: 'Herman Tsaffack', equipe: 'RE', note: 4.31, nb: 41 },
-]
-
-const NOTE_PAR_MANAGER = [
-  { nom: 'Ajara Lamare', note: 4.36, nb: 187 },
-  { nom: 'Ibrahim Mbouombouo', note: 4.24, nb: 163 },
-  { nom: 'Pamella Guebediang', note: 4.19, nb: 151 },
-  { nom: 'Théodore Bessala', note: 4.05, nb: 128 },
-  { nom: 'Ngando Djakou Garnier', note: 3.98, nb: 98 },
-]
-
-const fmtPct = (value: number) => `${value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`
-const fmtNote = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const statutToneClass = (tone: string) => `pfs-statut-${tone}`
-
-function VoirTout() {
-  return <button type="button" className="pfs-voir-tout">Voir tout <ArrowRight size={14} /></button>
+const mondayOf = (iso: string) => {
+  const d = new Date(iso)
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+}
+const fmtSemaine = (mondayIso: string) => {
+  const monday = new Date(`${mondayIso}T00:00:00`)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const f = (d: Date) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+  return `${f(monday)} → ${f(sunday)}/${sunday.getFullYear()}`
 }
 
 export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const [activeTab, setActiveTab] = useState<Tab>('ehs')
   const [filterProjet, setFilterProjet] = useState('Tous')
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
   const [filterManager, setFilterManager] = useState('Tous')
+  const [dateDebut, setDateDebut] = useState('')
+  const [dateFin, setDateFin] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchTaskAssignments(), fetchEmployees(), fetchTeams()])
+      .then(([assignmentsData, employeesData, teamsData]) => {
+        if (cancelled) return
+        setAssignments(assignmentsData)
+        setEmployees(employeesData)
+        setTeams(teamsData)
+      })
+      .catch((err) => { if (!cancelled) setLoadError(errorMessage(err)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const managerByEquipeCode = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const team of teams) if (team.manager) map.set(team.code, nomComplet(team.manager))
+    return map
+  }, [teams])
+
+  const projets = useMemo(
+    () => Array.from(new Set(assignments.map((a) => a.project_nom).filter((p): p is string => !!p))).sort(),
+    [assignments],
+  )
+  const equipes = useMemo(() => Array.from(new Set(assignments.map((a) => a.equipe_nom))).sort(), [assignments])
+  const managers = useMemo(
+    () => Array.from(new Set(teams.filter((t) => t.manager).map((t) => nomComplet(t.manager as NonNullable<Team['manager']>)))).sort(),
+    [teams],
+  )
+
+  const filtered = useMemo(() => assignments.filter((a) => (
+    (filterProjet === 'Tous' || a.project_nom === filterProjet)
+    && (filterEquipe === 'Toutes' || a.equipe_nom === filterEquipe)
+    && (filterManager === 'Tous' || managerByEquipeCode.get(a.equipe_code) === filterManager)
+    && (!dateDebut || a.created_at.slice(0, 10) >= dateDebut)
+    && (!dateFin || a.created_at.slice(0, 10) <= dateFin)
+  )), [assignments, filterProjet, filterEquipe, filterManager, dateDebut, dateFin, managerByEquipeCode])
+
+  // ---------------- EHS & Staffing ----------------
+  const totalEhs = useMemo(() => filtered.reduce((s, a) => s + a.ehs_consomme, 0), [filtered])
+  const staffedUserIds = useMemo(() => new Set(filtered.map((a) => a.user)), [filtered])
+  const nonStaffes = useMemo(
+    () => employees.filter((e) => e.is_active && !staffedUserIds.has(e.id)),
+    [employees, staffedUserIds],
+  )
+
+  const ehsParEquipe = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const a of filtered) map.set(a.equipe_nom, (map.get(a.equipe_nom) ?? 0) + a.ehs_consomme)
+    return Array.from(map.entries())
+      .map(([equipe, ehs]) => ({ equipe, ehs, pct: totalEhs > 0 ? (ehs / totalEhs) * 100 : 0 }))
+      .sort((a, b) => b.ehs - a.ehs)
+  }, [filtered, totalEhs])
+
+  const ehsParEmploye = useMemo(() => {
+    const map = new Map<string, { nom: string; equipe: string; ehs: number }>()
+    for (const a of filtered) {
+      const cur = map.get(a.user_nom) ?? { nom: a.user_nom, equipe: a.equipe_code, ehs: 0 }
+      cur.ehs += a.ehs_consomme
+      map.set(a.user_nom, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.ehs - a.ehs).slice(0, 5)
+  }, [filtered])
+
+  const statutRepartition = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const a of filtered) map.set(a.execution_statut_display, (map.get(a.execution_statut_display) ?? 0) + 1)
+    return Array.from(map.entries()).map(([statut, nb]) => ({ statut, nb, pct: filtered.length > 0 ? (nb / filtered.length) * 100 : 0 }))
+  }, [filtered])
+
+  const staffingsParManager = useMemo(() => {
+    const map = new Map<string, { nom: string; nb: number; employes: Set<number> }>()
+    for (const a of filtered) {
+      const nom = managerByEquipeCode.get(a.equipe_code) ?? 'Non assigné'
+      const cur = map.get(nom) ?? { nom, nb: 0, employes: new Set<number>() }
+      cur.nb += 1
+      cur.employes.add(a.user)
+      map.set(nom, cur)
+    }
+    return Array.from(map.values()).map((v) => ({ nom: v.nom, nb: v.nb, employes: v.employes.size })).sort((a, b) => b.nb - a.nb)
+  }, [filtered, managerByEquipeCode])
+
+  const staffingsParEmploye = useMemo(() => {
+    const map = new Map<string, { nom: string; equipe: string; nb: number }>()
+    for (const a of filtered) {
+      const cur = map.get(a.user_nom) ?? { nom: a.user_nom, equipe: a.equipe_code, nb: 0 }
+      cur.nb += 1
+      map.set(a.user_nom, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.nb - a.nb).slice(0, 5)
+  }, [filtered])
+
+  const equipeTopEhs = ehsParEquipe[0] ?? null
+
+  // ---------------- Temps (heures) ----------------
+  const heuresTravailleesTotal = useMemo(() => filtered.reduce((s, a) => s + a.temps_travaille_secondes / 3600, 0), [filtered])
+  const heuresAlloueesTotal = useMemo(() => filtered.reduce((s, a) => s + a.heures, 0), [filtered])
+  const tauxRealisation = heuresAlloueesTotal > 0 ? (heuresTravailleesTotal / heuresAlloueesTotal) * 100 : 0
+  const moyenneHeuresParPersonne = staffedUserIds.size > 0 ? heuresTravailleesTotal / staffedUserIds.size : 0
+
+  const heuresParEquipe = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const a of filtered) map.set(a.equipe_nom, (map.get(a.equipe_nom) ?? 0) + a.temps_travaille_secondes / 3600)
+    return Array.from(map.entries())
+      .map(([equipe, heures]) => ({ equipe, heures, pct: heuresTravailleesTotal > 0 ? (heures / heuresTravailleesTotal) * 100 : 0 }))
+      .sort((a, b) => b.heures - a.heures)
+  }, [filtered, heuresTravailleesTotal])
+
+  const heuresParProjet = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const a of filtered) {
+      const projet = a.project_nom ?? 'Transversale'
+      map.set(projet, (map.get(projet) ?? 0) + a.temps_travaille_secondes / 3600)
+    }
+    return Array.from(map.entries())
+      .map(([projet, heures]) => ({ projet, heures, pct: heuresTravailleesTotal > 0 ? (heures / heuresTravailleesTotal) * 100 : 0 }))
+      .sort((a, b) => b.heures - a.heures)
+  }, [filtered, heuresTravailleesTotal])
+
+  const evolutionParSemaine = useMemo(() => {
+    const map = new Map<string, { staffings: number; heuresAllouees: number }>()
+    for (const a of filtered) {
+      const semaine = mondayOf(a.created_at)
+      const cur = map.get(semaine) ?? { staffings: 0, heuresAllouees: 0 }
+      cur.staffings += 1
+      cur.heuresAllouees += a.heures
+      map.set(semaine, cur)
+    }
+    return Array.from(map.entries())
+      .map(([semaine, v]) => ({ semaine, ...v }))
+      .sort((a, b) => b.semaine.localeCompare(a.semaine))
+      .slice(0, 6)
+  }, [filtered])
+
+  const employesSousMoyenne = useMemo(() => {
+    const map = new Map<number, { nom: string; equipe: string; heures: number }>()
+    for (const a of filtered) {
+      const cur = map.get(a.user) ?? { nom: a.user_nom, equipe: `${a.equipe_code} — ${a.equipe_nom}`, heures: 0 }
+      cur.heures += a.temps_travaille_secondes / 3600
+      map.set(a.user, cur)
+    }
+    return Array.from(map.values())
+      .filter((x) => x.heures < moyenneHeuresParPersonne)
+      .sort((a, b) => a.heures - b.heures)
+  }, [filtered, moyenneHeuresParPersonne])
+
+  // ---------------- Notes & Performance ----------------
+  const rated = useMemo(() => filtered.filter((a) => a.note !== null), [filtered])
+  const noteMoyenneGlobale = rated.length > 0 ? rated.reduce((s, a) => s + (a.note ?? 0), 0) / rated.length : null
+
+  const noteParEquipe = useMemo(() => {
+    const map = new Map<string, { total: number; nb: number }>()
+    for (const a of rated) {
+      const cur = map.get(a.equipe_nom) ?? { total: 0, nb: 0 }
+      cur.total += a.note ?? 0
+      cur.nb += 1
+      map.set(a.equipe_nom, cur)
+    }
+    return Array.from(map.entries()).map(([equipe, v]) => ({ equipe, note: v.total / v.nb, nb: v.nb })).sort((a, b) => b.note - a.note)
+  }, [rated])
+
+  const noteParEmploye = useMemo(() => {
+    const map = new Map<string, { equipe: string; total: number; nb: number }>()
+    for (const a of rated) {
+      const cur = map.get(a.user_nom) ?? { equipe: a.equipe_code, total: 0, nb: 0 }
+      cur.total += a.note ?? 0
+      cur.nb += 1
+      map.set(a.user_nom, cur)
+    }
+    return Array.from(map.entries()).map(([nom, v]) => ({ nom, equipe: v.equipe, note: v.total / v.nb, nb: v.nb })).sort((a, b) => b.note - a.note)
+  }, [rated])
+
+  const noteParManager = useMemo(() => {
+    const map = new Map<string, { total: number; nb: number }>()
+    for (const a of rated) {
+      const nom = a.notee_par_nom ?? '—'
+      const cur = map.get(nom) ?? { total: 0, nb: 0 }
+      cur.total += a.note ?? 0
+      cur.nb += 1
+      map.set(nom, cur)
+    }
+    return Array.from(map.entries()).map(([nom, v]) => ({ nom, note: v.total / v.nb, nb: v.nb })).sort((a, b) => b.note - a.note)
+  }, [rated])
+
+  const equipeTopNote = noteParEquipe[0] ?? null
+  const employeTopNote = noteParEmploye[0] ?? null
+
+  const KPIS_EHS = [
+    { icon: Users, tone: 'indigo', label: 'EHS consommés (total)', value: `${fmtEhs(totalEhs)} EHS`, sub: `${filtered.length} staffing(s)` },
+    {
+      icon: Users, tone: 'orange', label: "Équipe la plus consommatrice d'EHS",
+      value: equipeTopEhs?.equipe ?? '—',
+      sub: equipeTopEhs ? `${fmtEhs(equipeTopEhs.ehs)} EHS (${fmtPct(equipeTopEhs.pct)})` : 'Aucune donnée',
+    },
+    { icon: ClipboardList, tone: 'blue', label: 'Nombre total de staffings', value: String(filtered.length), sub: 'staffings' },
+    { icon: UserCheck, tone: 'green', label: 'Personnes staffées', value: String(staffedUserIds.size), sub: 'personnes' },
+    { icon: UserX, tone: 'red', label: 'Personnes non staffées', value: String(nonStaffes.length), sub: 'parmi les actifs' },
+  ]
+
+  const TEMPS_KPIS = [
+    { icon: Clock, tone: 'indigo', label: 'Heures travaillées (total)', value: fmtHeures(heuresTravailleesTotal), sub: 'Sur la période sélectionnée' },
+    { icon: Clock3, tone: 'blue', label: 'Heures allouées (total)', value: fmtHeures(heuresAlloueesTotal), sub: `Taux de réalisation : ${fmtPct(tauxRealisation)}` },
+    { icon: User, tone: 'purple', label: "Moyenne d'heures travaillées / personne", value: fmtHeures(moyenneHeuresParPersonne), sub: 'Parmi les personnes staffées' },
+    { icon: Calendar, tone: 'indigo', label: 'Équivalent jours travaillés (8h)', value: (heuresTravailleesTotal / 8).toLocaleString('fr-FR', { maximumFractionDigits: 1 }), sub: 'Jours' },
+  ]
+
+  const NOTES_KPIS = [
+    { icon: Star, tone: 'indigo', label: 'Note moyenne globale', value: noteMoyenneGlobale !== null ? `${fmtNote(noteMoyenneGlobale)} / 5` : '—', sub: 'Sur la période sélectionnée' },
+    { icon: Users, tone: 'green', label: 'Équipe la mieux notée', value: equipeTopNote?.equipe ?? '—', value2: equipeTopNote ? `${fmtNote(equipeTopNote.note)} / 5` : undefined, sub: 'Note moyenne' },
+    { icon: User, tone: 'purple', label: 'Employé le mieux noté', value: employeTopNote?.nom ?? '—', value2: employeTopNote ? `${fmtNote(employeTopNote.note)} / 5` : undefined, sub: 'Note moyenne' },
+    { icon: ClipboardList, tone: 'orange', label: 'Tâches évaluées', value: String(rated.length), sub: `Sur ${filtered.length} staffing(s)` },
+  ]
 
   return (
     <section className="pfs-page">
@@ -176,34 +290,24 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
           <button type="button" className="pfs-link-btn" onClick={() => navigateTo('pilotage')}>Voir le pilotage des projets</button>
         </div>
         <div className="pfs-toolbar">
-          <label>Période
-            <button type="button" className="pfs-daterange"><Calendar size={14} />01/05/2025 → 31/05/2025</button>
-          </label>
+          <DatePicker label="Staffé à partir du" value={dateDebut} onChange={setDateDebut} />
+          <DatePicker label="Jusqu'au" value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
           <label>Projet
             <select value={filterProjet} onChange={(e) => setFilterProjet(e.target.value)}>
               <option>Tous</option>
-              <option>ERP Academy</option>
-              <option>Mission Audit Interne</option>
-              <option>Digitalisation RH</option>
+              {projets.map((p) => <option key={p}>{p}</option>)}
             </select>
           </label>
           <label>Équipe
             <select value={filterEquipe} onChange={(e) => setFilterEquipe(e.target.value)}>
               <option>Toutes</option>
-              <option>RE - Ressources</option>
-              <option>FO - Front Office</option>
-              <option>PI - Pilotage / Ingénierie</option>
-              <option>DIR - Direction</option>
-              <option>DG - Direction Générale</option>
+              {equipes.map((e) => <option key={e}>{e}</option>)}
             </select>
           </label>
           <label>Manager
             <select value={filterManager} onChange={(e) => setFilterManager(e.target.value)}>
               <option>Tous</option>
-              <option>Ajara Lamare</option>
-              <option>Ibrahim Mbouombouo</option>
-              <option>Pamella Guebediang</option>
-              <option>Théodore Bessala</option>
+              {managers.map((m) => <option key={m}>{m}</option>)}
             </select>
           </label>
         </div>
@@ -217,406 +321,286 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
         ))}
       </nav>
 
-      {activeTab === 'ehs' ? (
+      {loading && <p className="ge-detail-empty">Chargement…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+
+      {!loading && !loadError && (
         <>
-          <div className="pfs-kpis">
-            {KPIS.map((kpi) => (
-              <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
-                <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
-                <div>
-                  <span className="pfs-kpi-label">{kpi.label}</span>
-                  <strong>{kpi.value}</strong>
-                  <small>{kpi.sub}</small>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="pfs-grid pfs-grid-3">
-            <section className="pfs-panel">
-              <h3>Consommation d'EHS par équipe</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Équipe</th><th>EHS consommés</th><th>EHS total</th><th>% consommation</th></tr></thead>
-                <tbody>
-                  {CONSO_PAR_EQUIPE.map((row) => (
-                    <tr key={row.equipe}>
-                      <td>{row.equipe}</td>
-                      <td>{row.consomme}</td>
-                      <td>{row.total}</td>
-                      <td>{fmtPct(row.pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>TOTAL</td>
-                    <td>{CONSO_PAR_EQUIPE_TOTAL.consomme}</td>
-                    <td>{CONSO_PAR_EQUIPE_TOTAL.total}</td>
-                    <td>{fmtPct(CONSO_PAR_EQUIPE_TOTAL.pct)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Consommation d'EHS par employé (Top 5)</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Employé</th><th>Équipe</th><th>EHS consommés</th><th>% du total EHS</th></tr></thead>
-                <tbody>
-                  {CONSO_PAR_EMPLOYE.map((row) => (
-                    <tr key={row.nom}>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{row.equipe}</td>
-                      <td>{row.consomme}</td>
-                      <td>{fmtPct(row.pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>TOTAL TOP 5</td>
-                    <td>—</td>
-                    <td>{CONSO_PAR_EMPLOYE_TOTAL.consomme}</td>
-                    <td>{fmtPct(CONSO_PAR_EMPLOYE_TOTAL.pct)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Statut de staffing des employés</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Statut</th><th>Nombre de personnes</th><th>%</th></tr></thead>
-                <tbody>
-                  {STATUT_STAFFING.map((row) => (
-                    <tr key={row.statut}>
-                      <td><span className={`pfs-statut ${statutToneClass(row.tone)}`}>{row.statut}</span></td>
-                      <td>{row.nb}</td>
-                      <td>{fmtPct(row.pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>TOTAL</td>
-                    <td>{STATUT_STAFFING_TOTAL.nb}</td>
-                    <td>{STATUT_STAFFING_TOTAL.pct} %</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-          </div>
-
-          <div className="pfs-grid pfs-grid-3">
-            <section className="pfs-panel">
-              <h3>Nombre de staffings par manager</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Manager</th><th>Nombre de staffings</th></tr></thead>
-                <tbody>
-                  {STAFFINGS_PAR_MANAGER.map((row) => (
-                    <tr key={row.nom}><td className="pfs-name">{row.nom}</td><td>{row.nb}</td></tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr><td>TOTAL</td><td>{STAFFINGS_PAR_MANAGER_TOTAL}</td></tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Nombre de staffings par employé (Top 5)</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Employé</th><th>Nombre de staffings</th></tr></thead>
-                <tbody>
-                  {STAFFINGS_PAR_EMPLOYE.map((row) => (
-                    <tr key={row.nom}><td className="pfs-name">{row.nom}</td><td>{row.nb}</td></tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr><td>TOTAL TOP 5</td><td>{STAFFINGS_PAR_EMPLOYE_TOTAL}</td></tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Situation actuelle (personnel non staffé)</h3>
-              <table className="pfs-table">
-                <thead><tr><th>Employé</th><th>Équipe</th><th>Rôle / Fonction</th><th>Motif principal</th></tr></thead>
-                <tbody>
-                  {NON_STAFFES.map((row) => (
-                    <tr key={row.nom}>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{row.equipe}</td>
-                      <td>{row.role}</td>
-                      <td>{row.motif}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr><td>TOTAL</td><td colSpan={3}>{NON_STAFFES.length}</td></tr>
-                </tfoot>
-              </table>
-            </section>
-          </div>
-        </>
-      ) : activeTab === 'temps' ? (
-        <>
-          <div className="pfs-kpis pfs-kpis-4">
-            {TEMPS_KPIS.map((kpi) => (
-              <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
-                <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
-                <div>
-                  <span className="pfs-kpi-label">{kpi.label}</span>
-                  <strong>{kpi.value}</strong>
-                  <small>{kpi.sub}</small>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="pfs-grid pfs-grid-3">
-            <section className="pfs-panel">
-              <h3>Heures consommées par équipe</h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Équipe</th><th>Heures consommées</th><th>% du total</th></tr></thead>
-                <tbody>
-                  {HEURES_PAR_EQUIPE.map((row, index) => (
-                    <tr key={row.equipe}>
-                      <td>{index + 1}</td>
-                      <td>{row.equipe}</td>
-                      <td>{row.heures}</td>
-                      <td>{fmtPct(row.pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={2}>TOTAL</td>
-                    <td>{HEURES_PAR_EQUIPE_TOTAL.heures}</td>
-                    <td>{HEURES_PAR_EQUIPE_TOTAL.pct} %</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Heures consommées par projet</h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Projet</th><th>Heures consommées</th><th>% du total</th></tr></thead>
-                <tbody>
-                  {HEURES_PAR_PROJET.map((row, index) => (
-                    <tr key={row.projet}>
-                      <td>{index + 1}</td>
-                      <td>{row.projet}</td>
-                      <td>{row.heures}</td>
-                      <td>{fmtPct(row.pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={2}>TOTAL</td>
-                    <td>{HEURES_PAR_PROJET_TOTAL.heures}</td>
-                    <td>{HEURES_PAR_PROJET_TOTAL.pct} %</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Évolution de la consommation d'heures</h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Période</th><th>Heures consommées</th><th>Heures prévues</th><th>Taux réalisation</th></tr></thead>
-                <tbody>
-                  {EVOLUTION_HEURES.map((row, index) => (
-                    <tr key={row.periode}>
-                      <td>{index + 1}</td>
-                      <td>{row.periode}</td>
-                      <td>{row.consomme}</td>
-                      <td>{row.prevu}</td>
-                      <td>{fmtPct(row.taux)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={2}>TOTAL PÉRIODE</td>
-                    <td>{EVOLUTION_HEURES_TOTAL.consomme}</td>
-                    <td>{EVOLUTION_HEURES_TOTAL.prevu}</td>
-                    <td>{fmtPct(EVOLUTION_HEURES_TOTAL.taux)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-          </div>
-
-          <section className="pfs-panel">
-            <h3>Employés n'ayant pas atteint la moyenne d'heures ({MOYENNE_HEURES})</h3>
-            <table className="pfs-table">
-              <thead>
-                <tr>
-                  <th>#</th><th>Employé</th><th>Équipe</th><th>Heures consommées</th><th>Écart vs moyenne</th>
-                  <th>% de la moyenne</th><th>Rôle / Fonction</th><th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {EMPLOYES_SOUS_MOYENNE.map((row, index) => (
-                  <tr key={row.nom}>
-                    <td>{index + 1}</td>
-                    <td className="pfs-name">{row.nom}</td>
-                    <td>{row.equipe}</td>
-                    <td>{row.heures}</td>
-                    <td>{row.ecart}</td>
-                    <td>{fmtPct(row.pct)}</td>
-                    <td>{row.role}</td>
-                    <td><span className={`pfs-statut ${statutToneClass('orange')}`}>Sous la moyenne</span></td>
-                  </tr>
+          {activeTab === 'ehs' ? (
+            <>
+              <div className="pfs-kpis">
+                {KPIS_EHS.map((kpi) => (
+                  <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
+                    <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
+                    <div>
+                      <span className="pfs-kpi-label">{kpi.label}</span>
+                      <strong className={kpi.value.length > 14 ? 'pfs-kpi-value-name' : undefined}>{kpi.value}</strong>
+                      <small>{kpi.sub}</small>
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={2}>TOTAL</td>
-                  <td>{EMPLOYES_SOUS_MOYENNE.length} employés</td>
-                  <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-                </tr>
-              </tfoot>
-            </table>
-          </section>
-        </>
-      ) : (
-        <>
-          <div className="pfs-kpis pfs-kpis-4">
-            {NOTES_KPIS.map((kpi) => (
-              <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
-                <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
-                <div>
-                  <span className="pfs-kpi-label">{kpi.label}</span>
-                  <strong className={kpi.value2 ? 'pfs-kpi-value-name' : undefined}>{kpi.value}</strong>
-                  {kpi.value2 && <strong className={`pfs-kpi-value2 tone-${kpi.value2Tone}`}>{kpi.value2}</strong>}
-                  <small>{kpi.sub}</small>
+              </div>
+
+              <div className="pfs-grid pfs-grid-3">
+                <section className="pfs-panel">
+                  <h3>Consommation d'EHS par équipe</h3>
+                  {ehsParEquipe.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Équipe</th><th>EHS consommés</th><th>% du total</th></tr></thead>
+                      <tbody>
+                        {ehsParEquipe.map((row) => (
+                          <tr key={row.equipe}><td>{row.equipe}</td><td>{fmtEhs(row.ehs)}</td><td>{fmtPct(row.pct)}</td></tr>
+                        ))}
+                      </tbody>
+                      <tfoot><tr><td>TOTAL</td><td>{fmtEhs(totalEhs)}</td><td>100,0 %</td></tr></tfoot>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Consommation d'EHS par employé (Top 5)</h3>
+                  {ehsParEmploye.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Employé</th><th>Équipe</th><th>EHS consommés</th></tr></thead>
+                      <tbody>
+                        {ehsParEmploye.map((row) => (
+                          <tr key={row.nom}><td className="pfs-name">{row.nom}</td><td>{row.equipe}</td><td>{fmtEhs(row.ehs)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Répartition par statut d'exécution</h3>
+                  {statutRepartition.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Statut</th><th>Nombre</th><th>%</th></tr></thead>
+                      <tbody>
+                        {statutRepartition.map((row) => (
+                          <tr key={row.statut}><td>{row.statut}</td><td>{row.nb}</td><td>{fmtPct(row.pct)}</td></tr>
+                        ))}
+                      </tbody>
+                      <tfoot><tr><td>TOTAL</td><td>{filtered.length}</td><td>100,0 %</td></tr></tfoot>
+                    </table>
+                  )}
+                </section>
+              </div>
+
+              <div className="pfs-grid pfs-grid-3">
+                <section className="pfs-panel">
+                  <h3>Nombre de staffings par manager</h3>
+                  {staffingsParManager.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Manager</th><th>Staffings</th><th>Employés distincts</th></tr></thead>
+                      <tbody>
+                        {staffingsParManager.map((row) => (
+                          <tr key={row.nom}><td className="pfs-name">{row.nom}</td><td>{row.nb}</td><td>{row.employes}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Nombre de staffings par employé (Top 5)</h3>
+                  {staffingsParEmploye.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Employé</th><th>Staffings</th></tr></thead>
+                      <tbody>
+                        {staffingsParEmploye.map((row) => (
+                          <tr key={row.nom}><td className="pfs-name">{row.nom}</td><td>{row.nb}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Personnel non staffé</h3>
+                  {nonStaffes.length === 0 ? <p className="pfs-empty">Tous les employés actifs ont au moins un staffing.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Employé</th><th>Équipe</th><th>Fonction</th></tr></thead>
+                      <tbody>
+                        {nonStaffes.map((e) => (
+                          <tr key={e.id}>
+                            <td className="pfs-name">{nomComplet(e)}</td>
+                            <td>{e.team ? `${e.team.code} — ${e.team.name}` : '—'}</td>
+                            <td>{e.fonction || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot><tr><td>TOTAL</td><td colSpan={2}>{nonStaffes.length}</td></tr></tfoot>
+                    </table>
+                  )}
+                </section>
+              </div>
+            </>
+          ) : activeTab === 'temps' ? (
+            <>
+              <div className="pfs-kpis pfs-kpis-4">
+                {TEMPS_KPIS.map((kpi) => (
+                  <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
+                    <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
+                    <div>
+                      <span className="pfs-kpi-label">{kpi.label}</span>
+                      <strong>{kpi.value}</strong>
+                      <small>{kpi.sub}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="pfs-grid pfs-grid-3">
+                <section className="pfs-panel">
+                  <h3>Heures travaillées par équipe</h3>
+                  {heuresParEquipe.length === 0 ? <p className="pfs-empty">Aucune heure travaillée sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>#</th><th>Équipe</th><th>Heures</th><th>% du total</th></tr></thead>
+                      <tbody>
+                        {heuresParEquipe.map((row, index) => (
+                          <tr key={row.equipe}><td>{index + 1}</td><td>{row.equipe}</td><td>{fmtHeures(row.heures)}</td><td>{fmtPct(row.pct)}</td></tr>
+                        ))}
+                      </tbody>
+                      <tfoot><tr><td colSpan={2}>TOTAL</td><td>{fmtHeures(heuresTravailleesTotal)}</td><td>100,0 %</td></tr></tfoot>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Heures travaillées par projet</h3>
+                  {heuresParProjet.length === 0 ? <p className="pfs-empty">Aucune heure travaillée sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>#</th><th>Projet</th><th>Heures</th><th>% du total</th></tr></thead>
+                      <tbody>
+                        {heuresParProjet.map((row, index) => (
+                          <tr key={row.projet}><td>{index + 1}</td><td>{row.projet}</td><td>{fmtHeures(row.heures)}</td><td>{fmtPct(row.pct)}</td></tr>
+                        ))}
+                      </tbody>
+                      <tfoot><tr><td colSpan={2}>TOTAL</td><td>{fmtHeures(heuresTravailleesTotal)}</td><td>100,0 %</td></tr></tfoot>
+                    </table>
+                  )}
+                </section>
+
+                <section className="pfs-panel">
+                  <h3>Évolution du staffing par semaine</h3>
+                  {evolutionParSemaine.length === 0 ? <p className="pfs-empty">Aucun staffing sur la période.</p> : (
+                    <table className="pfs-table">
+                      <thead><tr><th>Semaine</th><th>Staffings</th><th>Heures allouées</th></tr></thead>
+                      <tbody>
+                        {evolutionParSemaine.map((row) => (
+                          <tr key={row.semaine}><td>{fmtSemaine(row.semaine)}</td><td>{row.staffings}</td><td>{fmtHeures(row.heuresAllouees)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+              </div>
+
+              <section className="pfs-panel">
+                <h3>Employés sous la moyenne d'heures travaillées ({fmtHeures(moyenneHeuresParPersonne)})</h3>
+                {employesSousMoyenne.length === 0 ? <p className="pfs-empty">Personne sous la moyenne sur la période.</p> : (
+                  <table className="pfs-table">
+                    <thead><tr><th>#</th><th>Employé</th><th>Équipe</th><th>Heures travaillées</th><th>Écart vs moyenne</th><th>Statut</th></tr></thead>
+                    <tbody>
+                      {employesSousMoyenne.map((row, index) => (
+                        <tr key={row.nom}>
+                          <td>{index + 1}</td>
+                          <td className="pfs-name">{row.nom}</td>
+                          <td>{row.equipe}</td>
+                          <td>{fmtHeures(row.heures)}</td>
+                          <td>{fmtHeures(row.heures - moyenneHeuresParPersonne)}</td>
+                          <td><span className="pfs-statut pfs-statut-orange">Sous la moyenne</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            </>
+          ) : (
+            <>
+              <div className="pfs-kpis pfs-kpis-4">
+                {NOTES_KPIS.map((kpi) => (
+                  <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
+                    <span className="pfs-kpi-icon"><kpi.icon size={18} /></span>
+                    <div>
+                      <span className="pfs-kpi-label">{kpi.label}</span>
+                      <strong className={kpi.value2 ? 'pfs-kpi-value-name' : undefined}>{kpi.value}</strong>
+                      {kpi.value2 && <strong className="pfs-kpi-value2 tone-green">{kpi.value2}</strong>}
+                      <small>{kpi.sub}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {rated.length === 0 ? (
+                <p className="pfs-empty">Aucune tâche notée pour le moment — notez un staffing terminé depuis Suivi des staffings.</p>
+              ) : (
+                <div className="pfs-grid pfs-grid-3">
+                  <section className="pfs-panel">
+                    <h3>Note moyenne par équipe <span className="pfs-h3-sub">(classement décroissant)</span></h3>
+                    <table className="pfs-table">
+                      <thead><tr><th>#</th><th>Équipe</th><th>Note (/5)</th><th>Tâches évaluées</th></tr></thead>
+                      <tbody>
+                        {noteParEquipe.map((row, index) => (
+                          <tr key={row.equipe}><td>{index + 1}</td><td>{row.equipe}</td><td>{fmtNote(row.note)}</td><td>{row.nb}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section className="pfs-panel">
+                    <h3>Note moyenne par employé <span className="pfs-h3-sub">(classement décroissant)</span></h3>
+                    <table className="pfs-table">
+                      <thead><tr><th>#</th><th>Employé</th><th>Équipe</th><th>Note (/5)</th><th>Tâches évaluées</th></tr></thead>
+                      <tbody>
+                        {noteParEmploye.map((row, index) => (
+                          <tr key={row.nom}><td>{index + 1}</td><td className="pfs-name">{row.nom}</td><td>{row.equipe}</td><td>{fmtNote(row.note)}</td><td>{row.nb}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section className="pfs-panel">
+                    <h3>Note moyenne donnée par manager <span className="pfs-h3-sub">(classement décroissant)</span></h3>
+                    <table className="pfs-table">
+                      <thead><tr><th>#</th><th>Manager</th><th>Note donnée (/5)</th><th>Tâches évaluées</th></tr></thead>
+                      <tbody>
+                        {noteParManager.map((row, index) => (
+                          <tr key={row.nom}><td>{index + 1}</td><td className="pfs-name">{row.nom}</td><td>{fmtNote(row.note)}</td><td>{row.nb}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
                 </div>
-              </article>
-            ))}
-          </div>
+              )}
+            </>
+          )}
 
-          <div className="pfs-grid pfs-grid-3">
-            <section className="pfs-panel">
-              <h3>Note moyenne par équipe <span className="pfs-h3-sub">(classement décroissant)</span></h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Équipe</th><th>Note moyenne (/5)</th><th>Nombre de tâches évaluées</th></tr></thead>
-                <tbody>
-                  {NOTE_PAR_EQUIPE.map((row, index) => (
-                    <tr key={row.equipe}>
-                      <td>{index + 1}</td>
-                      <td>{row.equipe}</td>
-                      <td>{fmtNote(row.note)}</td>
-                      <td>{row.nb}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <VoirTout />
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Note moyenne par employé <span className="pfs-h3-sub">(classement décroissant)</span></h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Employé</th><th>Équipe</th><th>Note moyenne (/5)</th><th>Nombre de tâches évaluées</th></tr></thead>
-                <tbody>
-                  {NOTE_PAR_EMPLOYE.map((row, index) => (
-                    <tr key={row.nom}>
-                      <td>{index + 1}</td>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{row.equipe}</td>
-                      <td>{fmtNote(row.note)}</td>
-                      <td>{row.nb}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <VoirTout />
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Note moyenne donnée par manager <span className="pfs-h3-sub">(classement décroissant)</span></h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Manager</th><th>Note moyenne donnée (/5)</th><th>Nombre de tâches évaluées</th></tr></thead>
-                <tbody>
-                  {NOTE_PAR_MANAGER.map((row, index) => (
-                    <tr key={row.nom}>
-                      <td>{index + 1}</td>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{fmtNote(row.note)}</td>
-                      <td>{row.nb}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <VoirTout />
-            </section>
-          </div>
-
-          <div className="pfs-grid pfs-grid-2">
-            <section className="pfs-panel">
-              <h3>Nombre de staffings par manager <span className="pfs-h3-sub">(classement décroissant)</span></h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Manager</th><th>Nombre de staffings réalisés</th><th>Nombre d'employés staffés</th></tr></thead>
-                <tbody>
-                  {STAFFINGS_PAR_MANAGER.map((row, index) => (
-                    <tr key={row.nom}>
-                      <td>{index + 1}</td>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{row.nb}</td>
-                      <td>{row.employes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <VoirTout />
-            </section>
-
-            <section className="pfs-panel">
-              <h3>Nombre de staffings par employé <span className="pfs-h3-sub">(classement décroissant)</span></h3>
-              <table className="pfs-table">
-                <thead><tr><th>#</th><th>Employé</th><th>Nombre de staffings</th><th>Équipe</th></tr></thead>
-                <tbody>
-                  {STAFFINGS_PAR_EMPLOYE.map((row, index) => (
-                    <tr key={row.nom}>
-                      <td>{index + 1}</td>
-                      <td className="pfs-name">{row.nom}</td>
-                      <td>{row.nb}</td>
-                      <td>{row.equipe}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <VoirTout />
-            </section>
-          </div>
+          {activeTab === 'ehs' ? (
+            <div className="pfs-info-banner">
+              <Info size={14} />
+              <span>Les données sont calculées en direct sur les staffings réels de l'organisation, selon la période et les filtres appliqués.</span>
+            </div>
+          ) : activeTab === 'temps' ? (
+            <div className="pfs-info-banner pfs-info-banner-stack">
+              <Info size={14} />
+              <div>
+                <p>Les heures travaillées correspondent au temps réellement enregistré via Exécuté staffing (démarrer/pause/reprendre/terminer).</p>
+                <p>Les heures allouées sont celles attribuées à chaque personne au moment du staffing.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="pfs-info-banner pfs-info-banner-stack">
+              <Info size={14} />
+              <div>
+                <p>Les notes sont attribuées par le manager depuis Suivi des staffings, une fois la tâche terminée.</p>
+                <p>La note moyenne globale est pondérée sur le nombre de tâches évaluées.</p>
+              </div>
+            </div>
+          )}
         </>
-      )}
-
-      {activeTab === 'ehs' ? (
-        <div className="pfs-info-banner">
-          <Info size={14} />
-          <span>Les données sont calculées sur la période sélectionnée et selon les filtres appliqués.</span>
-        </div>
-      ) : activeTab === 'temps' ? (
-        <div className="pfs-info-banner pfs-info-banner-stack">
-          <Info size={14} />
-          <div>
-            <p>Les heures consommées correspondent aux heures réellement imputées aux tâches via le module Staffing.</p>
-            <p>Les heures prévues proviennent des plannings et des estimations initiales des projets.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="pfs-info-banner pfs-info-banner-stack">
-          <Info size={14} />
-          <div>
-            <p>Les notes sont attribuées par les managers lors de la clôture des tâches dans le module Staffing.</p>
-            <p>La note moyenne globale est pondérée sur le nombre de tâches évaluées.</p>
-          </div>
-        </div>
       )}
     </section>
   )

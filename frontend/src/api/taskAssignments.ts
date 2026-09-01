@@ -17,6 +17,15 @@ export interface TaskAssignment {
   execution_statut_display: string
   demarree_le: string | null
   terminee_le: string | null
+  /** Secondes confirmées de travail effectif (hors segment actif en cours) — voir
+   * TaskAssignmentExecutionView. Pendant l'exécution (en_cours), le temps « live » réel est
+   * `temps_travaille_secondes + (maintenant - demarree_le)`. */
+  temps_travaille_secondes: number
+  /** Évaluation par le manager, possible seulement une fois la tâche terminée. */
+  note: number | null
+  note_commentaire: string
+  notee_le: string | null
+  notee_par_nom: string | null
   created_by_nom: string | null
   created_at: string
   // Résumé de la tâche portée (une seule requête suffit à Exécuté staffing).
@@ -48,6 +57,10 @@ export const createTaskAssignment = (data: { task: number; user: number; heures:
 
 export const updateTaskAssignment = (id: number, data: { heures: number }) =>
   apiPatch<TaskAssignment>(`/task-assignments/${id}/`, data)
+
+/** Réservé au manager de l'équipe (ou admin/directeur), seulement une fois la tâche terminée. */
+export const rateTaskAssignment = (id: number, note: number, note_commentaire?: string) =>
+  apiPatch<TaskAssignment>(`/task-assignments/${id}/`, { note, note_commentaire: note_commentaire ?? '' })
 
 export const deleteTaskAssignment = (id: number) => apiDelete(`/task-assignments/${id}/`)
 

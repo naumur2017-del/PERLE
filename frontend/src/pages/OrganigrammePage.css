@@ -107,6 +107,49 @@
 
 .og-branch-members { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%; }
 
+/* Sous-équipes d'une carte (équipes ayant celle-ci comme équipe de direction) : nichées
+   directement dessous, reliées par un trait vertical continu plutôt que par le tronc commun
+   d'une rangée de niveau. */
+.og-sub-branches {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 20px 0 2px 22px;
+  border-left: 2px dashed #ddd8f2;
+}
+.og-sub-branches-tag {
+  position: absolute;
+  top: 0;
+  left: 22px;
+  padding: 2px 9px;
+  border: 1px solid #ddd8f2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b46c1;
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.og-sub-branch { position: relative; min-width: 200px; }
+.og-sub-branch::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: -22px;
+  width: 20px;
+  height: 2px;
+  background: #ddd8f2;
+}
+/* La carte nichée se raccorde directement au trait horizontal de son .og-sub-branch : pas
+   besoin de son propre petit trait vertical (réservé aux rangées de niveau). */
+.og-sub-branch > .og-branch { padding-top: 0; margin: 0; }
+.og-sub-branch > .og-branch::before, .og-sub-branch > .og-branch::after { display: none; }
+
 .og-card {
   border: 1px solid #eae7f6;
   border-radius: 10px;

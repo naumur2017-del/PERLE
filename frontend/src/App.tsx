@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
-import { ChevronDown, ChevronUp, Pause, Play, Square, Timer } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
+import { ChevronDown, ChevronUp, Eye, Pause, Play, Timer } from 'lucide-react'
 import './App.css'
 import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
@@ -18,7 +18,6 @@ import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import SuiviStaffingPage from './pages/SuiviStaffingPage'
-import { TACHES_INITIAL, type TacheWrike } from './data/staffing'
 import GestionEquipesPage from './pages/GestionEquipesPage'
 import HistoriqueEmployesPage from './pages/HistoriqueEmployesPage'
 import DemandesEmployesPage from './pages/DemandesEmployesPage'
@@ -33,6 +32,8 @@ import ModulePage from './pages/ModulePage'
 import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import { clearSession, getSession, saveSession, type Session } from './auth/session'
+import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment } from './api/taskAssignments'
+import { fetchMe } from './api/employees'
 
 interface Module {
   id: number
@@ -101,13 +102,6 @@ function AppIcon({ children }: { children: ReactNode }) {
   )
 }
 
-interface TaskTimer {
-  code: string
-  nom: string
-  seconds: number
-  running: boolean
-}
-
 interface AppNotification {
   id: string
   message: string
@@ -136,39 +130,98 @@ function App() {
   const [headerCollapse, setHeaderCollapse] = useState(0)
   /* Repliée ou non, la barre latérale garde son état d’une visite à l’autre. */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('perle-sidebar-collapsed') === '1')
-  const [taskTimers, setTaskTimers] = useState<TaskTimer[]>([])
-  const [staffingTaches, setStaffingTaches] = useState<TacheWrike[]>(TACHES_INITIAL)
+  // Source unique de vérité pour « mes » attributions de tâches (celles de l'utilisateur connecté) :
+  // le minuteur flottant et Exécuté staffing lisent et écrivent tous les deux ici, pour ne jamais
+  // pouvoir diverger l'un de l'autre (ex. une pause faite depuis le minuteur qui ne se refléterait
+  // pas dans le tableau d'Exécuté staffing, ou inversement).
+  const [myAssignments, setMyAssignments] = useState<TaskAssignment[]>([])
+  const [myAssignmentsLoading, setMyAssignmentsLoading] = useState(true)
+  const [myAssignmentsError, setMyAssignmentsError] = useState<string | null>(null)
   const [taskTimersCollapsed, setTaskTimersCollapsed] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [pilotageFocus, setPilotageFocus] = useState<PilotageFocusTarget | null>(null)
+  const [executeFocusCode, setExecuteFocusCode] = useState<string | null>(null)
   const mainContentRef = useRef<HTMLElement>(null)
 
   const addNotification = (message: string) => {
     setNotifications((current) => [{ id: `ntf-${Date.now()}-${current.length}`, message, date: new Date().toLocaleString('fr-FR') }, ...current])
   }
 
-  const startTaskTimer = (code: string, nom: string) => {
-    setTaskTimers((current) => current.some((timer) => timer.code === code)
-      ? current
-      : [...current, { code, nom, seconds: 0, running: true }])
+  // Écriture partagée : que la mise à jour vienne du minuteur flottant ou d'Exécuté staffing, elle
+  // passe toujours par ici, donc les deux affichages restent forcément synchronisés.
+  const applyAssignmentUpdate = (updated: TaskAssignment) => {
+    setMyAssignments((current) => current.map((a) => a.id === updated.id ? updated : a))
+  }
+  const removeMyAssignment = (id: number) => {
+    setMyAssignments((current) => current.filter((a) => a.id !== id))
   }
 
-  const toggleTaskTimer = (code: string) => {
-    setTaskTimers((current) => current.map((timer) => timer.code === code ? { ...timer, running: !timer.running } : timer))
+  // Ce que le minuteur flottant affiche : uniquement les tâches en cours/en pause, dérivées de la
+  // même source unique que le tableau d'Exécuté staffing.
+  const activeAssignments = useMemo(
+    () => myAssignments.filter((a) => a.execution_statut === 'en_cours' || a.execution_statut === 'en_pause'),
+    [myAssignments],
+  )
+
+  // Le minuteur flottant peut lui-même mettre en pause/reprendre — appelle la même action réelle
+  // qu'Exécuté staffing (executeTaskAssignmentAction) et écrit dans la même source partagée, pour
+  // ne jamais juste faire semblant ni diverger du tableau.
+  const [timerActing, setTimerActing] = useState<number | null>(null)
+  const pauseOrResumeFromWidget = async (assignment: TaskAssignment) => {
+    if (timerActing) return
+    setTimerActing(assignment.id)
+    const running = assignment.execution_statut === 'en_cours'
+    try {
+      const result = await executeTaskAssignmentAction(assignment.id, running ? 'pause' : 'reprendre')
+      if ('temps_travaille_secondes' in result) {
+        applyAssignmentUpdate(result)
+      }
+    } catch {
+      addNotification(`Impossible de ${running ? 'mettre en pause' : 'reprendre'} « ${assignment.template_nom} ». Réessayez depuis Exécuté staffing.`)
+    } finally {
+      setTimerActing(null)
+    }
   }
 
-  const stopTaskTimer = (code: string) => {
-    setTaskTimers((current) => current.filter((timer) => timer.code !== code))
-  }
-
+  // Charge « mes » attributions au login et à chaque changement de session (nouvel onglet, Chrome
+  // relancé, simple rechargement) — c'est la même liste que consomme Exécuté staffing, et si une
+  // tâche était en cours/en pause côté serveur, le minuteur flottant la fait réapparaître
+  // automatiquement : il n'est qu'un affichage, la vraie source est toujours la base de données.
   useEffect(() => {
-    if (taskTimers.length === 0) return
-    const intervalId = window.setInterval(() => {
-      setTaskTimers((current) => current.map((timer) => timer.running ? { ...timer, seconds: timer.seconds + 1 } : timer))
-    }, 1000)
+    if (!session) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une déconnexion (session devenue null), un événement externe, pas dérivé du rendu
+      setMyAssignments([])
+      setMyAssignmentsLoading(false)
+      return
+    }
+    let cancelled = false
+    setMyAssignmentsLoading(true)
+    setMyAssignmentsError(null)
+    fetchMe()
+      .then((me) => fetchTaskAssignments({ user: me.id }))
+      .then((assignments) => {
+        if (cancelled) return
+        setMyAssignments(assignments)
+      })
+      .catch(() => {
+        if (!cancelled) setMyAssignmentsError('Impossible de charger vos tâches à exécuter.')
+      })
+      .finally(() => {
+        if (!cancelled) setMyAssignmentsLoading(false)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit se relancer qu'à la connexion (nouveau token), pas à chaque changement de session
+  }, [session?.token])
+
+  // Ne fait vivre que l'affichage (le temps réel reste dérivé de temps_travaille_secondes + segment
+  // actif) : pas de compteur local qui pourrait diverger de ce qui est enregistré en base.
+  const [timerNowMs, setTimerNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (activeAssignments.length === 0) return
+    const intervalId = window.setInterval(() => setTimerNowMs(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
-  }, [taskTimers.length])
+  }, [activeAssignments.length])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -389,14 +442,17 @@ function App() {
       case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
       case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
       case 'staffing': return <StaffingPage navigateTo={navigateTo} />
-      case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} taches={staffingTaches} setTaches={setStaffingTaches} />
+      case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} />
       case 'staffing-execute': return (
         <ExecuteStaffingPage
           navigateTo={navigateTo}
-          onStartTimer={startTaskTimer}
-          onToggleTimer={toggleTaskTimer}
-          onStopTimer={stopTaskTimer}
-          timers={taskTimers.map(({ code, running }) => ({ code, running }))}
+          assignments={myAssignments}
+          loading={myAssignmentsLoading}
+          loadError={myAssignmentsError}
+          onAssignmentUpdate={applyAssignmentUpdate}
+          onAssignmentRemove={removeMyAssignment}
+          focusCode={executeFocusCode}
+          onFocusConsumed={() => setExecuteFocusCode(null)}
         />
       )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
@@ -619,7 +675,7 @@ function App() {
       </main>
       </div>
 
-      {taskTimers.length > 0 && (
+      {activeAssignments.length > 0 && (
         taskTimersCollapsed ? (
           <button
             type="button"
@@ -629,7 +685,7 @@ function App() {
             aria-label="Afficher les minuteurs en cours"
           >
             <Timer size={18} />
-            {taskTimers.length > 1 && <span className="task-timer-collapsed-badge">{taskTimers.length}</span>}
+            {activeAssignments.length > 1 && <span className="task-timer-collapsed-badge">{activeAssignments.length}</span>}
             <ChevronUp size={14} />
           </button>
         ) : (
@@ -643,28 +699,41 @@ function App() {
             >
               <ChevronDown size={14} />
             </button>
-            {taskTimers.map((timer) => (
-              <div key={timer.code} className={`task-timer-widget ${timer.running ? '' : 'is-paused'}`}>
-                <span className="task-timer-widget-icon"><Timer size={16} /></span>
-                <div className="task-timer-widget-info">
-                  <strong>{timer.nom}</strong>
-                  <span>{timer.code}</span>
+            {activeAssignments.map((assignment) => {
+              const running = assignment.execution_statut === 'en_cours'
+              // Dérivé en direct depuis la dernière valeur confirmée par le serveur — jamais un
+              // compteur local qui pourrait diverger de ce qui est réellement enregistré en base.
+              const liveSeconds = assignment.temps_travaille_secondes
+                + (running && assignment.demarree_le ? Math.max(0, (timerNowMs - new Date(assignment.demarree_le).getTime()) / 1000) : 0)
+              return (
+                <div key={assignment.id} className={`task-timer-widget ${running ? '' : 'is-paused'}`}>
+                  <span className="task-timer-widget-icon"><Timer size={16} /></span>
+                  <div className="task-timer-widget-info">
+                    <strong>{assignment.template_nom}</strong>
+                    <span>{assignment.task_code}</span>
+                  </div>
+                  <div className="task-timer-widget-time">{fmtTimer(Math.floor(liveSeconds))}</div>
+                  <button
+                    type="button"
+                    className="task-timer-widget-pause"
+                    title={running ? 'Mettre en pause' : 'Reprendre'}
+                    aria-label={running ? 'Mettre en pause' : 'Reprendre'}
+                    disabled={timerActing === assignment.id}
+                    onClick={() => pauseOrResumeFromWidget(assignment)}
+                  >
+                    {running ? <Pause size={13} /> : <Play size={13} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="task-timer-widget-stop"
+                    title="Gérer depuis Exécuté staffing"
+                    onClick={() => { setExecuteFocusCode(assignment.task_code); navigateTo('staffing-execute') }}
+                  >
+                    <Eye size={12} />Voir
+                  </button>
                 </div>
-                <div className="task-timer-widget-time">{fmtTimer(timer.seconds)}</div>
-                <button
-                  type="button"
-                  className="task-timer-widget-pause"
-                  title={timer.running ? 'Mettre en pause' : 'Reprendre'}
-                  aria-label={timer.running ? 'Mettre en pause' : 'Reprendre'}
-                  onClick={() => toggleTaskTimer(timer.code)}
-                >
-                  {timer.running ? <Pause size={13} /> : <Play size={13} />}
-                </button>
-                <button type="button" className="task-timer-widget-stop" onClick={() => stopTaskTimer(timer.code)}>
-                  <Square size={12} />Terminer
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       )}

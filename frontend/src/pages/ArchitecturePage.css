@@ -270,6 +270,8 @@
 
 .arch-date-filter { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: #6c6c85; white-space: nowrap; }
 .arch-date-filter input { height: 34px; padding: 0 8px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 11px; font-weight: 600; }
+.arch-date-filter .date-picker { width: 128px; }
+.arch-date-filter .date-picker-trigger { height: 34px; padding: 0 8px; font-size: 11px; }
 
 .arch-btn-outline.is-active { background: #efe9fd; border-color: #6b46c1; color: #6b46c1; }
 

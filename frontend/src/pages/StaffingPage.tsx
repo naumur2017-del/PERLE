@@ -323,7 +323,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                                   <button type="button" className="ns-action-btn ns-action-btn-danger" disabled={saving} onClick={() => handleDecision(task, 'refusee')}><XCircle size={13} />Refuser</button>
                                 </div>
                               ) : (
-                                <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>Staffer</button>
+                                <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>{activeTab === 'staffee' ? 'Voir' : 'Staffer'}</button>
                               )}
                             </td>
                           </tr>
@@ -416,13 +416,28 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                         </label>
 
                         {assignMember && assignHeuresNumber > 0 && (
-                          <div className={`charge-hint${depasseReste ? ' charge-hint-danger' : ''}`}>
-                            {fmtEhs(ehsPreview)} EHS ({assignMember.grade} EHS/h × {assignHeuresNumber} h) = {fmtFcfa(montantPreview)}
-                            {' '}(≈ {(assignHeuresNumber / JOUR_HEURES).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} jour(s) de 8h)
+                          <div className="ns-predict-grid">
+                            <div className="ns-predict-card">
+                              <span className="ns-predict-card-label"><Activity size={11} />Consommation de cette attribution</span>
+                              <strong className="ns-predict-card-value">{fmtEhs(ehsPreview)} EHS</strong>
+                              <span className="ns-predict-card-sub">{fmtFcfa(montantPreview)}</span>
+                              <span className="ns-predict-card-sub">{assignMember.grade} EHS/h × {assignHeuresNumber} h · ≈ {(assignHeuresNumber / JOUR_HEURES).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} jour(s) de 8h</span>
+                            </div>
+
                             {selected.budget_ligne_montant != null && resteApres !== null && (
-                              depasseReste
-                                ? <> — dépasse le reste disponible ({fmtFcfa(selected.budget_reste_fcfa ?? 0)}).</>
-                                : <> — reste après attribution : {fmtFcfa(resteApres)}.</>
+                              <>
+                                <div className={`ns-predict-card${depasseReste ? ' is-danger' : ''}`}>
+                                  <span className="ns-predict-card-label">Reste sur la ligne — FCFA</span>
+                                  <strong className="ns-predict-card-value">{fmtFcfa(resteApres)}</strong>
+                                  <span className="ns-predict-card-sub">Somme initiale : {fmtFcfa(selected.budget_ligne_montant)}</span>
+                                  {depasseReste && <span className="ns-predict-card-sub is-danger-text">Dépasse le reste disponible ({fmtFcfa(selected.budget_reste_fcfa ?? 0)}).</span>}
+                                </div>
+                                <div className={`ns-predict-card${depasseReste ? ' is-danger' : ''}`}>
+                                  <span className="ns-predict-card-label">Reste sur la ligne — EHS</span>
+                                  <strong className="ns-predict-card-value">{fmtEhs(resteApres / ehsRate)} EHS</strong>
+                                  <span className="ns-predict-card-sub">Somme initiale : {fmtEhs(selected.budget_ligne_montant / ehsRate)} EHS</span>
+                                </div>
+                              </>
                             )}
                           </div>
                         )}

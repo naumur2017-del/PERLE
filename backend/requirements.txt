@@ -3,6 +3,7 @@ Django==6.1
 django-cors-headers==4.9.0
 dj-database-url==2.3.0
 djangorestframework==3.18.0
+holidays==0.103
 Pillow==12.3.0
 psycopg==3.3.4
 psycopg-binary==3.3.4

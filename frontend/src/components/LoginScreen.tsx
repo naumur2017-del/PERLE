@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import AnimatedLogo from './AnimatedLogo'
 import CountrySelect from './CountrySelect'
 import RegionSelect from './RegionSelect'
+import PhoneInput from './PhoneInput'
+import DatePicker from './DatePicker'
 import { searchOrganisations, type Organisation } from './organisations'
 import type { UserRole } from '../auth/roles'
 import { apiPost, ApiError } from '../api/client'
@@ -311,7 +313,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
             <label className="login-field"><span>Adresse e-mail professionnelle</span><input type="email" name="email" required placeholder="prenom.nom@organisation.com" /></label>
             <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
             <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input name="fonction" required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Matricule (facultatif)</span><input name="matricule" placeholder="Ex. NM-2041" /></label></div>
-            <label className="login-field"><span>Date de naissance</span><input type="date" name="date_naissance" required /></label>
+            <DatePicker name="date_naissance" label="Date de naissance" required className="login-field" />
             <div className="registration-row">
               <CountrySelect name="pays" label="Pays" required value={countryIso} onChange={(c) => setCountryIso(c?.isoCode ?? null)} />
               <RegionSelect name="ville" label="Ville" required countryCode={countryIso} className="login-field" />
@@ -330,7 +332,10 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
                 <label className="login-field"><span>Raison sociale</span><input name="organisation_name" required placeholder="Nom légal de l’entreprise" /></label>
                 <div className="registration-row"><label className="login-field"><span>Numéro d’identification</span><input name="registration_number" required placeholder="SIREN / RCS / IFU" /></label><label className="login-field"><span>Effectif</span><select name="headcount" required defaultValue=""><option value="" disabled>Sélectionnez</option><option value="1-10">1 à 10</option><option value="11-50">11 à 50</option><option value="51-250">51 à 250</option><option value="251-1000">251 à 1000</option><option value="1000+">Plus de 1000</option></select></label></div>
                 <label className="login-field"><span>Secteur d’activité</span><input name="sector" required placeholder="Ex. Industrie, BTP, énergie…" /></label>
-                <div className="registration-row"><label className="login-field"><span>E-mail de l’entreprise</span><input type="email" name="org_email" required placeholder="contact@entreprise.com" /></label><label className="login-field"><span>Téléphone</span><input type="tel" name="org_phone" required placeholder="+33 1 00 00 00 00" /></label></div>
+                <div className="registration-row">
+                  <label className="login-field"><span>E-mail de l’entreprise</span><input type="email" name="org_email" required placeholder="contact@entreprise.com" /></label>
+                  <PhoneInput name="org_phone" label="Téléphone" required className="login-field" countryCode={countryIso} />
+                </div>
                 <label className="login-field"><span>Adresse du siège</span><input name="address" required placeholder="Rue, numéro, code postal" /></label>
                 <div className="registration-row">
                   <CountrySelect name="country" currencyName="currency_code" label="Pays" required value={countryIso} onChange={(c) => setCountryIso(c?.isoCode ?? null)} />
@@ -342,7 +347,10 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
               <fieldset className={stepClass(2)} hidden={companyStep !== 2} disabled={companyStep !== 2}>
                 <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Nom de l’administrateur" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Prénom de l’administrateur" /></label></div>
                 <label className="login-field"><span>Fonction dans l’entreprise</span><input name="fonction" required placeholder="Ex. Directeur QHSE" /></label>
-                <div className="registration-row"><label className="login-field"><span>E-mail professionnel</span><input type="email" name="email" required placeholder="prenom.nom@entreprise.com" /></label><label className="login-field"><span>Téléphone direct</span><input type="tel" name="phone" required placeholder="+33 6 00 00 00 00" /></label></div>
+                <div className="registration-row">
+                  <label className="login-field"><span>E-mail professionnel</span><input type="email" name="email" required placeholder="prenom.nom@entreprise.com" /></label>
+                  <PhoneInput name="phone" label="Téléphone direct" required className="login-field" countryCode={countryIso} />
+                </div>
                 <div className="registration-row"><label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label><label className="login-field"><span>Confirmation</span><input type="password" name="password_confirm" required minLength={4} placeholder="Confirmez le mot de passe" /></label></div>
                 <label className="registration-consent"><input type="checkbox" required /> <span>Je certifie être habilité à créer et administrer l’espace PERLE de cette entreprise.</span></label>
               </fieldset>
@@ -352,7 +360,10 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
             <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Votre prénom" /></label></div>
             <label className="login-field"><span>Adresse e-mail</span><input type="email" name="email" required placeholder="nom@exemple.com" /></label>
             <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
-            <div className="registration-row"><label className="login-field"><span>Domaine d’activité</span><input name="sector" required placeholder="Ex. Conseil, formation…" /></label><label className="login-field"><span>Téléphone</span><input type="tel" name="phone" required placeholder="+33 6 00 00 00 00" /></label></div>
+            <div className="registration-row">
+              <label className="login-field"><span>Domaine d’activité</span><input name="sector" required placeholder="Ex. Conseil, formation…" /></label>
+              <PhoneInput name="phone" label="Téléphone" required className="login-field" countryCode={countryIso} />
+            </div>
             <div className="registration-row">
               <CountrySelect name="country" currencyName="currency_code" label="Pays" required value={countryIso} onChange={(c) => setCountryIso(c?.isoCode ?? null)} />
               <RegionSelect name="city" label="Ville" required countryCode={countryIso} className="login-field" />

@@ -5,8 +5,10 @@ import {
 } from '../api/projects'
 import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
 import { fetchTeams, type Team } from '../api/employees'
+import { fetchOrganisationEhs } from '../api/organisation'
 import { ApiError } from '../api/client'
 import { currencySuffix, formatMontant } from '../utils/currency'
+import DatePicker from './DatePicker'
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
@@ -68,12 +70,16 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
   const [teams, setTeams] = useState<Team[]>([])
   const [catalogue, setCatalogue] = useState<LigneBudgetaire[]>([])
+  // Taux réel configuré dans Paramètres > EHS — 150 n'est qu'un repli avant le chargement (même
+  // défaut que le modèle Organisation côté backend), jamais une valeur figée en dur.
+  const [ehsRate, setEhsRate] = useState(150)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchLignesBudgetaires()])
-      .then(([teamsData, lignesData]) => {
+    Promise.all([fetchTeams(), fetchLignesBudgetaires(), fetchOrganisationEhs()])
+      .then(([teamsData, lignesData, ehsData]) => {
         setTeams(teamsData)
         setCatalogue(lignesData.filter((l) => l.actif))
+        setEhsRate(ehsData.taux_ehs_fcfa)
       })
       .catch(() => {})
   }, [])
@@ -129,7 +135,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   const budgetExecution = montant - margeMontant - chargesMontant
   const tvaMontant = montant * tvaPct / 100
   const irMontant = montant * irPct / 100
-  const equivalentEhs = budgetExecution > 0 ? budgetExecution / 150 : 0
+  const equivalentEhs = budgetExecution > 0 ? budgetExecution / ehsRate : 0
 
   const coutsLignesBudgetaires = lignes.reduce((sum, l) => sum + l.montant, 0)
   const reste = budgetExecution - coutsLignesBudgetaires - reserveAmount
@@ -337,8 +343,8 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
           </div>
 
           <div className="form-grid two dates">
-            <label className="field"><span>Date de début du projet <em>*</em></span><input type="date" value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-            <label className="field"><span>Date de fin du projet <em>*</em></span><input type="date" value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+            <DatePicker label={<>Date de début du projet <em>*</em></>} className="field" value={dateDebut} onChange={setDateDebut} />
+            <DatePicker label={<>Date de fin du projet <em>*</em></>} className="field" value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
           </div>
           {dureeDays !== null && <div className="duration-note">◷ &nbsp; La durée totale du projet est de <strong>{dureeDays} jours.</strong></div>}
           <div className="field unexpected-field">
@@ -383,7 +389,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             <div><span>Reste disponible (après coûts des lignes budgétaires et réserve)</span><strong>{fmtFcfa(reste)}</strong><small>{fmtPercent(restePercent)} du budget d’exécution</small></div>
             <div className="budget-progress"><i style={{ width: `${Math.min(100, Math.max(0, coutsPercent))}%` }} /></div>
             <div><span>Coûts des lignes budgétaires (HT)</span><strong className="danger">{fmtFcfa(coutsLignesBudgetaires)}</strong><small>{fmtPercent(coutsPercent)} du budget d’exécution</small></div>
-            <div><span>Équivalent EHS</span><strong>{equivalentEhs.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{fmtFcfa(budgetExecution)} ÷ 150</small></div>
+            <div><span>Équivalent EHS</span><strong>{equivalentEhs.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{fmtFcfa(budgetExecution)} ÷ {ehsRate}</small></div>
           </div>
 
           <div className="task-table-wrap">
@@ -449,7 +455,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
       <div className="creation-step active"><b>2</b><span><strong>Charges et planification</strong><small>Sélection des charges</small></span></div>
     </div>
 
-    <div className="charges-heading"><h2>Étape 2 : Lignes budgétaires liées au projet</h2><p>ⓘ &nbsp; Chaque équipe a son propre tableau. Vous pouvez attribuer n’importe quelle ligne du référentiel depuis n’importe quel tableau : elle apparaîtra sous le tableau de l’équipe à laquelle elle appartient.</p></div>
+    <div className="charges-heading"><h2>Étape 2 : Lignes budgétaires liées au projet</h2><p>ⓘ &nbsp; Chaque équipe a son propre tableau. Le sélecteur de ligne budgétaire de chaque équipe n’affiche que les lignes du référentiel qui lui sont attribuées.</p></div>
 
     <div className={`budget-restant-banner${resteProjet < 0 ? ' is-negative' : ''}`}>
       <span>Budget restant du projet</span>
@@ -461,8 +467,8 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
         <TeamChargeGroup
           key={team.id}
           team={team}
-          hasCatalogueLignes={catalogue.length > 0}
-          availableLignes={catalogue.filter((l) => !lignes.some((pl) => pl.ligne_budgetaire === l.id))}
+          hasCatalogueLignes={catalogue.some((l) => l.equipe === team.id)}
+          availableLignes={catalogue.filter((l) => l.equipe === team.id && !lignes.some((pl) => pl.ligne_budgetaire === l.id))}
           attributedLignes={lignes.filter((l) => l.equipe === team.id)}
           projectDateDebut={projectDateDebut}
           projectDateFin={projectDateFin}
@@ -594,8 +600,8 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                 </p>
               )}
               <div className="form-grid three">
-                <label className="field"><span>Date de début</span><input type="date" value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-                <label className="field"><span>Date de fin</span><input type="date" value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+                <DatePicker label="Date de début" className="field" value={dateDebut} onChange={setDateDebut} />
+                <DatePicker label="Date de fin" className="field" value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
                 <label className="field"><span>&nbsp;</span>
                   <button
                     type="button"
@@ -621,8 +627,8 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
               {availableLignes.length === 0 && (
                 <p className="charge-hint">
                   {hasCatalogueLignes
-                    ? 'Toutes les lignes budgétaires disponibles sont déjà attribuées à ce projet.'
-                    : 'Aucune ligne budgétaire n’est encore définie dans l’Architecture monétaire.'}
+                    ? 'Toutes les lignes budgétaires de cette équipe sont déjà attribuées à ce projet.'
+                    : 'Aucune ligne budgétaire n’est encore attribuée à cette équipe dans l’Architecture monétaire.'}
                 </p>
               )}
             </>

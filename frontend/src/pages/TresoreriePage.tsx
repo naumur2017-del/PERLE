@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
+import DatePicker from '../components/DatePicker'
 import './TresoreriePage.css'
 
 interface Brouillon {
@@ -197,9 +198,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
               <label>Devise
                 <input value={currencySuffix()} readOnly />
               </label>
-              <label>Date de la dépense <em>*</em>
-                <input type="date" value={form.dateDepense} onChange={(event) => updateField('dateDepense', event.target.value)} />
-              </label>
+              <DatePicker label={<>Date de la dépense <em>*</em></>} value={form.dateDepense} onChange={(v) => updateField('dateDepense', v)} />
             </div>
 
             <div className="tr-request-grid two">

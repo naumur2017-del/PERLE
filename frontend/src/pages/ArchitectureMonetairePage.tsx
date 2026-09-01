@@ -31,20 +31,35 @@ interface VisibleRow extends LigneBudgetaire {
 }
 
 interface LigneFormValues {
+  code: string
   nom: string
   equipe: number
   declinaison: string
   montant_prevu: number | null
 }
 
-function LigneBudgetaireModal({ mode, teams, parent, initial, onClose, onSubmit }: {
+/** Simple proposition de code (A, AA, AA01…) reprenant l'ancien schéma automatique, purement
+ * indicative — l'utilisateur la modifie ou la remplace librement, le backend valide l'unicité. */
+function suggestNextCode(lignes: LigneBudgetaire[], parent: LigneBudgetaire | null): string {
+  if (!parent) {
+    const count = lignes.filter((l) => l.niveau === 1).length
+    return String.fromCharCode(65 + count)
+  }
+  const siblings = lignes.filter((l) => l.parent === parent.id).length
+  if (parent.niveau === 1) return parent.code + String.fromCharCode(65 + siblings)
+  return parent.code + String(siblings + 1).padStart(2, '0')
+}
+
+function LigneBudgetaireModal({ mode, teams, lignes, parent, initial, onClose, onSubmit }: {
   mode: 'create' | 'edit'
   teams: Team[]
+  lignes: LigneBudgetaire[]
   parent?: LigneBudgetaire | null
   initial?: LigneBudgetaire
   onClose: () => void
   onSubmit: (values: LigneFormValues) => Promise<void>
 }) {
+  const [code, setCode] = useState(initial?.code ?? suggestNextCode(lignes, parent ?? null))
   const [nom, setNom] = useState(initial?.nom ?? '')
   const [equipe, setEquipe] = useState<number>(initial?.equipe ?? parent?.equipe ?? teams[0]?.id ?? 0)
   const [declinaison, setDeclinaison] = useState(initial?.declinaison ?? '')
@@ -53,7 +68,7 @@ function LigneBudgetaireModal({ mode, teams, parent, initial, onClose, onSubmit 
   const [error, setError] = useState<string | null>(null)
 
   const niveau = initial?.niveau ?? (parent ? parent.niveau + 1 : 1)
-  const canSave = nom.trim() !== '' && !!equipe && !saving
+  const canSave = nom.trim() !== '' && !!equipe && (mode === 'edit' || code.trim() !== '') && !saving
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -61,7 +76,7 @@ function LigneBudgetaireModal({ mode, teams, parent, initial, onClose, onSubmit 
     setSaving(true)
     setError(null)
     try {
-      await onSubmit({ nom: nom.trim(), equipe, declinaison: declinaison.trim(), montant_prevu: montantPrevu.trim() === '' ? null : Number(montantPrevu) })
+      await onSubmit({ code: code.trim(), nom: nom.trim(), equipe, declinaison: declinaison.trim(), montant_prevu: montantPrevu.trim() === '' ? null : Number(montantPrevu) })
     } catch (err) {
       setError(errorMessage(err))
       setSaving(false)
@@ -83,6 +98,12 @@ function LigneBudgetaireModal({ mode, teams, parent, initial, onClose, onSubmit 
 
         <form className="param-form" onSubmit={handleSubmit}>
           {error && <p className="ge-form-error">{error}</p>}
+
+          {mode === 'create' && (
+            <label className="param-field">Code de la ligne *
+              <input required value={code} placeholder="Ex. A, AA, AA01…" onChange={(event) => setCode(event.target.value)} />
+            </label>
+          )}
 
           <label className="param-field">Nom de la ligne budgétaire *
             <input required value={nom} placeholder="Ex. Carburant" onChange={(event) => setNom(event.target.value)} />
@@ -278,7 +299,7 @@ export default function ArchitectureMonetairePage() {
 
   const handleCreate = async (values: LigneFormValues) => {
     const parent = createFor?.parent ?? null
-    const created = await createLigneBudgetaire({ nom: values.nom, equipe: values.equipe, declinaison: values.declinaison, montant_prevu: values.montant_prevu, parent: parent?.id ?? null })
+    const created = await createLigneBudgetaire({ code: values.code, nom: values.nom, equipe: values.equipe, declinaison: values.declinaison, montant_prevu: values.montant_prevu, parent: parent?.id ?? null })
     setLignes((prev) => [...prev, created])
     if (parent) setExpandedIds((prev) => new Set(prev).add(parent.id))
     setCreateFor(null)
@@ -432,10 +453,10 @@ export default function ArchitectureMonetairePage() {
       </div>
 
       {createFor && (
-        <LigneBudgetaireModal mode="create" teams={teams} parent={createFor.parent} onClose={() => setCreateFor(null)} onSubmit={handleCreate} />
+        <LigneBudgetaireModal mode="create" teams={teams} lignes={lignes} parent={createFor.parent} onClose={() => setCreateFor(null)} onSubmit={handleCreate} />
       )}
       {editingLigne && (
-        <LigneBudgetaireModal mode="edit" teams={teams} initial={editingLigne} onClose={() => setEditingLigne(null)} onSubmit={handleUpdate} />
+        <LigneBudgetaireModal mode="edit" teams={teams} lignes={lignes} initial={editingLigne} onClose={() => setEditingLigne(null)} onSubmit={handleUpdate} />
       )}
     </section>
   )

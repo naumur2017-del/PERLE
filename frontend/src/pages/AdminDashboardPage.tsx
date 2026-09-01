@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './AdminDashboardPage.css'
 import AnimatedLogo from '../components/AnimatedLogo'
+import DatePicker from '../components/DatePicker'
 import { useI18n, type Language } from '../i18n/I18nContext'
 import {
   ActivityChart, AuditActivityChart, BackupsChart, CeleryChart, ErrorsChart, StorageChart, UsersDonut,
@@ -251,8 +252,8 @@ export default function AdminDashboardPage({ onExit, onLogout }: { onExit?: () =
               </div>
 
               {period === 'custom' && <div className="adm-range">
-                <label>Du <input type="date" value={range.from} onChange={(event) => setRange({ ...range, from: event.target.value })} /></label>
-                <label>Au <input type="date" value={range.to} onChange={(event) => setRange({ ...range, to: event.target.value })} /></label>
+                <DatePicker label="Du" value={range.from} onChange={(v) => setRange({ ...range, from: v })} />
+                <DatePicker label="Au" value={range.to} min={range.from || undefined} onChange={(v) => setRange({ ...range, to: v })} />
               </div>}
 
               <label className="adm-select-labelled">

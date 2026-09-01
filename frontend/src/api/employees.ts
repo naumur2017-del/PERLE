@@ -84,6 +84,11 @@ export interface Team {
   manager: TeamMember | null
   members: TeamMember[]
   niveau: number
+  /** Équipe de direction (hiérarchie) : cette équipe apparaît comme sous-équipe de `parent` sur
+   * l'organigramme. Indépendant du niveau. */
+  parent: number | null
+  parent_code: string | null
+  parent_name: string | null
   is_protected: boolean
   created_at: string
 }
@@ -99,10 +104,10 @@ export const editEmployee = (id: number, data: FormData) => apiUpload<Employee>(
 
 export const fetchTeams = () => apiGet<Team[]>('/teams/')
 
-export const createTeam = (name: string, managerId: number | null) =>
-  apiPost<Team>('/teams/', managerId ? { name, manager_id: managerId } : { name })
+export const createTeam = (code: string, name: string, managerId: number | null, parentId: number | null) =>
+  apiPost<Team>('/teams/', { code, name, manager_id: managerId, parent: parentId })
 
-export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null; niveau?: number }) =>
+export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null; niveau?: number; parent?: number | null }) =>
   apiPatch<Team>(`/teams/${id}/`, data)
 
 export const deleteTeam = (id: number) => apiDelete(`/teams/${id}/`)

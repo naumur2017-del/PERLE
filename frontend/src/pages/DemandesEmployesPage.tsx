@@ -8,6 +8,7 @@ import {
 import { fetchEmployees, fetchTeams, type Employee, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
+import DatePicker from '../components/DatePicker'
 import './DemandesEmployesPage.css'
 
 type Tab = 'conges' | 'avances' | 'technique'
@@ -93,8 +94,8 @@ function CongeApprovalDatesModal({ demande, onClose, onSubmit }: {
         <form className="param-form" onSubmit={handleSubmit}>
           {error && <p className="ge-form-error">{error}</p>}
           <div className="param-form-row">
-            <label className="param-field">Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-            <label className="param-field">Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+            <DatePicker label="Date de début" className="param-field" required value={dateDebut} onChange={setDateDebut} />
+            <DatePicker label="Date de fin" className="param-field" required value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
           </div>
           <div className="ge-modal-actions">
             <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
@@ -193,8 +194,8 @@ function FermetureTechniqueForm({ teams, employees, onCancel, onCreate }: {
     <form className="param-form de-technique-form" onSubmit={handleSubmit}>
       {error && <p className="ge-form-error">{error}</p>}
       <div className="param-form-row">
-        <label className="param-field">Date de début *<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-        <label className="param-field">Date de fin *<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+        <DatePicker label="Date de début *" className="param-field" required value={dateDebut} onChange={setDateDebut} />
+        <DatePicker label="Date de fin *" className="param-field" required value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
       </div>
       <label className="param-field">Description (facultatif)
         <input value={description} placeholder="Ex. Fermeture annuelle de fin d'année" onChange={(event) => setDescription(event.target.value)} />

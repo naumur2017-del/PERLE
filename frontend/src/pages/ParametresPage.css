@@ -6,6 +6,11 @@
 .param-tab-heading h2 { margin: 0; font-size: 16px; font-weight: 800; color: #14123a; }
 .param-tab-heading p { margin: 4px 0 0; font-size: 12px; color: #6c6c85; max-width: 560px; }
 
+.param-tab-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+@keyframes param-spin { to { transform: rotate(360deg); } }
+.param-spin { animation: param-spin 900ms linear infinite; }
+
 .param-modal { max-width: 480px; }
 
 .param-form { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 22px; }

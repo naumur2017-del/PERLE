@@ -212,6 +212,12 @@ class Team(models.Model):
     )
     # Le niveau détermine la ligne de l’équipe dans l’organigramme (1 = le plus haut).
     niveau = models.PositiveIntegerField(default=4)
+    # Équipe de direction (hiérarchie) : plusieurs équipes peuvent avoir la même équipe parente,
+    # qui apparaît alors comme leur sous-équipe sur l’organigramme. Indépendant du niveau — une
+    # équipe sans parent reste une racine affichée sur sa ligne de niveau comme aujourd’hui.
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, related_name='sous_equipes', null=True, blank=True
+    )
     is_protected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -326,13 +332,20 @@ class CongeType(models.Model):
 
 
 class PublicHoliday(models.Model):
-    """Jour férié géré manuellement par l'admin/directeur (Paramètres > EHS ou onglet dédié),
-    propre au pays de l'organisation — aucune base de données de jours fériés externe n'est
-    utilisée, faute de couverture fiable pour tous les pays."""
+    """Jour férié propre au pays de l'organisation. La majorité sont importés automatiquement
+    (source='auto') via le package `holidays`, à partir du country_code de l'organisation —
+    voir accounts.holidays_utils.sync_public_holidays. L'admin/directeur peut aussi en ajouter,
+    modifier ou supprimer manuellement (source='manuel'), y compris pour ajuster/retirer un jour
+    importé automatiquement."""
+    SOURCE_AUTO = 'auto'
+    SOURCE_MANUEL = 'manuel'
+    SOURCE_CHOICES = [(SOURCE_AUTO, 'Automatique'), (SOURCE_MANUEL, 'Manuel')]
+
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='public_holidays')
     nom = models.CharField(max_length=150)
     date = models.DateField()
     recurrente_annuelle = models.BooleanField(default=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_MANUEL)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -476,8 +489,8 @@ class FermetureTechnique(models.Model):
 class LigneBudgetaire(models.Model):
     """Référentiel des lignes budgétaires (Architecture monétaire), organisé en arborescence sur
     3 niveaux maximum : niveau 1 = grande catégorie (ex. RENTREES FINANCIERES), niveau 2 = poste,
-    niveau 3 = ligne de détail. Le code (A, AA, AA01…) est généré automatiquement à la création,
-    voir next_ligne_budgetaire_code."""
+    niveau 3 = ligne de détail. Le code est saisi librement par l'utilisateur à la création
+    (unique par organisation) — voir LigneBudgetaireCreateSerializer."""
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='lignes_budgetaires')
     code = models.CharField(max_length=20)
     nom = models.CharField(max_length=200)
@@ -498,18 +511,6 @@ class LigneBudgetaire(models.Model):
 
     def __str__(self):
         return f'{self.code} — {self.nom}'
-
-
-def next_ligne_budgetaire_code(organisation, parent):
-    """A, B, C… pour une ligne de niveau 1 ; AA, AB… pour une sous-ligne de niveau 1 ;
-    AA01, AA02… pour une sous-ligne de niveau 2."""
-    if parent is None:
-        count = LigneBudgetaire.objects.filter(organisation=organisation, niveau=1).count()
-        return chr(65 + count)
-    siblings = LigneBudgetaire.objects.filter(parent=parent).count()
-    if parent.niveau == 1:
-        return parent.code + chr(65 + siblings)
-    return parent.code + str(siblings + 1).zfill(2)
 
 
 class Project(models.Model):
@@ -730,8 +731,20 @@ class TaskAssignment(models.Model):
     ehs_consomme = models.DecimalField(max_digits=10, decimal_places=2)
     montant_fcfa = models.DecimalField(max_digits=14, decimal_places=2)
     execution_statut = models.CharField(max_length=12, choices=EXECUTION_STATUT_CHOICES, default='a_demarrer')
+    # `demarree_le` marque le début du segment actif en cours (réinitialisé à chaque reprise, pas
+    # seulement au tout premier démarrage) ; `temps_travaille_secondes` cumule les segments déjà
+    # clos (figé à chaque pause/fin) — le temps réellement travaillé « live » pendant l'exécution
+    # est donc `temps_travaille_secondes + (maintenant - demarree_le)`. Voir
+    # TaskAssignmentExecutionView, qui est seul responsable de ces deux champs.
     demarree_le = models.DateTimeField(null=True, blank=True)
     terminee_le = models.DateTimeField(null=True, blank=True)
+    temps_travaille_secondes = models.PositiveIntegerField(default=0)
+    # Évaluation de la personne staffée par son manager (Suivi des staffings), possible seulement
+    # une fois la tâche terminée — alimente l'onglet Notes & Performance.
+    note = models.PositiveSmallIntegerField(null=True, blank=True)
+    note_commentaire = models.TextField(blank=True)
+    notee_le = models.DateTimeField(null=True, blank=True)
+    notee_par = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
 

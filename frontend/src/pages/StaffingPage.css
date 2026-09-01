@@ -232,6 +232,30 @@
 
 .ns-ehs-input { display: flex; align-items: center; border: 1px solid #ddd8f2; border-radius: 8px; overflow: hidden; }
 .ns-ehs-input input { flex: 1; border: none; height: 38px; }
+
+/* Section « prédiction et calcul » de l'attribution en cours de saisie : une carte par angle
+   (consommation, reste FCFA, reste EHS), plutôt qu'un seul bloc de texte. */
+.ns-predict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; animation: ns-predict-in 160ms ease; }
+@keyframes ns-predict-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.ns-predict-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #eae5fb;
+  border-radius: 10px;
+  background: #f7f5ff;
+}
+.ns-predict-card.is-danger { border-color: #f3c6c1; background: #fdecea; }
+
+.ns-predict-card-label { display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; color: #6b46c1; }
+.ns-predict-card.is-danger .ns-predict-card-label { color: #a5291d; }
+
+.ns-predict-card-value { font-size: 15px; font-weight: 800; color: #14123a; }
+
+.ns-predict-card-sub { font-size: 9.5px; font-weight: 600; color: #6c6c85; line-height: 1.4; }
+.ns-predict-card-sub.is-danger-text { color: #a5291d; font-weight: 700; }
 .ns-ehs-input span { padding: 0 12px; height: 38px; display: grid; place-items: center; background: #faf9fe; color: #6c6c85; font-size: 11px; font-weight: 700; border-left: 1px solid #ddd8f2; }
 
 .ns-staff-empty { margin: 0; font-size: 11px; color: #8f8fa6; line-height: 1.5; }

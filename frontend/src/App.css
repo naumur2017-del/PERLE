@@ -1497,6 +1497,10 @@ body {
   font-weight: 600;
 }
 
+/* DatePicker (voir components/DatePicker.tsx) se fond dans la convention compacte de `.field`. */
+.field .date-picker-trigger { height: 34px; padding: 0 10px; border-color: #dfe1f1; border-radius: 5px; font-size: 10px; }
+.field .date-picker-panel { font-size: 11px; }
+
 .field textarea {
   height: auto;
   min-height: 82px;
@@ -2097,8 +2101,8 @@ body {
   color: #ffffff;
   cursor: pointer;
 }
-
-.task-timer-widget-pause:hover { background: rgba(255, 255, 255, 0.22); }
+.task-timer-widget-pause:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
+.task-timer-widget-pause:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .task-timer-widget-stop {
   display: flex;

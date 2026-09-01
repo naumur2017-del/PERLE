@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, FermetureTechnique, LigneBudgetaire, Organisation,
     Project, ProjectLigne, PublicHoliday, Task, TaskAssignment, TaskTemplate, Team, User,
@@ -42,6 +43,7 @@ from .serializers import (
     TaskAssignmentSerializer,
     TaskSerializer,
     TaskTemplateSerializer,
+    TeamCreateSerializer,
     TeamSerializer,
     UserSummarySerializer,
 )
@@ -271,8 +273,10 @@ class EmployeeAdminEditView(generics.UpdateAPIView):
 
 
 class TeamListCreateView(generics.ListCreateAPIView):
-    serializer_class = TeamSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        return TeamCreateSerializer if self.request.method == 'POST' else TeamSerializer
 
     def get_queryset(self):
         organisation = self.request.user.organisation
@@ -283,6 +287,13 @@ class TeamListCreateView(generics.ListCreateAPIView):
 
     def get_serializer_context(self):
         return {**super().get_serializer_context(), 'request': self.request}
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        team = TeamSerializer(serializer.instance, context=self.get_serializer_context())
+        return Response(team.data, status=status.HTTP_201_CREATED)
 
 
 class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -376,8 +387,9 @@ class CongeTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class PublicHolidayListCreateView(generics.ListCreateAPIView):
-    """Jours fériés de l'organisation (Paramètres > EHS) : consultés par tous, gérés par
-    admin/directeur — liste tenue manuellement, propre au pays de l'organisation."""
+    """Jours fériés de l'organisation (Paramètres > Jours fériés) : consultés par tous, gérés par
+    admin/directeur. La plupart sont importés automatiquement selon le pays de l'organisation
+    (voir PublicHolidaySyncView / sync_public_holidays) ; l'admin peut aussi en ajouter à la main."""
     serializer_class = PublicHolidaySerializer
     permission_classes = [IsAuthenticated]
 
@@ -414,6 +426,31 @@ class PublicHolidayDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         instance.delete()
+
+
+class PublicHolidaySyncView(APIView):
+    """Importe (ou complète pour l'année suivante) les jours fériés officiels du pays de
+    l'organisation, à la manière de « Jours fériés » dans Google Calendar — sans base externe,
+    calcul via le package `holidays`. Purement additif et rejouable sans risque de doublon."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
+        organisation = request.user.organisation
+        if not organisation:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        if not country_is_supported(organisation.country_code):
+            return Response(
+                {'detail': 'Le pays de votre organisation n’est pas encore reconnu pour l’import automatique. Ajoutez vos jours fériés manuellement.'},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        created = sync_public_holidays(organisation, created_by=request.user)
+        holidays = PublicHoliday.objects.filter(organisation=organisation)
+        return Response({
+            'created': created,
+            'holidays': PublicHolidaySerializer(holidays, many=True, context={'request': request}).data,
+        })
 
 
 class CongeDemandeListCreateView(generics.ListCreateAPIView):
@@ -1030,12 +1067,24 @@ class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         if not _can_manage_task(self.request.user, self.get_object().task):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce staffing.')
-        serializer.save()
+        # La note vient toujours du manager qui la saisit, jamais du client — horodatée ici.
+        if 'note' in serializer.validated_data:
+            serializer.save(notee_par=self.request.user, notee_le=timezone.now())
+        else:
+            serializer.save()
 
     def perform_destroy(self, instance):
         if not _can_manage_task(self.request.user, instance.task):
             raise PermissionDenied('Vous n’êtes pas autorisé à retirer cette personne de la tâche.')
         instance.delete()
+
+
+def _segment_seconds(started_at):
+    """Durée écoulée depuis le début du segment actif en cours (voir
+    TaskAssignment.temps_travaille_secondes) — jamais négative même en cas d'horloge décalée."""
+    if not started_at:
+        return 0
+    return max(0, int((timezone.now() - started_at).total_seconds()))
 
 
 class TaskAssignmentExecutionView(generics.GenericAPIView):
@@ -1069,19 +1118,25 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
         elif action == 'pause':
             if assignment.execution_statut != 'en_cours':
                 raise ValidationError({'detail': 'Cette tâche n’est pas en cours d’exécution.'})
+            assignment.temps_travaille_secondes += _segment_seconds(assignment.demarree_le)
             assignment.execution_statut = 'en_pause'
-            assignment.save(update_fields=['execution_statut'])
+            assignment.save(update_fields=['execution_statut', 'temps_travaille_secondes'])
         elif action == 'reprendre':
             if assignment.execution_statut != 'en_pause':
                 raise ValidationError({'detail': 'Cette tâche n’est pas en pause.'})
             assignment.execution_statut = 'en_cours'
-            assignment.save(update_fields=['execution_statut'])
+            # Marque le début d'un nouveau segment actif : temps_travaille_secondes garde déjà
+            # tout ce qui a été accumulé avant cette pause.
+            assignment.demarree_le = timezone.now()
+            assignment.save(update_fields=['execution_statut', 'demarree_le'])
         elif action == 'terminer':
             if assignment.execution_statut not in ('en_cours', 'en_pause'):
                 raise ValidationError({'detail': 'Cette tâche doit être démarrée avant de pouvoir être terminée.'})
+            if assignment.execution_statut == 'en_cours':
+                assignment.temps_travaille_secondes += _segment_seconds(assignment.demarree_le)
             assignment.execution_statut = 'terminee'
             assignment.terminee_le = timezone.now()
-            assignment.save(update_fields=['execution_statut', 'terminee_le'])
+            assignment.save(update_fields=['execution_statut', 'terminee_le', 'temps_travaille_secondes'])
         elif action == 'decliner':
             if assignment.execution_statut == 'terminee':
                 raise ValidationError({'detail': 'Cette tâche est déjà terminée.'})

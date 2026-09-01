@@ -23,11 +23,11 @@ from .models import (
     User,
     create_default_conge_types,
     create_default_teams,
-    next_ligne_budgetaire_code,
     next_project_code,
     next_project_ligne_code,
     next_task_code,
 )
+from .holidays_utils import sync_public_holidays
 
 
 class OrganisationSearchSerializer(serializers.ModelSerializer):
@@ -139,6 +139,10 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
         )
         create_default_teams(organisation, user)
         create_default_conge_types(organisation)
+        try:
+            sync_public_holidays(organisation)
+        except Exception:
+            pass  # import des jours fériés best-effort : ne doit jamais bloquer l'inscription
         return user
 
 
@@ -206,6 +210,10 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
         )
         create_default_teams(organisation, user)
         create_default_conge_types(organisation)
+        try:
+            sync_public_holidays(organisation)
+        except Exception:
+            pass  # import des jours fériés best-effort : ne doit jamais bloquer l'inscription
         return user
 
 
@@ -480,17 +488,49 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         return None
 
 
+def _validate_team_parent(value, request, instance):
+    """Commun à la création et à la modification : le parent doit appartenir à la même
+    organisation, et (en modification) ne doit créer aucune boucle hiérarchique."""
+    if value is None:
+        return value
+    if value.organisation_id != request.user.organisation_id:
+        raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
+    if instance is not None:
+        if value.id == instance.id:
+            raise serializers.ValidationError('Une équipe ne peut pas être sa propre équipe de direction.')
+        ancestor = value
+        while ancestor is not None:
+            if ancestor.id == instance.id:
+                raise serializers.ValidationError('Cette affectation créerait une boucle hiérarchique entre équipes.')
+            ancestor = ancestor.parent
+    return value
+
+
 class TeamSerializer(serializers.ModelSerializer):
+    """Lecture et modification d'une équipe existante : le code ne se modifie pas depuis ce
+    formulaire, mais l'équipe de direction (parent) le peut — c'est ce qui la fait apparaître
+    comme sous-équipe sur l'organigramme."""
     manager = TeamMemberSerializer(read_only=True)
     manager_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
     )
     members = TeamMemberSerializer(many=True, read_only=True, source='team_members')
+    parent_code = serializers.SerializerMethodField()
+    parent_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
-        fields = ['id', 'code', 'name', 'manager', 'manager_id', 'members', 'niveau', 'is_protected', 'created_at']
+        fields = [
+            'id', 'code', 'name', 'manager', 'manager_id', 'members', 'niveau', 'parent',
+            'parent_code', 'parent_name', 'is_protected', 'created_at',
+        ]
         read_only_fields = ['id', 'code', 'is_protected', 'created_at']
+
+    def get_parent_code(self, obj):
+        return obj.parent.code if obj.parent else None
+
+    def get_parent_name(self, obj):
+        return obj.parent.name if obj.parent else None
 
     def validate_manager_id(self, value):
         request = self.context['request']
@@ -513,21 +553,53 @@ class TeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f'Le niveau doit être compris entre 1 et {max_niveau}.')
         return value
 
-    def create(self, validated_data):
-        organisation = self.context['request'].user.organisation
-        last = Team.objects.filter(organisation=organisation, code__startswith='EQ-').order_by('-id').first()
-        next_num = int(last.code.replace('EQ-', '')) + 1 if last else 1
-        validated_data.pop('niveau', None)
-        team = Team.objects.create(organisation=organisation, code=f'EQ-{next_num:03d}', niveau=4, **validated_data)
-        manager = validated_data.get('manager')
-        if manager is not None:
-            manager.move_to_team(team)
-        return team
+    def validate_parent(self, value):
+        return _validate_team_parent(value, self.context['request'], self.instance)
 
     def update(self, instance, validated_data):
         manager = validated_data.get('manager', instance.manager)
         team = super().update(instance, validated_data)
         if manager is not None and manager.team_id != team.id:
+            manager.move_to_team(team)
+        return team
+
+
+class TeamCreateSerializer(serializers.ModelSerializer):
+    """Création d'une équipe : le code est saisi librement par l'utilisateur (unique par
+    organisation), le niveau démarre toujours au plus bas (à ajuster ensuite si besoin), et une
+    équipe de direction (parent) peut être choisie dès la création."""
+    manager_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = Team
+        fields = ['id', 'code', 'name', 'manager_id', 'parent']
+        read_only_fields = ['id']
+
+    def validate_code(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Le code est obligatoire.')
+        organisation = self.context['request'].user.organisation
+        if Team.objects.filter(organisation=organisation, code__iexact=value).exists():
+            raise serializers.ValidationError('Ce code est déjà utilisé par une autre équipe.')
+        return value
+
+    def validate_manager_id(self, value):
+        request = self.context['request']
+        if value is not None and value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce manager n’appartient pas à votre organisation.')
+        return value
+
+    def validate_parent(self, value):
+        return _validate_team_parent(value, self.context['request'], None)
+
+    def create(self, validated_data):
+        organisation = self.context['request'].user.organisation
+        manager = validated_data.pop('manager', None)
+        team = Team.objects.create(organisation=organisation, niveau=4, manager=manager, **validated_data)
+        if manager is not None:
             manager.move_to_team(team)
         return team
 
@@ -567,14 +639,14 @@ class CongeTypeSerializer(serializers.ModelSerializer):
 
 
 class PublicHolidaySerializer(serializers.ModelSerializer):
-    """Jour férié géré manuellement par l'admin/directeur, propre au pays de l'organisation
-    (Paramètres > EHS)."""
+    """Jour férié propre au pays de l'organisation — la plupart importés automatiquement
+    (source='auto'), le reste ajouté à la main par l'admin/directeur (Paramètres > Jours fériés)."""
     created_by_nom = serializers.SerializerMethodField()
 
     class Meta:
         model = PublicHoliday
-        fields = ['id', 'nom', 'date', 'recurrente_annuelle', 'created_by_nom', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'nom', 'date', 'recurrente_annuelle', 'source', 'created_by_nom', 'created_at']
+        read_only_fields = ['id', 'source', 'created_at']
 
     def get_created_by_nom(self, obj):
         return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
@@ -762,12 +834,22 @@ class LigneBudgetaireSerializer(serializers.ModelSerializer):
 
 
 class LigneBudgetaireCreateSerializer(serializers.ModelSerializer):
-    """Création d'une ligne (racine si parent est vide, sous-ligne sinon) : le code et le niveau
-    sont calculés automatiquement à partir du parent."""
+    """Création d'une ligne (racine si parent est vide, sous-ligne sinon) : le niveau est calculé
+    automatiquement à partir du parent, mais le code est saisi librement par l'utilisateur
+    (unique par organisation)."""
     class Meta:
         model = LigneBudgetaire
-        fields = ['id', 'nom', 'equipe', 'declinaison', 'montant_prevu', 'parent']
+        fields = ['id', 'code', 'nom', 'equipe', 'declinaison', 'montant_prevu', 'parent']
         read_only_fields = ['id']
+
+    def validate_code(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Le code est obligatoire.')
+        organisation = self.context['request'].user.organisation
+        if LigneBudgetaire.objects.filter(organisation=organisation, code__iexact=value).exists():
+            raise serializers.ValidationError('Ce code est déjà utilisé par une autre ligne.')
+        return value
 
     def validate_equipe(self, value):
         request = self.context['request']
@@ -789,8 +871,7 @@ class LigneBudgetaireCreateSerializer(serializers.ModelSerializer):
         organisation = self.context['request'].user.organisation
         parent = validated_data.pop('parent', None)
         niveau = (parent.niveau + 1) if parent else 1
-        code = next_ligne_budgetaire_code(organisation, parent)
-        return LigneBudgetaire.objects.create(organisation=organisation, parent=parent, niveau=niveau, code=code, **validated_data)
+        return LigneBudgetaire.objects.create(organisation=organisation, parent=parent, niveau=niveau, **validated_data)
 
 
 class AvanceDemandeReviewSerializer(serializers.ModelSerializer):
@@ -1050,6 +1131,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     echeance = serializers.DateField(source='task.echeance', read_only=True)
     priorite_display = serializers.CharField(source='task.get_priorite_display', read_only=True)
     task_created_by_nom = serializers.SerializerMethodField()
+    notee_par_nom = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskAssignment
@@ -1060,6 +1142,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'task', 'user', 'user_nom', 'user_grade', 'heures', 'ehs_consomme', 'montant_fcfa',
             'execution_statut', 'execution_statut_display', 'demarree_le', 'terminee_le',
+            'temps_travaille_secondes', 'note', 'note_commentaire', 'notee_le', 'notee_par_nom',
             'created_by_nom', 'created_at',
             'task_code', 'task_description', 'template_nom', 'template_code',
             'project_nom', 'project_code', 'equipe_nom', 'equipe_code',
@@ -1067,7 +1150,8 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             'task_created_by_nom',
         ]
         read_only_fields = [
-            'id', 'ehs_consomme', 'montant_fcfa', 'execution_statut', 'demarree_le', 'terminee_le', 'created_at',
+            'id', 'ehs_consomme', 'montant_fcfa', 'execution_statut', 'demarree_le', 'terminee_le',
+            'temps_travaille_secondes', 'notee_le', 'created_at',
         ]
 
     def get_user_nom(self, obj):
@@ -1079,6 +1163,19 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     def get_task_created_by_nom(self, obj):
         creator = obj.task.created_by
         return f'{creator.first_name} {creator.last_name}' if creator else None
+
+    def get_notee_par_nom(self, obj):
+        return f'{obj.notee_par.first_name} {obj.notee_par.last_name}' if obj.notee_par else None
+
+    def validate_note(self, value):
+        if value is None:
+            return value
+        if not (1 <= value <= 5):
+            raise serializers.ValidationError('La note doit être comprise entre 1 et 5.')
+        instance = self.instance
+        if instance is None or instance.execution_statut != 'terminee':
+            raise serializers.ValidationError('Seule une tâche terminée peut être notée.')
+        return value
 
     def validate_task(self, value):
         request = self.context['request']

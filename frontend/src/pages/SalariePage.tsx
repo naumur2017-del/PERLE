@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import DatePicker from '../components/DatePicker'
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
 import {
   createAvanceDemande, createCongeDemande, deleteAvanceDemande, deleteCongeDemande, endCongeDemande,
@@ -50,6 +51,7 @@ import {
   type FermetureTechnique,
 } from '../api/demandes'
 import { ApiError } from '../api/client'
+import { fetchOrganisationEhs } from '../api/organisation'
 import { currencySuffix, formatMontant } from '../utils/currency'
 import type { Session } from '../auth/session'
 import 'flag-icons/css/flag-icons.min.css'
@@ -368,7 +370,7 @@ function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel
           <p className="salarie-note-inline">
             Indiquez uniquement la date de début : ce congé reste ouvert jusqu’à ce que vous déclariez votre reprise du travail.
           </p>
-          <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
+          <DatePicker label="Date de début" required value={dateDebut} onChange={setDateDebut} />
         </>
       ) : definiParEntreprise ? (
         <p className="salarie-note-inline">
@@ -377,8 +379,8 @@ function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel
       ) : (
         <>
           <div className="salarie-form-row">
-            <label>Date de début<input type="date" required value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label>
-            <label>Date de fin<input type="date" required value={dateFin} min={dateDebut || undefined} onChange={(event) => setDateFin(event.target.value)} /></label>
+            <DatePicker label="Date de début" required value={dateDebut} onChange={setDateDebut} />
+            <DatePicker label="Date de fin" required value={dateFin} min={dateDebut || undefined} onChange={setDateFin} />
           </div>
           {demiJourneesPossibles && (
             <div className="salarie-form-row">
@@ -1444,6 +1446,15 @@ function RemuDonut() {
 function RemunerationTab() {
   const [periode, setPeriode] = useState(PERIODES[0])
   const [detailsVisibles, setDetailsVisibles] = useState(true)
+  // Valeur réelle configurée dans Paramètres > EHS — jamais une valeur figée en dur, pour rester
+  // cohérente avec le reste du système si l'admin la change.
+  const [tauxEhs, setTauxEhs] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchOrganisationEhs().then((data) => { if (!cancelled) setTauxEhs(data.taux_ehs_fcfa) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="salarie-remuneration">
@@ -1539,7 +1550,7 @@ function RemunerationTab() {
             <div>
               <strong>Informations importantes</strong>
               <ul>
-                <li>{`La valeur d’un EHS est fixée à 3 000 ${currencySuffix()}.`}</li>
+                <li>{tauxEhs !== null ? `La valeur d’un EHS est fixée à ${formatMontant(tauxEhs)}.` : `La valeur d’un EHS est configurée dans Paramètres (en ${currencySuffix()}).`}</li>
                 <li>Les primes sont calculées selon les critères définis par le pilotage.</li>
                 <li>Les bulletins de paie sont disponibles après validation.</li>
               </ul>

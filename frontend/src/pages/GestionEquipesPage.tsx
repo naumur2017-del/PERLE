@@ -9,6 +9,8 @@ import { createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmploye
 import { ApiError } from '../api/client'
 import CountrySelect from '../components/CountrySelect'
 import RegionSelect from '../components/RegionSelect'
+import PhoneInput from '../components/PhoneInput'
+import DatePicker from '../components/DatePicker'
 import './GestionEquipesPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -472,6 +474,10 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
     setForm((previous) => ({ ...previous, [field]: event.target.value }))
   }
 
+  const handleDateChange = (field: keyof CreateEmployeeForm) => (value: string) => {
+    setForm((previous) => ({ ...previous, [field]: value }))
+  }
+
   const handleFile = (field: keyof CreateEmployeeFiles) => (event: ChangeEvent<HTMLInputElement>) => {
     setFiles((previous) => ({ ...previous, [field]: event.target.files?.[0] ?? null }))
   }
@@ -534,9 +540,12 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
                   </button>
                 </span>
               </label>
-              <label>Téléphone<input value={form.phone} onChange={handleChange('phone')} /></label>
+              <PhoneInput
+                name="phone" label="Téléphone" countryCode={form.pays_code || null} value={form.phone}
+                onChange={(v) => setForm((previous) => ({ ...previous, phone: v }))}
+              />
               <label>Matricule<input value={form.matricule} onChange={handleChange('matricule')} /></label>
-              <label>Date de naissance<input type="date" value={form.date_naissance} onChange={handleChange('date_naissance')} /></label>
+              <DatePicker label="Date de naissance" value={form.date_naissance} onChange={handleDateChange('date_naissance')} />
               <CountrySelect
                 name="pays" label="Pays" value={form.pays_code || null}
                 onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '' }))}
@@ -565,7 +574,7 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
                   {teams.map((team) => <option key={team.id} value={team.id}>{team.code} — {team.name}</option>)}
                 </select>
               </label>
-              <label>Date d’embauche<input type="date" value={form.date_embauche} onChange={handleChange('date_embauche')} /></label>
+              <DatePicker label="Date d’embauche" value={form.date_embauche} onChange={handleDateChange('date_embauche')} />
               <label>Type de contrat
                 <select value={form.type_contrat} onChange={handleChange('type_contrat')}>
                   <option value="">Non renseigné</option><option value="cdi">CDI</option><option value="cdd">CDD</option><option value="stage">Stage</option><option value="alternance">Alternance</option><option value="consultant">Consultant</option>
