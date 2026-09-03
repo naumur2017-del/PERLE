@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Building2, Crown, Lock, UserX } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Building2, Crown, FileDown, Lock, UserX } from 'lucide-react'
 import { fetchEmployees, fetchTeams, type Employee, type Team, type TeamMember } from '../api/employees'
 import type { Session } from '../auth/session'
 import './OrganigrammePage.css'
@@ -104,8 +104,34 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
 
   const isEmpty = !loading && !loadError && levels.length === 0 && unassigned.length === 0
 
+  const printAreaRef = useRef<HTMLDivElement>(null)
+
+  /* Avant d'imprimer, on réduit tout l'organigramme (légende + arbre) à l'échelle exacte qui le
+     fait tenir sur une seule page A4 paysage — voir @page dans App.css. On ne compte pas sur le
+     « ajuster à la page » du navigateur (pas garanti selon les navigateurs/imprimantes, surtout
+     en hauteur) : on mesure la taille réelle du contenu et on calcule le facteur d'échelle
+     nous-mêmes, appliqué en CSS pendant l'impression (voir .og-print-area dans le CSS d'impression). */
+  const handleExportPdf = () => {
+    const el = printAreaRef.current
+    if (el) {
+      const PAGE_WIDTH_PX = 1040
+      const PAGE_HEIGHT_PX = 700
+      const naturalWidth = el.scrollWidth
+      const naturalHeight = el.scrollHeight
+      const scale = Math.min(1, PAGE_WIDTH_PX / naturalWidth, PAGE_HEIGHT_PX / naturalHeight)
+      el.style.setProperty('--og-print-scale', String(scale))
+      el.style.setProperty('--og-print-height', `${naturalHeight * scale}px`)
+    }
+    window.print()
+  }
+
   return (
     <section className="og-page">
+      <div className="og-toolbar">
+        <button type="button" className="og-export-btn" onClick={handleExportPdf}><FileDown size={14} />Exporter en PDF</button>
+      </div>
+
+      <div className="og-print-area" ref={printAreaRef}>
       <div className="og-legend">
         <span className="og-legend-item"><span className="og-legend-swatch og-legend-manager" /><Crown size={11} strokeWidth={2.5} />Manager d'équipe</span>
         <span className="og-legend-item"><Lock size={11} strokeWidth={2.5} />Équipe protégée</span>
@@ -164,6 +190,7 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
           </div>
         </div>
       )}
+    </div>
     </section>
   )
 }

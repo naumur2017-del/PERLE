@@ -2497,3 +2497,26 @@ table {
     padding: 8px;
   }
 }
+
+/* =============== IMPRESSION / EXPORT PDF (global — voir Organigramme, dashboards) =============== */
+/* Chaque page qui a son propre bouton « Exporter en PDF » (window.print()) n'a qu'à styler son
+   propre contenu pour l'impression (voir OrganigrammePage.css) : la barre latérale, l'en-tête et
+   le pied de page communs à toutes les pages sont masqués une seule fois, ici. */
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  * , *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body { background: #ffffff !important; }
+
+  .sidebar, .app-header, .app-footer, .sidebar-toggle,
+  .task-timer-stack, .task-timer-collapsed, .notification-dropdown, .splash-screen {
+    display: none !important;
+  }
+
+  .app-container { display: block !important; height: auto !important; }
+  .main-content { display: block !important; overflow: visible !important; height: auto !important; background: #ffffff !important; }
+}

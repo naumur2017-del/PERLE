@@ -13,6 +13,16 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
+/* =============== TOOLBAR (export PDF) =============== */
+.og-toolbar { display: flex; justify-content: flex-end; }
+.og-export-btn {
+  display: flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 16px; border: 1px solid #ddd8f2; border-radius: 8px;
+  background: #ffffff; color: #35335c; font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.og-export-btn:hover { background: #f7f5ff; box-shadow: 0 2px 8px rgba(30, 20, 80, 0.08); }
+
 /* =============== LEGEND =============== */
 .og-legend {
   display: flex;
@@ -77,8 +87,11 @@
 .og-level-tag-muted svg { color: #8f8fa6; }
 
 /* Rangée d'équipes d'un même niveau : chaque carte se raccorde au tronc commun par une
-   ligne verticale ; une barre horizontale relie les cartes entre elles pour former les branches. */
-.og-branches { display: flex; justify-content: center; flex-wrap: wrap; padding-bottom: 6px; }
+   ligne verticale ; une barre horizontale relie les cartes entre elles pour former les branches.
+   Jamais de retour à la ligne : toutes les équipes d'un même niveau restent alignées sur une
+   seule rangée (voir Niveau N ci-dessus), quitte à faire défiler .og-chart horizontalement si
+   elles sont trop nombreuses pour la largeur de l'écran. */
+.og-branches { display: flex; justify-content: center; flex-wrap: nowrap; width: max-content; margin: 0 auto; padding-bottom: 6px; }
 
 .og-branch { position: relative; display: flex; flex-direction: column; min-width: 230px; margin: 0 16px; padding-top: 20px; }
 
@@ -219,4 +232,23 @@
   .og-page { padding: 16px; gap: 14px; }
   .og-legend { gap: 10px; }
   .og-branch { min-width: 200px; margin: 0 10px; }
+}
+
+/* =============== EXPORT PDF (impression) =============== */
+/* La barre latérale / en-tête / pied de page communs sont déjà masqués globalement, voir
+   @media print dans App.css. Ici : on réduit tout l'organigramme (légende + arbre, voir
+   .og-print-area) à l'échelle calculée par handleExportPdf pour qu'il tienne sur une seule page
+   A4 paysage, et les couleurs (dégradé de la carte racine, avatars, statuts) sont préservées
+   grâce à print-color-adjust: exact (règle globale) plutôt que d'être effacées par défaut par le
+   navigateur à l'impression. */
+@media print {
+  .og-toolbar { display: none !important; }
+  .og-page { padding: 0; gap: 8px; }
+  .og-legend { border: none; background: none; padding: 4px 0; }
+  .og-chart { display: block; overflow: visible; padding-bottom: 0; }
+  /* La hauteur de la boîte est ramenée à sa taille APRÈS mise à l'échelle (sans quoi elle
+     réserverait toujours son espace d'origine, non réduit, et laisserait une page 2 quasi vide) —
+     scale() ne change que le rendu visuel, pas la taille de boîte pour la mise en page. */
+  .og-print-area { height: var(--og-print-height, auto); transform: scale(var(--og-print-scale, 1)); transform-origin: top center; }
+  .og-card-team:hover, .og-card-member:hover { box-shadow: none; transform: none; }
 }
