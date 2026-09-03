@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -9,6 +10,8 @@ from .models import (
     AvanceDemande,
     CongeDemande,
     CongeType,
+    Conversation,
+    DirectMessage,
     FermetureTechnique,
     GradeHistory,
     LigneBudgetaire,
@@ -18,6 +21,7 @@ from .models import (
     PublicHoliday,
     Task,
     TaskAssignment,
+    TaskMessage,
     TaskTemplate,
     Team,
     User,
@@ -309,13 +313,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
     team = TeamSummarySerializer(read_only=True)
     grade_history = GradeHistorySerializer(many=True, read_only=True)
     affectation_history = AffectationHistorySerializer(many=True, read_only=True)
+    # Statut « en ligne » pour l'annuaire de la page Messagerie — voir _is_online.
+    is_online = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
             'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'is_active',
-            'team', 'date_joined', 'date_embauche',
+            'team', 'date_joined', 'date_embauche', 'last_seen_at', 'is_online',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
             'type_contrat', 'periode_essai', 'temps_travail',
             'competences_principales', 'competences_secondaires',
@@ -323,6 +329,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
             'grade_history', 'affectation_history',
         ]
+
+    def get_is_online(self, obj):
+        return _is_online(obj)
 
 
 class EmployeeCreateSerializer(serializers.ModelSerializer):
@@ -1244,6 +1253,199 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         instance.ehs_consomme = self._ehs
         instance.montant_fcfa = self._montant
         return super().update(instance, validated_data)
+
+
+MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024  # 50 Mo
+
+
+def _detect_attachment_type(uploaded_file):
+    """Le type de pièce jointe est toujours dérivé du content-type réel du fichier envoyé, jamais
+    fourni tel quel par le client (attachment_type est en lecture seule dans les serializers)."""
+    content_type = getattr(uploaded_file, 'content_type', '') or ''
+    if content_type.startswith('image/'):
+        return 'image'
+    if content_type.startswith('video/'):
+        return 'video'
+    if content_type.startswith('audio/'):
+        return 'audio'
+    return 'fichier'
+
+
+def _absolute_media_url(request, file_field):
+    if not file_field:
+        return None
+    try:
+        return request.build_absolute_uri(file_field.url)
+    except ValueError:
+        return None
+
+
+# Une personne est considérée « en ligne » si le battement de cœur envoyé par le frontend (voir
+# HeartbeatView, appelé toutes les ~30 secondes tant qu'une session est active) date de moins de
+# ONLINE_THRESHOLD_SECONDS — aucun état stocké à part ce timestamp, pas de tâche périodique.
+ONLINE_THRESHOLD_SECONDS = 90
+
+
+def _is_online(user):
+    if not user.last_seen_at:
+        return False
+    return (timezone.now() - user.last_seen_at).total_seconds() <= ONLINE_THRESHOLD_SECONDS
+
+
+class TaskMessageSerializer(serializers.ModelSerializer):
+    """Un message de l'espace de discussion partagé d'une tâche (TaskMessage) — texte et/ou
+    pièce jointe (image, vidéo, note vocale). Voir _can_access_task_messages dans les vues pour
+    qui peut lire/écrire dans ce fil, et TaskMessageDetailView pour qui peut le modifier/supprimer
+    (son auteur uniquement)."""
+    auteur_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskMessage
+        fields = ['id', 'task', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'created_at', 'edited_at']
+        read_only_fields = ['id', 'task', 'auteur', 'auteur_nom', 'attachment_type', 'created_at', 'edited_at']
+
+    def get_auteur_nom(self, obj):
+        return f'{obj.auteur.first_name} {obj.auteur.last_name}' if obj.auteur else None
+
+    def validate_contenu(self, value):
+        return value.strip()
+
+    def validate_attachment(self, value):
+        if value and value.size > MAX_ATTACHMENT_SIZE:
+            raise serializers.ValidationError('Le fichier est trop volumineux (50 Mo maximum).')
+        return value
+
+    def validate(self, attrs):
+        # En modification partielle (édition), un champ absent du payload garde sa valeur
+        # actuelle — un message qui a déjà une pièce jointe reste valide même si on ne modifie
+        # que le texte (ou qu'on le vide entièrement).
+        contenu = attrs.get('contenu', self.instance.contenu if self.instance else '')
+        has_attachment = attrs.get('attachment') is not None or bool(self.instance and self.instance.attachment)
+        if not contenu and not has_attachment:
+            raise serializers.ValidationError({'contenu': 'Le message ne peut pas être vide.'})
+        if len(contenu) > 4000:
+            raise serializers.ValidationError({'contenu': 'Le message est trop long (4000 caractères maximum).'})
+        return attrs
+
+    def create(self, validated_data):
+        attachment = validated_data.get('attachment')
+        if attachment:
+            validated_data['attachment_type'] = _detect_attachment_type(attachment)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data['edited_at'] = timezone.now()
+        return super().update(instance, validated_data)
+
+
+class DirectMessageSerializer(serializers.ModelSerializer):
+    """Un message d'une conversation directe (DirectMessage, page Messagerie) — texte et/ou
+    pièce jointe (image, vidéo, note vocale). Voir DirectMessageDetailView pour qui peut le
+    modifier/supprimer (son auteur uniquement)."""
+    auteur_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DirectMessage
+        fields = ['id', 'conversation', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'created_at', 'edited_at']
+        read_only_fields = ['id', 'conversation', 'auteur', 'auteur_nom', 'attachment_type', 'created_at', 'edited_at']
+
+    def get_auteur_nom(self, obj):
+        return f'{obj.auteur.first_name} {obj.auteur.last_name}' if obj.auteur else None
+
+    def validate_contenu(self, value):
+        return value.strip()
+
+    def validate_attachment(self, value):
+        if value and value.size > MAX_ATTACHMENT_SIZE:
+            raise serializers.ValidationError('Le fichier est trop volumineux (50 Mo maximum).')
+        return value
+
+    def validate(self, attrs):
+        contenu = attrs.get('contenu', self.instance.contenu if self.instance else '')
+        has_attachment = attrs.get('attachment') is not None or bool(self.instance and self.instance.attachment)
+        if not contenu and not has_attachment:
+            raise serializers.ValidationError({'contenu': 'Le message ne peut pas être vide.'})
+        if len(contenu) > 4000:
+            raise serializers.ValidationError({'contenu': 'Le message est trop long (4000 caractères maximum).'})
+        return attrs
+
+    def create(self, validated_data):
+        attachment = validated_data.get('attachment')
+        if attachment:
+            validated_data['attachment_type'] = _detect_attachment_type(attachment)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data['edited_at'] = timezone.now()
+        return super().update(instance, validated_data)
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    """Résumé d'une conversation (1:1 ou groupe) pour la liste de la page Messagerie : nom
+    affiché, participants, un aperçu du dernier message, et si elle a des messages non lus par
+    request.user (voir ConversationRead — comparaison de dates, pas d'état par message)."""
+    other_user = serializers.SerializerMethodField()
+    participants = serializers.SerializerMethodField()
+    display_nom = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    unread = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = ['id', 'is_group', 'nom', 'display_nom', 'other_user', 'participants', 'last_message', 'unread', 'created_at']
+
+    def _user_summary(self, request, user):
+        return {
+            'id': user.id,
+            'nom': f'{user.first_name} {user.last_name}',
+            'fonction': user.fonction,
+            'profile_photo': _absolute_media_url(request, user.profile_photo),
+            'is_online': _is_online(user),
+        }
+
+    def get_participants(self, obj):
+        request = self.context['request']
+        return [self._user_summary(request, u) for u in obj.participants.all()]
+
+    def get_other_user(self, obj):
+        """Uniquement pour un 1:1 — None pour un groupe (voir display_nom pour le nom à afficher
+        dans ce cas)."""
+        if obj.is_group:
+            return None
+        request = self.context['request']
+        other = obj.other_participant(request.user)
+        return self._user_summary(request, other) if other else None
+
+    def get_display_nom(self, obj):
+        if obj.is_group:
+            return obj.nom or 'Groupe sans nom'
+        request = self.context['request']
+        other = obj.other_participant(request.user)
+        return f'{other.first_name} {other.last_name}' if other else '—'
+
+    def _last_message(self, obj):
+        if not hasattr(obj, '_last_message_cache'):
+            obj._last_message_cache = obj.messages.order_by('-created_at').first()
+        return obj._last_message_cache
+
+    def get_last_message(self, obj):
+        last = self._last_message(obj)
+        if not last:
+            return None
+        return {
+            'contenu': last.contenu,
+            'attachment_type': last.attachment_type or None,
+            'auteur_id': last.auteur_id,
+            'created_at': last.created_at,
+        }
+
+    def get_unread(self, obj):
+        request = self.context['request']
+        last = self._last_message(obj)
+        if not last or last.auteur_id == request.user.id:
+            return False
+        read = obj.reads.filter(user=request.user).first()
+        return read is None or last.created_at > read.last_read_at
 
 
 class TaskSerializer(serializers.ModelSerializer):

@@ -1,0 +1,38 @@
+.tm-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+  height: min(640px, 86vh);
+  padding: 0;
+  overflow: hidden;
+}
+
+.tm-modal .ge-modal-head {
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0eef8;
+}
+
+.tm-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 24px;
+  color: #a8a8bd;
+  font-size: 12px;
+  text-align: center;
+}
+
+.tm-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+@media (max-width: 560px) {
+  .tm-modal { max-width: 100%; height: 92vh; }
+}

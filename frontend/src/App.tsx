@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
-import { ChevronDown, ChevronUp, Eye, Pause, Play, Timer } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, MessageSquareWarning, Pause, Play, Timer } from 'lucide-react'
 import './App.css'
 import sampleHeader from './assets/sample header.png'
 import AnimatedLogo from './components/AnimatedLogo'
@@ -18,6 +18,7 @@ import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import SuiviStaffingPage from './pages/SuiviStaffingPage'
+import MessagingPage from './pages/MessagingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
 import HistoriqueEmployesPage from './pages/HistoriqueEmployesPage'
 import DemandesEmployesPage from './pages/DemandesEmployesPage'
@@ -33,7 +34,9 @@ import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import { clearSession, getSession, saveSession, type Session } from './auth/session'
 import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment } from './api/taskAssignments'
-import { fetchMe } from './api/employees'
+import { fetchMe, sendHeartbeat } from './api/employees'
+import TaskMessagesModal from './components/TaskMessagesModal'
+import { useUnreadMessages } from './hooks/useUnreadMessages'
 
 interface Module {
   id: number
@@ -44,6 +47,7 @@ interface Module {
 
 const pageConfig: Record<string, { path: string; title: string; description: string }> = {
   accueil: { path: '/', title: 'Accueil', description: 'Bienvenue dans PERLE, votre système de pilotage intégré.' },
+  messagerie: { path: '/messagerie', title: 'Messagerie', description: "Discutez avec n'importe quel membre de votre organisation." },
   pilotage: { path: '/pilotage', title: 'Pilotage des projets et gestion budgétaire', description: 'Vue globale des projets : budget, coûts, EHS, durées et avancement.' },
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
   'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Suivez la performance de vos équipes et la mobilisation des ressources.' },
@@ -147,6 +151,41 @@ function App() {
   const addNotification = (message: string) => {
     setNotifications((current) => [{ id: `ntf-${Date.now()}-${current.length}`, message, date: new Date().toLocaleString('fr-FR') }, ...current])
   }
+
+  // Cloche de notifications : reflète les vrais messages non lus (tâches + conversations
+  // directes), sondés en tâche de fond — jamais une valeur locale qui pourrait diverger de la
+  // base de données.
+  const {
+    total: unreadTotal, unreadConversationIds, unreadTasks, unreadConversations,
+    markTaskReadLocally: markBellTaskReadLocally, markConversationReadLocally: markBellConversationReadLocally,
+  } = useUnreadMessages()
+  const prevUnreadTotalRef = useRef(0)
+  const [bellRinging, setBellRinging] = useState(false)
+  useEffect(() => {
+    const increased = unreadTotal > prevUnreadTotalRef.current
+    prevUnreadTotalRef.current = unreadTotal
+    if (!increased) return
+    setBellRinging(true)
+    const timeoutId = window.setTimeout(() => setBellRinging(false), 700)
+    return () => window.clearTimeout(timeoutId)
+  }, [unreadTotal])
+
+  // Battement de cœur léger tant qu'une session est active — alimente uniquement le statut « en
+  // ligne » de la Messagerie (voir sendHeartbeat), aucun autre effet de bord.
+  useEffect(() => {
+    if (!session) return
+    sendHeartbeat().catch(() => {})
+    const interval = window.setInterval(() => { sendHeartbeat().catch(() => {}) }, 30000)
+    return () => window.clearInterval(interval)
+  }, [session])
+
+  // Clic sur un message de tâche non lu dans la cloche : ouvre directement son fil, sans
+  // dépendre de la page actuellement affichée (une tâche notifiée n'est pas forcément dans « mes »
+  // attributions — ex. un manager notifié pour une tâche qu'il a créée sans y être lui-même staffé).
+  const [notificationTaskModal, setNotificationTaskModal] = useState<{ id: number; title: string } | null>(null)
+  // Clic sur une conversation non lue dans la cloche : ouvre directement la Messagerie sur cette
+  // conversation précise (1:1 ou groupe).
+  const [messagingFocusConversationId, setMessagingFocusConversationId] = useState<number | null>(null)
 
   // Écriture partagée : que la mise à jour vienne du minuteur flottant ou d'Exécuté staffing, elle
   // passe toujours par ici, donc les deux affichages restent forcément synchronisés.
@@ -299,6 +338,7 @@ function App() {
 
   const icons = {
     accueil: <AppIcon><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></AppIcon>,
+    messagerie: <AppIcon><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></AppIcon>,
     pilotage: <AppIcon><path d="M5 21v-6" /><path d="M12 21V9" /><path d="M19 21V3" /></AppIcon>,
     creation: <AppIcon><path d="M12 10v6" /><path d="M9 13h6" /><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></AppIcon>,
     staffing: <AppIcon><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></AppIcon>,
@@ -315,6 +355,7 @@ function App() {
 
   const navItems: { id: string; label: string; icon: ReactNode; children?: { id: string; label: string }[] }[] = [
     { id: 'accueil', label: 'Accueil', icon: icons.accueil },
+    { id: 'messagerie', label: 'Messagerie', icon: icons.messagerie },
     {
       id: 'pilotage', label: 'Pilotage des projets', icon: icons.pilotage,
       children: [
@@ -437,6 +478,12 @@ function App() {
 
   const renderPage = () => {
     switch (activeNav) {
+      case 'messagerie': return (
+        <MessagingPage
+          focusConversationId={messagingFocusConversationId}
+          onFocusConsumed={() => setMessagingFocusConversationId(null)}
+        />
+      )
       case 'pilotage': return <PilotagePage navigateTo={navigateTo} focusTarget={pilotageFocus} onFocusConsumed={() => setPilotageFocus(null)} />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
@@ -554,6 +601,9 @@ function App() {
                 >
                   <span className="nav-icon">{item.icon}</span>
                   <span className="nav-label">{item.label}</span>
+                  {item.id === 'messagerie' && unreadConversationIds.size > 0 && (
+                    <span className="nav-badge">{unreadConversationIds.size}</span>
+                  )}
                 </button>
               )
             }
@@ -628,13 +678,35 @@ function App() {
               </button>
               <div className="hero-actions">
                 <div className="notification-wrapper">
-                  <button className="notification-btn" onClick={() => setNotificationsOpen((open) => !open)}>
-                    🔔
-                    {notifications.length > 0 && <span className="notification-badge">{notifications.length}</span>}
+                  <button
+                    className={`notification-btn ${bellRinging ? 'is-ringing' : ''}`}
+                    onClick={() => setNotificationsOpen((open) => !open)}
+                    aria-label="Notifications"
+                  >
+                    <MessageSquareWarning size={20} />
+                    {(notifications.length + unreadTotal) > 0 && <span className="notification-badge">{notifications.length + unreadTotal}</span>}
                   </button>
                   {notificationsOpen && (
                     <ul className="notification-dropdown" onMouseLeave={() => setNotificationsOpen(false)}>
-                      {notifications.length === 0 ? (
+                      {unreadTasks.map((task) => (
+                        <li
+                          key={`task-${task.id}`}
+                          className="notification-link"
+                          onClick={() => { setNotificationTaskModal({ id: task.id, title: `${task.code} — ${task.nom}` }); setNotificationsOpen(false) }}
+                        >
+                          <span>💬 Nouveau message — {task.code} · {task.nom}</span>
+                        </li>
+                      ))}
+                      {unreadConversations.map((conversation) => (
+                        <li
+                          key={`conv-${conversation.id}`}
+                          className="notification-link"
+                          onClick={() => { setMessagingFocusConversationId(conversation.id); markBellConversationReadLocally(conversation.id); navigateTo('messagerie'); setNotificationsOpen(false) }}
+                        >
+                          <span>💬 Nouveau message de {conversation.nom}</span>
+                        </li>
+                      ))}
+                      {notifications.length === 0 && unreadTotal === 0 ? (
                         <li className="notification-empty">Aucune notification</li>
                       ) : notifications.map((notification) => (
                         <li key={notification.id}>
@@ -736,6 +808,15 @@ function App() {
             })}
           </div>
         )
+      )}
+
+      {notificationTaskModal && (
+        <TaskMessagesModal
+          taskId={notificationTaskModal.id}
+          title={notificationTaskModal.title}
+          onClose={() => setNotificationTaskModal(null)}
+          onRead={() => markBellTaskReadLocally(notificationTaskModal.id)}
+        />
       )}
     </>
   )

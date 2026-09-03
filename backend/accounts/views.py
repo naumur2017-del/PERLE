@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-from django.db.models import Q
+from django.db.models import Max, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -13,8 +14,10 @@ from rest_framework.views import APIView
 
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
-    AvanceDemande, CongeDemande, CongeType, FermetureTechnique, LigneBudgetaire, Organisation,
-    Project, ProjectLigne, PublicHoliday, Task, TaskAssignment, TaskTemplate, Team, User,
+    AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
+    FermetureTechnique, LigneBudgetaire, Organisation, Project, ProjectLigne, PublicHoliday, Task,
+    TaskAssignment, TaskMessage, TaskMessageRead, TaskTemplate, Team, TypingStatus, User,
+    create_group_conversation, get_or_create_conversation,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -22,6 +25,8 @@ from .serializers import (
     CongeDemandeReviewSerializer,
     CongeDemandeSerializer,
     CongeTypeSerializer,
+    ConversationSerializer,
+    DirectMessageSerializer,
     EmployeeAdminEditSerializer,
     FermetureTechniqueSerializer,
     EmployeeAdminUpdateSerializer,
@@ -41,6 +46,7 @@ from .serializers import (
     RegisterMemberSerializer,
     RegisterPersonalOrganisationSerializer,
     TaskAssignmentSerializer,
+    TaskMessageSerializer,
     TaskSerializer,
     TaskTemplateSerializer,
     TeamCreateSerializer,
@@ -968,6 +974,13 @@ def _can_manage_task(user, task):
     return user.role in ('admin', 'directeur') or task.equipe.manager_id == user.id
 
 
+def _can_access_task_messages(user, task):
+    """Qui peut lire/écrire dans l'espace de discussion d'une tâche : toute personne qui la
+    gère (voir _can_manage_task) — donc y compris qui l'a créée — plus quiconque y est staffé
+    (TaskAssignment), même après un changement de manager d'équipe."""
+    return _can_manage_task(user, task) or task.assignments.filter(user_id=user.id).exists()
+
+
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Consultation, modification et suppression d'une tâche. Le manager de l'équipe peut aussi
     modifier ses tâches (notamment `assignee`, depuis Nouveau staffing), pas seulement admin/directeur."""
@@ -1145,3 +1158,346 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
             return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
 
         return Response(TaskAssignmentSerializer(assignment, context=self.get_serializer_context()).data)
+
+
+class TaskMessageListCreateView(generics.ListCreateAPIView):
+    """Espace de discussion partagé d'une tâche (voir TaskMessage) : un seul fil pour toutes les
+    personnes engagées dessus (le manager qui l'a attribuée et tous les salariés qui y sont
+    staffés), accessible uniquement à elles (ou admin/directeur) — voir _can_access_task_messages."""
+    serializer_class = TaskMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            raise Http404
+        task = get_object_or_404(
+            Task.objects.select_related('equipe', 'created_by'), pk=self.kwargs['pk'], organisation=organisation,
+        )
+        if not _can_access_task_messages(self.request.user, task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette discussion.')
+        return task
+
+    def get_queryset(self):
+        return TaskMessage.objects.filter(task=self.get_task()).select_related('auteur')
+
+    def perform_create(self, serializer):
+        serializer.save(task=self.get_task(), auteur=self.request.user)
+
+
+class TaskMessageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification (texte) ou suppression d'un message de tâche — réservé à son auteur, même
+    pour un manager ou admin/directeur : personne d'autre ne doit pouvoir changer les mots de
+    quelqu'un ou faire disparaître un message qu'il n'a pas écrit."""
+    serializer_class = TaskMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return TaskMessage.objects.none()
+        return TaskMessage.objects.filter(task__organisation=organisation).select_related('auteur', 'task')
+
+    def perform_update(self, serializer):
+        if serializer.instance.auteur_id != self.request.user.id:
+            raise PermissionDenied('Vous ne pouvez modifier que vos propres messages.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.auteur_id != self.request.user.id:
+            raise PermissionDenied('Vous ne pouvez supprimer que vos propres messages.')
+        if instance.attachment:
+            instance.attachment.delete(save=False)
+        instance.delete()
+
+
+TYPING_TTL_SECONDS = 5
+
+
+def _active_typers(scope, scope_id, exclude_user_id):
+    """Utilisateurs ayant signalé « en train d'écrire » sur ce fil dans les TYPING_TTL_SECONDS
+    dernières secondes (hors soi-même) — voir TypingStatus. TypingStatus.user n'a pas de related_
+    name exploitable (`+`, par convention du projet pour les FK purement informatives), donc on
+    interroge TypingStatus directement plutôt que via une relation inverse sur User."""
+    cutoff = timezone.now() - timedelta(seconds=TYPING_TTL_SECONDS)
+    user_ids = TypingStatus.objects.filter(
+        scope=scope, scope_id=scope_id, updated_at__gte=cutoff,
+    ).exclude(user_id=exclude_user_id).values_list('user_id', flat=True)
+    return User.objects.filter(id__in=user_ids)
+
+
+class TaskTypingView(generics.GenericAPIView):
+    """Signal « en train d'écrire » sur le fil d'une tâche — POST pour signaler que je tape (voir
+    MessageComposer, throttlé côté frontend), GET pour savoir qui d'autre est en train de taper."""
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self, pk):
+        if not self.request.user.organisation_id:
+            raise Http404
+        task = get_object_or_404(
+            Task.objects.select_related('equipe'), pk=pk, organisation_id=self.request.user.organisation_id,
+        )
+        if not _can_access_task_messages(self.request.user, task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette discussion.')
+        return task
+
+    def get(self, request, pk):
+        task = self.get_task(pk)
+        typers = _active_typers(TypingStatus.SCOPE_TASK, task.id, request.user.id)
+        return Response({'typing': [f'{u.first_name} {u.last_name}' for u in typers]})
+
+    def post(self, request, pk):
+        task = self.get_task(pk)
+        TypingStatus.objects.update_or_create(
+            scope=TypingStatus.SCOPE_TASK, scope_id=task.id, user=request.user, defaults={},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TaskMessageReadView(generics.GenericAPIView):
+    """Marque le fil de discussion d'une tâche comme lu par l'utilisateur connecté (voir
+    TaskMessageRead) — appelé quand la discussion s'ouvre côté frontend, pour faire disparaître
+    son voyant « non lu »."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not request.user.organisation_id:
+            raise Http404
+        task = get_object_or_404(
+            Task.objects.select_related('equipe'), pk=pk, organisation_id=request.user.organisation_id,
+        )
+        if not _can_access_task_messages(request.user, task):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette discussion.')
+        TaskMessageRead.objects.update_or_create(task=task, user=request.user, defaults={'last_read_at': timezone.now()})
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _engaged_tasks_queryset(user):
+    """Tâches où l'utilisateur est réellement engagé (manager de l'équipe, créateur, ou staffé
+    dessus) — utilisé pour le voyant « non lu ». Volontairement plus restrictif que
+    _can_access_task_messages : même admin/directeur ne doit être notifié que de ce qui le
+    concerne personnellement, pas de tout le fil de discussion de l'organisation."""
+    if not user.organisation_id:
+        return Task.objects.none()
+    return Task.objects.filter(organisation_id=user.organisation_id).filter(
+        Q(equipe__manager_id=user.id) | Q(created_by_id=user.id) | Q(assignments__user_id=user.id),
+    ).distinct()
+
+
+class UnreadMessagesSummaryView(generics.GenericAPIView):
+    """Résumé des fils de discussion (tâches + conversations directes) contenant au moins un
+    message non lu par l'utilisateur connecté — alimente le voyant animé de la cloche de
+    notifications (avec assez de détail pour lister et renvoyer vers CHAQUE fil non lu, pas
+    seulement un total agrégé), le point « non lu » sur les boutons de discussion des tâches, et
+    celui de la liste de la page Messagerie."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        unread_task_ids = []
+        unread_tasks = []
+        for task in _engaged_tasks_queryset(user).select_related('template').prefetch_related('message_reads'):
+            last_msg = task.messages.exclude(auteur_id=user.id).order_by('-created_at').first()
+            if not last_msg:
+                continue
+            read = next((r for r in task.message_reads.all() if r.user_id == user.id), None)
+            if read is None or last_msg.created_at > read.last_read_at:
+                unread_task_ids.append(task.id)
+                unread_tasks.append({
+                    'id': task.id, 'code': task.code, 'nom': task.template.nom, 'last_message_at': last_msg.created_at,
+                })
+
+        unread_conversation_ids = []
+        unread_conversations = []
+        if user.organisation_id:
+            my_conversations = Conversation.objects.filter(participants=user).prefetch_related('reads', 'participants')
+            for conversation in my_conversations:
+                last_msg = conversation.messages.exclude(auteur_id=user.id).order_by('-created_at').first()
+                if not last_msg:
+                    continue
+                read = next((r for r in conversation.reads.all() if r.user_id == user.id), None)
+                if read is None or last_msg.created_at > read.last_read_at:
+                    unread_conversation_ids.append(conversation.id)
+                    if conversation.is_group:
+                        nom = conversation.nom or 'Groupe sans nom'
+                    else:
+                        other = conversation.other_participant(user)
+                        nom = f'{other.first_name} {other.last_name}' if other else '—'
+                    unread_conversations.append({'id': conversation.id, 'nom': nom, 'last_message_at': last_msg.created_at})
+
+        return Response({
+            'unread_task_ids': unread_task_ids,
+            'unread_conversation_ids': unread_conversation_ids,
+            'unread_tasks': unread_tasks,
+            'unread_conversations': unread_conversations,
+            'total': len(unread_task_ids) + len(unread_conversation_ids),
+        })
+
+
+def _can_access_conversation(user, conversation):
+    return conversation.participants.filter(id=user.id).exists()
+
+
+class ConversationListView(generics.ListAPIView):
+    """Mes conversations (1:1 et groupes, page Messagerie), triées par message le plus récent."""
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Conversation.objects.filter(participants=user).prefetch_related(
+            'participants', 'messages', 'reads',
+        ).annotate(
+            last_message_at=Max('messages__created_at'),
+        ).order_by('-last_message_at', '-created_at')
+
+
+class ConversationStartView(generics.GenericAPIView):
+    """Récupère (ou crée) la conversation 1:1 avec un autre membre de l'organisation — voir
+    get_or_create_conversation. Appelé en cliquant sur quelqu'un dans l'annuaire de Messagerie."""
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        other_id = request.data.get('user')
+        if not other_id:
+            raise ValidationError({'user': 'Ce champ est requis.'})
+        other = get_object_or_404(User, pk=other_id, organisation_id=user.organisation_id)
+        if other.id == user.id:
+            raise ValidationError({'user': 'Vous ne pouvez pas démarrer une conversation avec vous-même.'})
+        conversation = get_or_create_conversation(user.organisation, user, other)
+        return Response(
+            self.get_serializer(conversation, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ConversationGroupCreateView(generics.GenericAPIView):
+    """Crée une discussion de groupe entre l'utilisateur connecté et au moins deux autres membres
+    de l'organisation — voir create_group_conversation."""
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        nom = (request.data.get('nom') or '').strip()
+        if not nom:
+            raise ValidationError({'nom': 'Le nom du groupe est requis.'})
+        member_ids = request.data.get('member_ids') or []
+        if not isinstance(member_ids, list) or len(member_ids) < 2:
+            raise ValidationError({'member_ids': 'Choisissez au moins deux autres membres pour créer un groupe.'})
+        members = list(User.objects.filter(organisation_id=user.organisation_id, id__in=member_ids))
+        if len(members) != len(set(member_ids)):
+            raise ValidationError({'member_ids': 'Un ou plusieurs membres choisis sont introuvables dans votre organisation.'})
+        if user not in members:
+            members.append(user)
+        conversation = create_group_conversation(user.organisation, user, nom, members)
+        return Response(
+            self.get_serializer(conversation, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ConversationMessageListCreateView(generics.ListCreateAPIView):
+    """Messages d'une conversation (1:1 ou groupe) — texte et/ou pièce jointe (image, vidéo, note
+    vocale)."""
+    serializer_class = DirectMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_conversation(self):
+        if not self.request.user.organisation_id:
+            raise Http404
+        conversation = get_object_or_404(
+            Conversation, pk=self.kwargs['pk'], organisation_id=self.request.user.organisation_id,
+        )
+        if not _can_access_conversation(self.request.user, conversation):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette conversation.')
+        return conversation
+
+    def get_queryset(self):
+        return DirectMessage.objects.filter(conversation=self.get_conversation()).select_related('auteur')
+
+    def perform_create(self, serializer):
+        serializer.save(conversation=self.get_conversation(), auteur=self.request.user)
+
+
+class DirectMessageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Modification (texte) ou suppression d'un message de conversation — réservé à son auteur."""
+    serializer_class = DirectMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return DirectMessage.objects.none()
+        return DirectMessage.objects.filter(conversation__organisation=organisation).select_related('auteur', 'conversation')
+
+    def perform_update(self, serializer):
+        if serializer.instance.auteur_id != self.request.user.id:
+            raise PermissionDenied('Vous ne pouvez modifier que vos propres messages.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.auteur_id != self.request.user.id:
+            raise PermissionDenied('Vous ne pouvez supprimer que vos propres messages.')
+        if instance.attachment:
+            instance.attachment.delete(save=False)
+        instance.delete()
+
+
+class ConversationTypingView(generics.GenericAPIView):
+    """Même principe que TaskTypingView, pour une conversation directe."""
+    permission_classes = [IsAuthenticated]
+
+    def get_conversation(self, pk):
+        if not self.request.user.organisation_id:
+            raise Http404
+        conversation = get_object_or_404(Conversation, pk=pk, organisation_id=self.request.user.organisation_id)
+        if not _can_access_conversation(self.request.user, conversation):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette conversation.')
+        return conversation
+
+    def get(self, request, pk):
+        conversation = self.get_conversation(pk)
+        typers = _active_typers(TypingStatus.SCOPE_CONVERSATION, conversation.id, request.user.id)
+        return Response({'typing': [f'{u.first_name} {u.last_name}' for u in typers]})
+
+    def post(self, request, pk):
+        conversation = self.get_conversation(pk)
+        TypingStatus.objects.update_or_create(
+            scope=TypingStatus.SCOPE_CONVERSATION, scope_id=conversation.id, user=request.user, defaults={},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ConversationReadView(generics.GenericAPIView):
+    """Marque une conversation comme lue par l'utilisateur connecté (voir ConversationRead)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not request.user.organisation_id:
+            raise Http404
+        conversation = get_object_or_404(Conversation, pk=pk, organisation_id=request.user.organisation_id)
+        if not _can_access_conversation(request.user, conversation):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accéder à cette conversation.')
+        ConversationRead.objects.update_or_create(
+            conversation=conversation, user=request.user, defaults={'last_read_at': timezone.now()},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class HeartbeatView(generics.GenericAPIView):
+    """Battement de cœur léger envoyé par le frontend toutes les ~30 secondes tant qu'une session
+    est active — alimente uniquement le statut « en ligne » de la Messagerie (voir _is_online),
+    aucun autre effet de bord."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        User.objects.filter(pk=request.user.pk).update(last_seen_at=timezone.now())
+        return Response(status=status.HTTP_204_NO_CONTENT)

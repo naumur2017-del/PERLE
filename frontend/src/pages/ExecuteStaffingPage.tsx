@@ -5,9 +5,11 @@ import {
   UserCheck, X, XCircle,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import TaskMessagesModal from '../components/TaskMessagesModal'
 import { executeTaskAssignmentAction, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
+import { useUnreadMessages } from '../hooks/useUnreadMessages'
 import './ExecuteStaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -156,6 +158,12 @@ export default function ExecuteStaffingPage({
 }: ExecuteStaffingPageProps) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
+  // La discussion est un espace partagé par TÂCHE (pas par attribution individuelle) : toutes les
+  // personnes staffées sur la même tâche, plus le manager qui l'a attribuée, y échangent au même
+  // endroit — voir TaskMessagesModal. Identifiée par l'id de l'attribution (pas par `selected`) :
+  // on peut l'ouvrir directement depuis une ligne du tableau, sans passer par le panneau de détail.
+  const [messagesAssignmentId, setMessagesAssignmentId] = useState<number | null>(null)
+  const { unreadTaskIds, markTaskReadLocally } = useUnreadMessages()
 
   const [pageTab, setPageTab] = useState<'mes-taches' | 'historique'>('mes-taches')
   const [activeTab, setActiveTab] = useState<Tab>('a_demarrer')
@@ -179,6 +187,7 @@ export default function ExecuteStaffingPage({
   const equipes = useMemo(() => Array.from(new Set(assignments.map((a) => a.equipe_nom))), [assignments])
 
   const selected = assignments.find((a) => a.id === selectedId) ?? null
+  const messagesAssignment = assignments.find((a) => a.id === messagesAssignmentId) ?? null
 
   const counts: Record<Tab, number> = { a_demarrer: 0, en_cours: 0, en_pause: 0, terminee: 0 }
   assignments.forEach((a) => { counts[a.execution_statut] += 1 })
@@ -348,11 +357,12 @@ export default function ExecuteStaffingPage({
                           <tr>
                             {visibleColumns.map((c) => <th key={c.id}>{c.label}</th>)}
                             <th>Action</th>
+                            <th></th>
                           </tr>
                         </thead>
                         <tbody>
                           {filtered.length === 0 && (
-                            <tr><td colSpan={visibleColumns.length + 1} className="es-empty">Aucune tâche dans cette section.</td></tr>
+                            <tr><td colSpan={visibleColumns.length + 2} className="es-empty">Aucune tâche dans cette section.</td></tr>
                           )}
                           {filtered.map((assignment) => (
                             <tr key={assignment.id} className={selectedId === assignment.id ? 'es-row-selected' : ''} onClick={() => handleSelect(assignment)}>
@@ -370,6 +380,15 @@ export default function ExecuteStaffingPage({
                                     <MoreVertical size={16} />
                                   </button>
                                 )}
+                              </td>
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button" className="es-message-btn" title="Discussion de la tâche"
+                                  aria-label="Discussion de la tâche" onClick={() => setMessagesAssignmentId(assignment.id)}
+                                >
+                                  <MessageCircle size={14} />
+                                  {unreadTaskIds.has(assignment.task) && <span className="es-message-dot" />}
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -410,7 +429,7 @@ export default function ExecuteStaffingPage({
                     <table className="es-table">
                       <thead>
                         <tr>
-                          <th>Projet</th><th>Tâche</th><th>Heures</th><th>Échéance</th><th>Statut d'exécution</th>
+                          <th>Projet</th><th>Tâche</th><th>Heures</th><th>Échéance</th><th>Statut d'exécution</th><th></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -421,6 +440,15 @@ export default function ExecuteStaffingPage({
                             <td>{assignment.heures} h</td>
                             <td>{formatDate(assignment.echeance)}</td>
                             <td><span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[assignment.execution_statut]}`}>{assignment.execution_statut_display}</span></td>
+                            <td onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button" className="es-message-btn" title="Discussion de la tâche"
+                                aria-label="Discussion de la tâche" onClick={() => setMessagesAssignmentId(assignment.id)}
+                              >
+                                <MessageCircle size={14} />
+                                {unreadTaskIds.has(assignment.task) && <span className="es-message-dot" />}
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -460,6 +488,11 @@ export default function ExecuteStaffingPage({
                   {selected.terminee_le && <div><dt>Terminée le</dt><dd>{formatDateTime(selected.terminee_le)}</dd></div>}
                 </dl>
 
+                <button type="button" className="es-contact-link" onClick={() => setMessagesAssignmentId(selected.id)}>
+                  <MessageCircle size={13} />Discussion de la tâche{selected.task_created_by_nom ? ` avec ${selected.task_created_by_nom} et l'équipe` : ''}
+                  {unreadTaskIds.has(selected.task) && <span className="es-message-dot" />}
+                </button>
+
                 {actionError && <p className="es-empty">{actionError}</p>}
 
                 {selected.execution_statut === 'a_demarrer' && (
@@ -481,7 +514,6 @@ export default function ExecuteStaffingPage({
                       <button type="button" className="es-btn-accept" disabled={acting} onClick={() => runAction(selected, 'demarrer')}><Play size={14} />Démarrer</button>
                       <button type="button" className="es-btn-pause" disabled={acting} onClick={() => runAction(selected, 'decliner')}><XCircle size={14} />Décliner</button>
                     </div>
-                    <a className="es-contact-link" href="#" onClick={(e) => e.preventDefault()}><MessageCircle size={13} />Besoin d'informations complémentaires ? Contacter le manager</a>
                   </>
                 )}
 
@@ -512,6 +544,16 @@ export default function ExecuteStaffingPage({
             )}
           </div>
         </>
+      )}
+
+      {messagesAssignment && (
+        <TaskMessagesModal
+          taskId={messagesAssignment.task}
+          title={`${messagesAssignment.task_code} — ${messagesAssignment.template_nom}`}
+          subtitle={messagesAssignment.project_nom ?? 'Transversale'}
+          onClose={() => setMessagesAssignmentId(null)}
+          onRead={markTaskReadLocally}
+        />
       )}
     </section>
   )

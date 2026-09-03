@@ -43,6 +43,10 @@ export interface Employee {
   team: TeamSummary | null
   date_joined: string
   date_embauche: string | null
+  /** Alimenté par un battement de cœur léger (voir sendHeartbeat) — voir is_online pour le statut
+   * dérivé, déjà calculé côté serveur. */
+  last_seen_at: string | null
+  is_online: boolean
   profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null
@@ -94,6 +98,10 @@ export interface Team {
 }
 
 export const fetchEmployees = () => apiGet<Employee[]>('/employees/')
+
+/** Battement de cœur léger envoyé toutes les ~30 secondes tant qu'une session est active —
+ * alimente uniquement le statut « en ligne » de la Messagerie (voir Employee.is_online). */
+export const sendHeartbeat = () => apiPost<void>('/employees/heartbeat/', {})
 
 export const createEmployee = (data: FormData) => apiPostUpload<Employee>('/employees/', data)
 

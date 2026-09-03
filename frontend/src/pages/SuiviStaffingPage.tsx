@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity, CheckCircle2, Clock3, Hourglass, Info, Pause, RotateCcw, Search, Star, UserCheck, X,
+  Activity, CheckCircle2, Clock3, Hourglass, Info, MessageCircle, Pause, RotateCcw, Search, Star, UserCheck, X,
 } from 'lucide-react'
 import { fetchTaskAssignments, rateTaskAssignment, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import TaskMessagesModal from '../components/TaskMessagesModal'
+import { useUnreadMessages } from '../hooks/useUnreadMessages'
 import './SuiviStaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -137,6 +139,10 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
   const [search, setSearch] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [ratingId, setRatingId] = useState<number | null>(null)
+  // La discussion est un espace partagé par TÂCHE : toutes les personnes staffées dessus, plus le
+  // manager qui l'a attribuée, y échangent au même endroit — voir TaskMessagesModal.
+  const [messagesAssignmentId, setMessagesAssignmentId] = useState<number | null>(null)
+  const { unreadTaskIds, markTaskReadLocally } = useUnreadMessages()
 
   useEffect(() => {
     let cancelled = false
@@ -173,6 +179,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
   const countByStatut = (statut: TaskExecutionStatut) => assignments.filter((a) => a.execution_statut === statut).length
 
   const ratingAssignment = assignments.find((a) => a.id === ratingId) ?? null
+  const messagesAssignment = assignments.find((a) => a.id === messagesAssignmentId) ?? null
 
   const handleRate = async (note: number, commentaire: string) => {
     if (ratingId === null) return
@@ -264,12 +271,12 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                 <thead>
                   <tr>
                     <th>Tâche</th><th>Projet</th><th>Équipe</th><th>Collaborateur</th>
-                    <th>Heures</th><th>Staffé le</th><th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th><th>Statut</th><th>Note</th>
+                    <th>Heures</th><th>Staffé le</th><th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th><th>Statut</th><th>Note</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
+                    <tr><td colSpan={10} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
                   )}
                   {filtered.map((a) => {
                     const info = tempsRestantInfo(a, nowMs)
@@ -299,6 +306,12 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                             <span className="su-rating-none">—</span>
                           )}
                         </td>
+                        <td>
+                          <button type="button" className="su-message-btn" title="Discussion de la tâche" aria-label="Discussion de la tâche" onClick={() => setMessagesAssignmentId(a.id)}>
+                            <MessageCircle size={14} />
+                            {unreadTaskIds.has(a.task) && <span className="su-message-dot" />}
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -311,6 +324,16 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
 
       {ratingAssignment && (
         <RatingModal assignment={ratingAssignment} onClose={() => setRatingId(null)} onSubmit={handleRate} />
+      )}
+
+      {messagesAssignment && (
+        <TaskMessagesModal
+          taskId={messagesAssignment.task}
+          title={`${messagesAssignment.task_code} — ${messagesAssignment.template_nom}`}
+          subtitle={messagesAssignment.user_nom}
+          onClose={() => setMessagesAssignmentId(null)}
+          onRead={markTaskReadLocally}
+        />
       )}
     </section>
   )

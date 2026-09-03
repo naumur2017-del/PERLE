@@ -585,17 +585,34 @@ body {
 .notification-btn {
   background: none;
   border: none;
-  font-size: 20px;
+  color: #ffffff;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, color 0.2s ease;
 }
 
 .notification-btn:hover {
   transform: scale(1.1);
+  color: #fde68a;
+}
+
+/* Se déclenche à chaque nouvelle notification (message non lu détecté) — une seule « sonnerie »
+ * courte, pas une boucle continue, pour ne pas distraire en permanence. */
+.notification-btn.is-ringing {
+  animation: notification-ring 700ms ease-in-out;
+}
+
+@keyframes notification-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(-16deg); }
+  30% { transform: rotate(13deg); }
+  45% { transform: rotate(-10deg); }
+  60% { transform: rotate(7deg); }
+  75% { transform: rotate(-4deg); }
+  90% { transform: rotate(2deg); }
 }
 
 .notification-badge {
@@ -613,6 +630,12 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: notification-badge-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes notification-badge-pop {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
 }
 
 .notification-dropdown {
@@ -644,6 +667,25 @@ body {
 .notification-dropdown li span { font-size: 12px; font-weight: 600; }
 .notification-dropdown li small { font-size: 10.5px; color: #8f8fa6; }
 .notification-dropdown li.notification-empty { color: #a8a8bd; font-size: 12px; font-weight: 600; text-align: center; border-bottom: none; }
+.notification-dropdown li.notification-link { cursor: pointer; background: #f4f1ff; color: #6b46c1; }
+.notification-dropdown li.notification-link:hover { background: #eae5fb; }
+.notification-dropdown li.notification-link span { color: #6b46c1; }
+
+.nav-badge {
+  flex: 0 0 auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: notification-badge-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
 .user-profile {
   display: flex;

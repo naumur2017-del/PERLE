@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from django.db.models import Count
 from django.utils import timezone
 
 from .managers import UserManager
@@ -141,6 +142,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
+    # Mis à jour par un battement de cœur léger envoyé par le frontend toutes les ~30 secondes
+    # (voir HeartbeatView) tant que la session est active — sert uniquement au statut « en ligne »
+    # de la Messagerie (voir UserSummarySerializer.get_is_online) : une personne est considérée en
+    # ligne si ce champ date de moins de ONLINE_THRESHOLD_SECONDS.
+    last_seen_at = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -613,6 +619,16 @@ TASK_PRIORITE_CHOICES = [
     ('basse', 'Basse'),
 ]
 
+# Type de pièce jointe d'un message (TaskMessage ou DirectMessage) — dérivé côté serveur du
+# content-type du fichier envoyé (voir validate_attachment dans les serializers), jamais fourni
+# tel quel par le client.
+MESSAGE_ATTACHMENT_TYPE_CHOICES = [
+    ('image', 'Image'),
+    ('video', 'Vidéo'),
+    ('audio', 'Audio'),
+    ('fichier', 'Fichier'),
+]
+
 
 class TaskTemplate(models.Model):
     """Catalogue des tâches (onglet Catalogue des tâches) : arborescence libre (dossiers puis
@@ -754,3 +770,137 @@ class TaskAssignment(models.Model):
 
     def __str__(self):
         return f'{self.task.code} — {self.user.email} ({self.heures} h)'
+
+
+class TaskMessage(models.Model):
+    """Un message dans l'espace de discussion d'une tâche (Task) — un seul fil PAR TÂCHE, partagé
+    par toutes les personnes qui y sont engagées : le manager qui l'a créée/attribuée et tous les
+    salariés qui y sont staffés (TaskAssignment), même si une tâche est répartie entre plusieurs
+    personnes. Voir _can_access_task_messages dans les vues pour qui peut lire/écrire. Peut porter
+    une pièce jointe (image, vidéo ou note vocale) en plus ou à la place d'un texte. Modifiable ou
+    supprimable seulement par son auteur (voir TaskMessageDetailView)."""
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='messages')
+    auteur = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    contenu = models.TextField(blank=True)
+    attachment = models.FileField(upload_to='task_messages/%Y/%m/', null=True, blank=True)
+    attachment_type = models.CharField(max_length=10, choices=MESSAGE_ATTACHMENT_TYPE_CHOICES, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.task.code} — {self.auteur.email if self.auteur else "?"} @ {self.created_at:%Y-%m-%d %H:%M}'
+
+
+class TaskMessageRead(models.Model):
+    """Marque de dernière lecture du fil de discussion d'une tâche par un utilisateur — évite de
+    stocker un état lu/non-lu par message : le voyant « non lu » compare juste created_at du
+    dernier message à last_read_at (voir la vue TaskMessageUnreadCounts)."""
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='message_reads')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    last_read_at = models.DateTimeField()
+
+    class Meta:
+        unique_together = ('task', 'user')
+
+
+class Conversation(models.Model):
+    """Conversation directe entre membres de la même organisation (page Messagerie) — 1:1 ou
+    groupe (`is_group`). Un 1:1 n'a pas de nom (`nom` vide, l'interface affiche le nom de l'autre
+    participant, voir ConversationSerializer.get_display_nom) ; un groupe en a un, choisi à la
+    création. Toujours créée via get_or_create_conversation (1:1) ou create_group_conversation
+    (groupe), jamais directement, pour garantir qu'on ne duplique pas une conversation 1:1
+    existante entre les deux mêmes personnes."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='conversations')
+    participants = models.ManyToManyField(User, related_name='conversations')
+    is_group = models.BooleanField(default=False)
+    nom = models.CharField(max_length=100, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.nom if self.is_group else f'conversation#{self.pk}'
+
+    def other_participant(self, user):
+        """Pour un 1:1 uniquement — l'autre personne de la conversation."""
+        return self.participants.exclude(id=user.id).first()
+
+
+def get_or_create_conversation(organisation, user_a, user_b):
+    """Point d'entrée unique pour obtenir la conversation 1:1 entre deux membres — ne crée jamais
+    deux fois la même paire, peu importe qui démarre la discussion en premier (une recherche par
+    ensemble de participants, pas par ordre, puisque Conversation n'a plus de colonnes dédiées
+    participant_1/participant_2 depuis l'ajout des groupes)."""
+    existing = (
+        Conversation.objects.filter(organisation=organisation, is_group=False, participants=user_a)
+        .filter(participants=user_b)
+        .annotate(nb_participants=Count('participants'))
+        .filter(nb_participants=2)
+        .first()
+    )
+    if existing:
+        return existing
+    conversation = Conversation.objects.create(organisation=organisation, is_group=False, created_by=user_a)
+    conversation.participants.set([user_a, user_b])
+    return conversation
+
+
+def create_group_conversation(organisation, creator, nom, members):
+    """Crée une discussion de groupe — `members` doit inclure le créateur (voir
+    ConversationGroupCreateView), sans quoi il ne verrait pas sa propre conversation."""
+    conversation = Conversation.objects.create(organisation=organisation, is_group=True, nom=nom, created_by=creator)
+    conversation.participants.set(members)
+    return conversation
+
+
+class DirectMessage(models.Model):
+    """Un message dans une conversation directe (Conversation) — texte et/ou pièce jointe (image,
+    vidéo, note vocale). Modifiable ou supprimable seulement par son auteur (voir
+    DirectMessageDetailView)."""
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
+    auteur = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    contenu = models.TextField(blank=True)
+    attachment = models.FileField(upload_to='direct_messages/%Y/%m/', null=True, blank=True)
+    attachment_type = models.CharField(max_length=10, choices=MESSAGE_ATTACHMENT_TYPE_CHOICES, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'conv#{self.conversation_id} — {self.auteur.email if self.auteur else "?"} @ {self.created_at:%Y-%m-%d %H:%M}'
+
+
+class ConversationRead(models.Model):
+    """Marque de dernière lecture d'une conversation par un utilisateur — même principe que
+    TaskMessageRead, pour le voyant « non lu » de la page Messagerie."""
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='reads')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    last_read_at = models.DateTimeField()
+
+    class Meta:
+        unique_together = ('conversation', 'user')
+
+
+class TypingStatus(models.Model):
+    """Signal éphémère « X est en train d'écrire » sur un fil de tâche ou une conversation —
+    écrasé à chaque frappe (throttlé côté frontend, voir MessageComposer), lu par les autres
+    participants avec un TTL de quelques secondes appliqué dans la vue (voir TYPING_TTL_SECONDS) :
+    pas de tâche de nettoyage, une ligne plus vieille que le TTL est simplement ignorée à la
+    lecture puis écrasée à la prochaine frappe de son auteur."""
+    SCOPE_TASK = 'task'
+    SCOPE_CONVERSATION = 'conversation'
+    SCOPE_CHOICES = [(SCOPE_TASK, 'Tâche'), (SCOPE_CONVERSATION, 'Conversation')]
+    scope = models.CharField(max_length=12, choices=SCOPE_CHOICES)
+    scope_id = models.PositiveIntegerField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('scope', 'scope_id', 'user')
