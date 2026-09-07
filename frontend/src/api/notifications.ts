@@ -1,4 +1,4 @@
-import { apiGet } from './client'
+import { apiGet, apiPost } from './client'
 
 export interface UnreadTaskEntry {
   id: number
@@ -27,3 +27,15 @@ export interface UnreadSummary {
 }
 
 export const fetchUnreadSummary = () => apiGet<UnreadSummary>('/messages/unread-summary/')
+
+/** Notification système persistée (ex. décision sur une demande de congé/avance) — distincte des
+ * fils de discussion ci-dessus, voir backend Notification / _notify. */
+export interface SystemNotification {
+  id: number
+  message: string
+  lue: boolean
+  created_at: string
+}
+
+export const fetchNotifications = () => apiGet<SystemNotification[]>('/notifications/')
+export const markNotificationsRead = () => apiPost<void>('/notifications/read/', {})

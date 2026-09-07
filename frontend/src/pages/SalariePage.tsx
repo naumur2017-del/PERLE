@@ -39,6 +39,7 @@ import {
   Wallet,
   Wallet2,
   X,
+  XCircle,
 } from 'lucide-react'
 import profilePhoto from '../assets/profile.jpg'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
@@ -86,6 +87,7 @@ interface CongeDemande {
   approuveRole: string
   dateReponse: string
   peutEtreTerminee: boolean
+  peutEtreAnnulee: boolean
 }
 
 interface AvanceDemande {
@@ -141,6 +143,9 @@ const toDisplayConge = (item: ApiCongeDemande): CongeDemande => ({
   approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
   dateReponse: item.reviewed_at ? formatDateFr(item.reviewed_at) : '-',
   peutEtreTerminee: item.statut === 'approuvee' && !item.cloture && !!item.date_debut && item.date_debut <= todayIso(),
+  // Une demande en attente peut toujours être retirée ; une demande déjà approuvée peut encore
+  // être annulée tant qu'elle n'a pas commencé (voir CongeDemandeDetailView côté backend).
+  peutEtreAnnulee: item.statut === 'attente' || (item.statut === 'approuvee' && !!item.date_debut && item.date_debut > todayIso()),
 })
 
 const toDisplayAvance = (item: ApiAvanceDemande): AvanceDemande => ({
@@ -537,10 +542,11 @@ function DemandesTab({ session }: { session: Session }) {
     }
   }
 
-  const handleDeleteConge = async (rawId: number) => {
-    if (!window.confirm('Supprimer cette demande de congé ?')) return
+  const handleCancelConge = async (rawId: number) => {
+    if (!window.confirm('Annuler cette demande de congé ?')) return
     await deleteCongeDemande(rawId)
     setCongeDemandesApi((prev) => prev.filter((item) => item.id !== rawId))
+    fetchCongeSolde().then(setCongeSolde).catch(() => {})
   }
 
   const handleDeleteAvance = async (rawId: number) => {
@@ -632,7 +638,7 @@ function DemandesTab({ session }: { session: Session }) {
                   <td>{demande.dateReponse}</td>
                   <td className="salarie-actions">
                     <button aria-label="Voir la demande" onClick={() => setViewConge(demande)}><Eye size={14} strokeWidth={2} /></button>
-                    {demande.statut === 'En attente' && <button aria-label="Supprimer la demande" className="danger" onClick={() => handleDeleteConge(demande.rawId)}><Trash2 size={14} strokeWidth={2} /></button>}
+                    {demande.peutEtreAnnulee && <button aria-label="Annuler la demande" title={demande.statut === 'En attente' ? 'Retirer la demande' : 'Annuler ce congé approuvé (pas encore commencé)'} className="danger" onClick={() => handleCancelConge(demande.rawId)}><XCircle size={14} strokeWidth={2} /></button>}
                     {demande.peutEtreTerminee && <button aria-label="Terminer le congé" title="Reprendre le service" onClick={() => handleEndConge(demande.rawId)}><Briefcase size={14} strokeWidth={2} /></button>}
                   </td>
                 </tr>
@@ -691,7 +697,7 @@ function DemandesTab({ session }: { session: Session }) {
           <strong>Informations importantes</strong>
           <ul>
             <li>Vos demandes sont soumises à validation par le responsable concerné.</li>
-            <li>Vous serez notifié par email dès qu’une réponse sera apportée à votre demande.</li>
+            <li>Vous serez notifié dans l’application (cloche en haut à droite) dès qu’une réponse sera apportée à votre demande.</li>
             <li>Les demandes approuvées seront automatiquement prises en compte par le système.</li>
           </ul>
         </div>
@@ -710,11 +716,18 @@ function DemandesTab({ session }: { session: Session }) {
             <InfoRow label="Approuvé par" value={viewConge.approuveRole ? `${viewConge.approuvePar} (${viewConge.approuveRole})` : viewConge.approuvePar} />
             <InfoRow label="Date de réponse" value={viewConge.dateReponse} />
           </div>
-          {viewConge.peutEtreTerminee && (
+          {(viewConge.peutEtreTerminee || viewConge.peutEtreAnnulee) && (
             <div className="salarie-form-actions">
-              <button type="button" className="salarie-primary-btn" onClick={() => { handleEndConge(viewConge.rawId); setViewConge(null) }}>
-                <Briefcase size={14} strokeWidth={2.4} />Terminer mon congé et reprendre le service
-              </button>
+              {viewConge.peutEtreAnnulee && (
+                <button type="button" className="salarie-danger-btn" onClick={() => { handleCancelConge(viewConge.rawId); setViewConge(null) }}>
+                  <XCircle size={14} strokeWidth={2.4} />Annuler cette demande
+                </button>
+              )}
+              {viewConge.peutEtreTerminee && (
+                <button type="button" className="salarie-primary-btn" onClick={() => { handleEndConge(viewConge.rawId); setViewConge(null) }}>
+                  <Briefcase size={14} strokeWidth={2.4} />Terminer mon congé et reprendre le service
+                </button>
+              )}
             </div>
           )}
         </Lightbox>

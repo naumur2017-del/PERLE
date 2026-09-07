@@ -1,3 +1,4 @@
+import calendar
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
@@ -322,10 +323,17 @@ class CongeType(models.Model):
     categorie = models.CharField(max_length=10, choices=CATEGORIE_CHOICES, default='standard')
     description = models.CharField(max_length=255, blank=True)
     # Sans objet pour la catégorie « technique » (aucun quota) ; sans quota non plus pour
-    # « maladie ». Nul dans ces deux cas.
-    jours_alloues = models.PositiveIntegerField(null=True, blank=True)
+    # « maladie ». Nul dans ces deux cas. Décimal (pas un entier) : un quota mensuel courant est
+    # de 1,5 jour/mois.
+    jours_alloues = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     unite = models.CharField(max_length=10, choices=UNITE_CHOICES, null=True, blank=True)
     mode_periode = models.CharField(max_length=20, choices=MODE_PERIODE_CHOICES, null=True, blank=True)
+    # Ne s'applique qu'aux quotas mensuels (unite='mois') — un quota annuel est déjà accordé plein
+    # dès l'embauche, l'avance n'a pas de sens pour lui. Désactivé (par défaut) : le salarié ne
+    # peut prendre que ce qu'il a déjà accumulé mois après mois (voir compute_conge_solde).
+    # Activé : il peut prendre par avance la totalité de son cumul annuel (jours_alloues × 12)
+    # avant même de l'avoir intégralement accumulé.
+    cumul_en_avance = models.BooleanField(default=False)
     actif = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -365,7 +373,7 @@ class PublicHoliday(models.Model):
 
 DEFAULT_CONGE_TYPES = (
     (
-        'Congé annuel payé', 'standard', 2, 'mois', 'employe',
+        'Congé annuel payé', 'standard', Decimal('1.5'), 'mois', 'employe',
         '',
     ),
     (
@@ -424,6 +432,12 @@ class CongeDemande(models.Model):
         return f'{self.employee} : {self.type_conge} ({self.date_debut} → {self.date_fin})'
 
     @property
+    def duree_decimal(self):
+        """Comme `duree`, mais en Decimal — pour additionner sans mélanger Decimal et float
+        (voir compute_conge_solde, qui manipule jours_alloues en Decimal)."""
+        return Decimal(str(self.duree))
+
+    @property
     def duree(self):
         """Nombre de jours ouvrés (hors samedis et dimanches) entre date_debut et date_fin, inclus,
         avec prise en compte des demi-journées de départ/retour. 0 tant que date_debut n'est pas
@@ -451,6 +465,79 @@ class CongeDemande(models.Model):
         if self.date_fin and self.demi_journee_fin and self.date_fin.weekday() < 5 and self.date_fin != self.date_debut:
             deduction += 0.5
         return max(0, total - deduction)
+
+
+def _add_months(base_date, months):
+    month_index = base_date.month - 1 + months
+    year = base_date.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(base_date.day, calendar.monthrange(year, month)[1])
+    return base_date.replace(year=year, month=month, day=day)
+
+
+def compute_conge_solde(employee, conge_type):
+    """Jours acquis / pris / restants d'un salarié pour un type de congé « standard » donné —
+    utilisé à la fois par CongeSoldeView (affichage) et CongeDemandeSerializer.validate (on ne
+    peut pas déposer une demande qui dépasse le solde disponible).
+
+    - Quota annuel (unite='annee') : montant plein dès l'embauche, remis à plein chaque année
+      civile (pas de report d'une année sur l'autre).
+    - Quota mensuel (unite='mois') : accumulé depuis l'embauche, ou depuis la fin du dernier congé
+      approuvé de ce type déjà pris si elle est plus récente (« ancrage » du cycle en cours). Si
+      12 mois s'écoulent sans qu'aucun congé de ce type ne soit pris, le compteur revient à zéro
+      et repart pour un nouveau cycle de 12 mois — jamais de report illimité au-delà d'un an.
+      Si cumul_en_avance est activé, la totalité du cumul annuel (jours_alloues × 12) est
+      disponible dès le début du cycle, sans attendre l'accumulation mois par mois ; sinon
+      (par défaut), seuls les mois du cycle déjà écoulés sont acquis."""
+    today = timezone.localdate()
+    date_embauche = employee.date_embauche or today
+    zero = Decimal('0')
+    alloues = conge_type.jours_alloues or zero
+
+    if conge_type.unite == 'annee':
+        year_start = today.replace(month=1, day=1)
+        effective_start = max(date_embauche, year_start)
+        jours_acquis = zero if effective_start > today else alloues
+        demandes_prises = CongeDemande.objects.filter(
+            employee=employee, type_conge=conge_type, statut='approuvee', date_debut__year=today.year,
+        )
+        jours_pris = sum((d.duree_decimal for d in demandes_prises), zero)
+        return {'jours_acquis': jours_acquis, 'jours_pris': jours_pris, 'solde': max(zero, jours_acquis - jours_pris)}
+
+    # Quota mensuel : le cycle en cours démarre à l'embauche, ou à la fin du dernier congé
+    # approuvé de ce type déjà terminé (date_fin <= aujourd'hui) si elle est plus récente — un
+    # congé approuvé mais pas encore commencé/terminé ne doit jamais faire avancer l'ancrage dans
+    # le futur (ce qui viderait artificiellement le solde dès l'approbation, avant même la prise).
+    dernier_conge = CongeDemande.objects.filter(
+        employee=employee, type_conge=conge_type, statut='approuvee', date_fin__isnull=False, date_fin__lte=today,
+    ).order_by('-date_fin').first()
+    ancrage = date_embauche
+    if dernier_conge and dernier_conge.date_fin > ancrage:
+        ancrage = dernier_conge.date_fin
+
+    if ancrage > today:
+        return {'jours_acquis': zero, 'jours_pris': zero, 'solde': zero}
+
+    months = (today.year - ancrage.year) * 12 + (today.month - ancrage.month)
+    if today.day < ancrage.day:
+        months -= 1
+    months = max(0, months)
+
+    # Remise à zéro tous les 12 mois sans congé pris depuis l'ancrage : on ne compte que les mois
+    # du cycle de 12 mois en cours (jamais plus de 11 mois d'acquisition non consommée reportés).
+    months_in_cycle = months % 12
+    cycle_start = _add_months(ancrage, months - months_in_cycle)
+    if conge_type.cumul_en_avance:
+        # Le cumul annuel complet est disponible dès le début du cycle, par avance.
+        jours_acquis = Decimal(12) * alloues
+    else:
+        jours_acquis = Decimal(months_in_cycle) * alloues
+
+    demandes_prises = CongeDemande.objects.filter(
+        employee=employee, type_conge=conge_type, statut='approuvee', date_debut__gte=cycle_start,
+    )
+    jours_pris = sum((d.duree_decimal for d in demandes_prises), zero)
+    return {'jours_acquis': jours_acquis, 'jours_pris': jours_pris, 'solde': max(zero, jours_acquis - jours_pris)}
 
 
 class AvanceDemande(models.Model):
@@ -904,3 +991,20 @@ class TypingStatus(models.Model):
 
     class Meta:
         unique_together = ('scope', 'scope_id', 'user')
+
+
+class Notification(models.Model):
+    """Notification système persistée pour un utilisateur — ex. décision (approbation/refus) sur
+    une demande de congé ou d'avance. Distincte des messages de discussion (TaskMessage /
+    DirectMessage), qui sont échangés entre personnes, alors qu'une Notification est générée par
+    le système lui-même. Alimente le voyant/l'animation de la cloche de notifications."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.CharField(max_length=255)
+    lue = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.email} — {self.message}'

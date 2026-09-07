@@ -1,1 +1,11 @@
 @import './GestionEquipesPage.css';
+
+.ge-en-cours {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcf7e3;
+  color: #15803d;
+  font-size: 10.5px;
+  font-weight: 700;
+}

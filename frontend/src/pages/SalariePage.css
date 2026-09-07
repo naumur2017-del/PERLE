@@ -66,6 +66,8 @@
 .salarie-tab-filter-row { display: flex; justify-content: flex-end; }
 .salarie-primary-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: #5b21b6; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
 .salarie-primary-btn:hover { background: #6d28d9; transform: translateY(-1px); }
+.salarie-danger-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid #fbdada; border-radius: 6px; background: #fff; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
+.salarie-danger-btn:hover { background: #fef2f2; transform: translateY(-1px); }
 
 .salarie-table-wrap { overflow-x: auto; }
 .salarie-table-wrap table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }

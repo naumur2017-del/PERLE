@@ -15,6 +15,7 @@ from .models import (
     FermetureTechnique,
     GradeHistory,
     LigneBudgetaire,
+    Notification,
     Organisation,
     Project,
     ProjectLigne,
@@ -25,6 +26,7 @@ from .models import (
     TaskTemplate,
     Team,
     User,
+    compute_conge_solde,
     create_default_conge_types,
     create_default_teams,
     next_project_code,
@@ -616,7 +618,7 @@ class TeamCreateSerializer(serializers.ModelSerializer):
 class CongeTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CongeType
-        fields = ['id', 'nom', 'categorie', 'description', 'jours_alloues', 'unite', 'mode_periode', 'actif']
+        fields = ['id', 'nom', 'categorie', 'description', 'jours_alloues', 'unite', 'mode_periode', 'cumul_en_avance', 'actif']
         read_only_fields = ['id', 'categorie']
 
     def validate_nom(self, value):
@@ -639,6 +641,11 @@ class CongeTypeSerializer(serializers.ModelSerializer):
             mode_periode = attrs.get('mode_periode', getattr(self.instance, 'mode_periode', None))
             if jours_alloues is None or not unite or not mode_periode:
                 raise serializers.ValidationError('Merci de renseigner le quota, l’unité et le mode de période.')
+            cumul_en_avance = attrs.get('cumul_en_avance', getattr(self.instance, 'cumul_en_avance', False))
+            if cumul_en_avance and unite != 'mois':
+                raise serializers.ValidationError({
+                    'cumul_en_avance': 'La prise en avance ne s’applique qu’à un quota mensuel (un quota annuel est déjà accordé en entier dès l’embauche).',
+                })
         return attrs
 
     def create(self, validated_data):
@@ -731,6 +738,29 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'date_debut': 'Merci d’indiquer les dates de votre congé.'})
         if date_debut and date_fin and date_fin < date_debut:
             raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
+
+        # Un salarié ne peut pas déposer une demande qui dépasse son solde disponible pour ce
+        # type de congé — seulement calculable ici quand c'est lui qui choisit la période
+        # (mode_periode='employe') : sinon les dates ne sont fixées qu'à l'approbation.
+        if (
+            self.instance is None and type_conge and type_conge.categorie == 'standard'
+            and type_conge.mode_periode == 'employe' and date_debut and date_fin
+        ):
+            demande_temporaire = CongeDemande(
+                employee=self.context['request'].user, type_conge=type_conge,
+                date_debut=date_debut, date_fin=date_fin,
+                demi_journee_debut=attrs.get('demi_journee_debut', False),
+                demi_journee_fin=attrs.get('demi_journee_fin', False),
+            )
+            duree_demandee = demande_temporaire.duree_decimal
+            solde = compute_conge_solde(self.context['request'].user, type_conge)
+            if duree_demandee > solde['solde']:
+                raise serializers.ValidationError({
+                    'date_fin': (
+                        f'Cette demande ({duree_demandee} jour(s)) dépasse votre solde disponible '
+                        f'pour ce type de congé ({solde["solde"]} jour(s)).'
+                    ),
+                })
         return attrs
 
 
@@ -763,6 +793,15 @@ class CongeDemandeReviewSerializer(serializers.ModelSerializer):
         if date_debut and date_fin and date_fin < date_debut:
             raise serializers.ValidationError({'date_fin': 'La date de fin doit être postérieure à la date de début.'})
         return attrs
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Notification système d'un utilisateur (ex. décision sur une demande de congé/avance) —
+    voir Notification et _notify dans les vues."""
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'lue', 'created_at']
+        read_only_fields = fields
 
 
 class FermetureTechniqueSerializer(serializers.ModelSerializer):

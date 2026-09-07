@@ -39,6 +39,7 @@ interface CongeTypeFormValues {
   jours_alloues: number
   unite: CongeUnite
   mode_periode: CongeModePeriode
+  cumul_en_avance: boolean
 }
 
 function CongeTypeModal({ initial, onClose, onSubmit }: {
@@ -47,9 +48,10 @@ function CongeTypeModal({ initial, onClose, onSubmit }: {
   onSubmit: (values: CongeTypeFormValues) => Promise<void>
 }) {
   const [nom, setNom] = useState(initial?.nom ?? '')
-  const [joursAlloues, setJoursAlloues] = useState(String(initial?.jours_alloues ?? '2'))
+  const [joursAlloues, setJoursAlloues] = useState(String(initial?.jours_alloues ?? '1.5'))
   const [unite, setUnite] = useState<CongeUnite>(initial?.unite ?? 'mois')
   const [modePeriode, setModePeriode] = useState<CongeModePeriode>(initial?.mode_periode ?? 'employe')
+  const [cumulEnAvance, setCumulEnAvance] = useState(initial?.cumul_en_avance ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,7 +63,10 @@ function CongeTypeModal({ initial, onClose, onSubmit }: {
     setSaving(true)
     setError(null)
     try {
-      await onSubmit({ nom: nom.trim(), jours_alloues: Number(joursAlloues), unite, mode_periode: modePeriode })
+      await onSubmit({
+        nom: nom.trim(), jours_alloues: Number(joursAlloues), unite, mode_periode: modePeriode,
+        cumul_en_avance: unite === 'mois' && cumulEnAvance,
+      })
     } catch (err) {
       setError(errorMessage(err))
       setSaving(false)
@@ -88,7 +93,7 @@ function CongeTypeModal({ initial, onClose, onSubmit }: {
 
           <div className="param-form-row">
             <label className="param-field">Jours ouvrables alloués *
-              <input required type="number" min={0} value={joursAlloues} onChange={(event) => setJoursAlloues(event.target.value)} />
+              <input required type="number" min={0} step={0.5} value={joursAlloues} onChange={(event) => setJoursAlloues(event.target.value)} />
             </label>
             <label className="param-field">Unité
               <select value={unite} onChange={(event) => setUnite(event.target.value as CongeUnite)}>
@@ -109,6 +114,20 @@ function CongeTypeModal({ initial, onClose, onSubmit }: {
               Le salarié ne saisira pas de dates : l'admin/directeur les précisera au moment d'approuver la demande.
             </p>
           )}
+
+          {unite === 'mois' && (
+            <label className="param-checkbox-field">
+              <input type="checkbox" checked={cumulEnAvance} onChange={(event) => setCumulEnAvance(event.target.checked)} />
+              Autoriser la prise en avance du cumul annuel
+            </label>
+          )}
+          <p className="param-hint">
+            {unite === 'mois' ? (
+              cumulEnAvance
+                ? "Activé : un salarié peut prendre par avance la totalité de son cumul annuel (quota × 12 mois) avant même de l'avoir intégralement accumulé mois après mois."
+                : "Désactivé (par défaut) : le salarié ne peut prendre que ce qu'il a déjà accumulé mois après mois — le quota n'augmente qu'au passage à un nouveau mois."
+            ) : 'Un quota annuel est accordé en entier dès l’embauche, remis à plein chaque 1er janvier.'}
+          </p>
           <p className="param-hint">
             Ce type accepte les demi-journées (ex. 2,5 jours) dans le formulaire de demande du salarié.
           </p>
@@ -212,7 +231,10 @@ function CongesTab() {
                         <strong>{type.nom}</strong>
                         {type.description && <p className="param-type-desc">{type.description}</p>}
                       </td>
-                      <td>{type.jours_alloues} {UNITE_LABELS[type.unite as CongeUnite]}</td>
+                      <td>
+                        {type.jours_alloues} {UNITE_LABELS[type.unite as CongeUnite]}
+                        {type.unite === 'mois' && type.cumul_en_avance && <span className="ge-pill ge-pill-actif param-avance-pill">En avance</span>}
+                      </td>
                       <td>{MODE_LABELS[type.mode_periode as CongeModePeriode]}</td>
                       <td><span className={`ge-pill ${type.actif ? 'ge-pill-actif' : 'ge-pill-inactif'}`}>{type.actif ? 'Actif' : 'Inactif'}</span></td>
                       <td className="de-actions">

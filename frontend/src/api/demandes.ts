@@ -13,6 +13,10 @@ export interface CongeType {
   jours_alloues: number | null
   unite: CongeUnite | null
   mode_periode: CongeModePeriode | null
+  /** Ne s'applique qu'aux quotas mensuels (unite='mois') : si activé, le salarié peut prendre par
+   * avance la totalité de son cumul annuel (jours_alloues × 12) avant même de l'avoir
+   * intégralement accumulé mois après mois. Désactivé par défaut. */
+  cumul_en_avance: boolean
   actif: boolean
 }
 
@@ -73,10 +77,10 @@ export interface FermetureTechnique {
 
 export const fetchCongeTypes = () => apiGet<CongeType[]>('/parametres/conges-types/')
 
-export const createCongeType = (data: { nom: string; jours_alloues: number; unite: CongeUnite; mode_periode: CongeModePeriode }) =>
+export const createCongeType = (data: { nom: string; jours_alloues: number; unite: CongeUnite; mode_periode: CongeModePeriode; cumul_en_avance?: boolean }) =>
   apiPost<CongeType>('/parametres/conges-types/', data)
 
-export const updateCongeType = (id: number, data: Partial<{ nom: string; jours_alloues: number; unite: CongeUnite; mode_periode: CongeModePeriode; actif: boolean }>) =>
+export const updateCongeType = (id: number, data: Partial<{ nom: string; jours_alloues: number; unite: CongeUnite; mode_periode: CongeModePeriode; cumul_en_avance: boolean; actif: boolean }>) =>
   apiPatch<CongeType>(`/parametres/conges-types/${id}/`, data)
 
 export const deleteCongeType = (id: number) => apiDelete(`/parametres/conges-types/${id}/`)

@@ -37,6 +37,7 @@ import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment 
 import { fetchMe, sendHeartbeat } from './api/employees'
 import TaskMessagesModal from './components/TaskMessagesModal'
 import { useUnreadMessages } from './hooks/useUnreadMessages'
+import { useSystemNotifications } from './hooks/useSystemNotifications'
 
 interface Module {
   id: number
@@ -159,16 +160,22 @@ function App() {
     total: unreadTotal, unreadConversationIds, unreadTasks, unreadConversations,
     markTaskReadLocally: markBellTaskReadLocally, markConversationReadLocally: markBellConversationReadLocally,
   } = useUnreadMessages()
-  const prevUnreadTotalRef = useRef(0)
+  // Notifications système (décisions sur les demandes de congé/avance, voir _notify côté
+  // backend) — distinctes des fils de discussion ci-dessus, mais partagent la même cloche.
+  const {
+    notifications: systemNotifications, unreadCount: systemUnreadCount, markAllReadLocally: markSystemNotificationsReadLocally,
+  } = useSystemNotifications()
+  const bellTotal = unreadTotal + systemUnreadCount
+  const prevBellTotalRef = useRef(0)
   const [bellRinging, setBellRinging] = useState(false)
   useEffect(() => {
-    const increased = unreadTotal > prevUnreadTotalRef.current
-    prevUnreadTotalRef.current = unreadTotal
+    const increased = bellTotal > prevBellTotalRef.current
+    prevBellTotalRef.current = bellTotal
     if (!increased) return
     setBellRinging(true)
     const timeoutId = window.setTimeout(() => setBellRinging(false), 700)
     return () => window.clearTimeout(timeoutId)
-  }, [unreadTotal])
+  }, [bellTotal])
 
   // Battement de cœur léger tant qu'une session est active — alimente uniquement le statut « en
   // ligne » de la Messagerie (voir sendHeartbeat), aucun autre effet de bord.
@@ -393,8 +400,13 @@ function App() {
       ],
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
-    { id: 'architecture', label: 'Architecture des tâches', icon: icons.architecture },
-    { id: 'architecture-monetaire', label: 'Architecture monétaire', icon: icons.architectureMonetaire },
+    {
+      id: 'architecture', label: 'Architecture', icon: icons.architecture,
+      children: [
+        { id: 'architecture', label: 'Architecture des tâches' },
+        { id: 'architecture-monetaire', label: 'Architecture monétaire' },
+      ],
+    },
     {
       id: 'aide', label: 'Help', icon: icons.aide,
       children: [
@@ -680,11 +692,17 @@ function App() {
                 <div className="notification-wrapper">
                   <button
                     className={`notification-btn ${bellRinging ? 'is-ringing' : ''}`}
-                    onClick={() => setNotificationsOpen((open) => !open)}
+                    onClick={() => {
+                      setNotificationsOpen((open) => {
+                        const next = !open
+                        if (next) markSystemNotificationsReadLocally()
+                        return next
+                      })
+                    }}
                     aria-label="Notifications"
                   >
                     <MessageSquareWarning size={20} />
-                    {(notifications.length + unreadTotal) > 0 && <span className="notification-badge">{notifications.length + unreadTotal}</span>}
+                    {(notifications.length + bellTotal) > 0 && <span className="notification-badge">{notifications.length + bellTotal}</span>}
                   </button>
                   {notificationsOpen && (
                     <ul className="notification-dropdown" onMouseLeave={() => setNotificationsOpen(false)}>
@@ -706,7 +724,17 @@ function App() {
                           <span>💬 Nouveau message de {conversation.nom}</span>
                         </li>
                       ))}
-                      {notifications.length === 0 && unreadTotal === 0 ? (
+                      {systemNotifications.map((notification) => (
+                        <li
+                          key={`sys-${notification.id}`}
+                          className="notification-link"
+                          onClick={() => { navigateTo('salarie'); setNotificationsOpen(false) }}
+                        >
+                          <span>🔔 {notification.message}</span>
+                          <small>{new Date(notification.created_at).toLocaleString('fr-FR')}</small>
+                        </li>
+                      ))}
+                      {notifications.length === 0 && bellTotal === 0 && systemNotifications.length === 0 ? (
                         <li className="notification-empty">Aucune notification</li>
                       ) : notifications.map((notification) => (
                         <li key={notification.id}>

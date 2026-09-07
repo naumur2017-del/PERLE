@@ -15,9 +15,9 @@ from rest_framework.views import APIView
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
-    FermetureTechnique, LigneBudgetaire, Organisation, Project, ProjectLigne, PublicHoliday, Task,
-    TaskAssignment, TaskMessage, TaskMessageRead, TaskTemplate, Team, TypingStatus, User,
-    create_group_conversation, get_or_create_conversation,
+    FermetureTechnique, LigneBudgetaire, Notification, Organisation, Project, ProjectLigne,
+    PublicHoliday, Task, TaskAssignment, TaskMessage, TaskMessageRead, TaskTemplate, Team,
+    TypingStatus, User, compute_conge_solde, create_group_conversation, get_or_create_conversation,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -36,6 +36,7 @@ from .serializers import (
     LigneBudgetaireCreateSerializer,
     LigneBudgetaireSerializer,
     LoginSerializer,
+    NotificationSerializer,
     OrganisationEhsSerializer,
     OrganisationLevelsSerializer,
     OrganisationSearchSerializer,
@@ -479,19 +480,27 @@ class CongeDemandeListCreateView(generics.ListCreateAPIView):
 
 
 class CongeDemandeDetailView(generics.RetrieveDestroyAPIView):
-    """Un salarié ne peut consulter/retirer que ses propres demandes, et seulement si elles sont en attente."""
+    """Un salarié ne peut consulter/annuler que ses propres demandes : en attente (retrait avant
+    décision), ou déjà approuvées mais pas encore commencées (annulation). Une fois le congé
+    commencé, seul CongeDemandeEndView (reprise anticipée) permet d'y mettre fin."""
     serializer_class = CongeDemandeSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         auto_approve_stale_demandes(CongeDemande.objects.filter(employee=self.request.user))
-        return CongeDemande.objects.filter(employee=self.request.user, statut='attente')
+        today = timezone.localdate()
+        return CongeDemande.objects.filter(employee=self.request.user).filter(
+            Q(statut='attente') | Q(statut='approuvee', date_debut__gt=today),
+        )
 
     def perform_destroy(self, instance):
         employee = instance.employee
+        statut_avant = instance.statut
         was_maladie = instance.type_conge.categorie == 'maladie'
         instance.delete()
-        if was_maladie and employee.statut == 'conge':
+        # Une demande approuvée avait déjà mis l'employé en Congé (voir CongeDemandeReviewView) :
+        # l'annuler avant son début doit le remettre Actif, comme pour un refus.
+        if (statut_avant == 'approuvee' or was_maladie) and employee.statut == 'conge':
             employee.statut = 'actif'
             employee.save(update_fields=['statut'])
 
@@ -509,6 +518,10 @@ class OrganisationCongeDemandeListView(generics.ListAPIView):
         qs = CongeDemande.objects.filter(employee__organisation=organisation)
         auto_approve_stale_demandes(qs)
         return qs.select_related('employee', 'reviewed_by')
+
+
+def _notify(user, message):
+    Notification.objects.create(user=user, message=message)
 
 
 class CongeDemandeReviewView(generics.UpdateAPIView):
@@ -533,11 +546,17 @@ class CongeDemandeReviewView(generics.UpdateAPIView):
             if employee.statut == 'actif':
                 employee.statut = 'conge'
                 employee.save(update_fields=['statut'])
-        elif instance.statut == 'refusee' and instance.type_conge.categorie == 'maladie':
-            # Le congé maladie avait déjà mis l'employé en Congé dès sa déclaration : un refus le remet actif.
-            if employee.statut == 'conge':
-                employee.statut = 'actif'
-                employee.save(update_fields=['statut'])
+            debut = instance.date_debut.strftime('%d/%m/%Y') if instance.date_debut else None
+            fin = instance.date_fin.strftime('%d/%m/%Y') if instance.date_fin else None
+            periode = f' du {debut} au {fin}' if debut and fin else (f' à partir du {debut}' if debut else '')
+            _notify(employee, f'Votre demande de congé « {instance.type_conge.nom} »{periode} a été approuvée.')
+        else:
+            if instance.type_conge.categorie == 'maladie':
+                # Le congé maladie avait déjà mis l'employé en Congé dès sa déclaration : un refus le remet actif.
+                if employee.statut == 'conge':
+                    employee.statut = 'actif'
+                    employee.save(update_fields=['statut'])
+            _notify(employee, f'Votre demande de congé « {instance.type_conge.nom} » a été refusée.')
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -578,13 +597,9 @@ class CongeDemandeEndView(generics.GenericAPIView):
 
 class CongeSoldeView(generics.GenericAPIView):
     """Cumul des jours de congé (acquis / pris / restants) du salarié connecté, par type de congé
-    « standard » (maladie/technique n'ont pas de quota et ne sont pas comptés ici).
-
-    - Quota annuel (unite='annee') : montant plein dès l'embauche, remis à plein chaque année
-      civile — comportement inchangé, sans report d'une année sur l'autre.
-    - Quota mensuel (unite='mois') : « banque de congés » qui s'accumule sans limite depuis la
-      date d'embauche tant qu'elle n'est pas consommée (aucune remise à zéro annuelle) ; seuls
-      les jours effectivement pris (congés approuvés, toutes années confondues) en sont déduits."""
+    « standard » (maladie/technique n'ont pas de quota et ne sont pas comptés ici) — voir
+    compute_conge_solde pour le détail du calcul (accumulation mensuelle avec remise à zéro après
+    12 mois sans congé pris, ou quota plein annuel remis à zéro chaque 1er janvier)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -593,38 +608,12 @@ class CongeSoldeView(generics.GenericAPIView):
         if not organisation:
             return Response([])
 
-        today = timezone.localdate()
-        year_start = today.replace(month=1, day=1)
-        date_embauche = employee.date_embauche or today
-
         results = []
         for conge_type in CongeType.objects.filter(organisation=organisation, actif=True, categorie='standard'):
-            if conge_type.unite == 'annee':
-                effective_start = max(date_embauche, year_start)
-                jours_acquis = 0 if effective_start > today else (conge_type.jours_alloues or 0)
-                demandes_prises = CongeDemande.objects.filter(
-                    employee=employee, type_conge=conge_type, statut='approuvee', date_debut__year=today.year,
-                )
-            else:
-                # Banque mensuelle : accumulation continue depuis l'embauche, jamais remise à zéro.
-                if date_embauche > today:
-                    jours_acquis = 0
-                else:
-                    months = (today.year - date_embauche.year) * 12 + (today.month - date_embauche.month)
-                    if today.day >= date_embauche.day:
-                        months += 1
-                    jours_acquis = max(0, months) * (conge_type.jours_alloues or 0)
-                demandes_prises = CongeDemande.objects.filter(
-                    employee=employee, type_conge=conge_type, statut='approuvee',
-                )
-
-            jours_pris = sum(demande.duree for demande in demandes_prises)
-
+            solde = compute_conge_solde(employee, conge_type)
             results.append({
                 'type_conge': CongeTypeSerializer(conge_type, context=self.get_serializer_context()).data,
-                'jours_acquis': jours_acquis,
-                'jours_pris': jours_pris,
-                'solde': max(0, jours_acquis - jours_pris),
+                **solde,
             })
         return Response(results)
 
@@ -682,6 +671,11 @@ class AvanceDemandeReviewView(generics.UpdateAPIView):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à traiter les demandes.')
         serializer.save(reviewed_by=self.request.user, reviewed_at=timezone.now())
+        instance = serializer.instance
+        if instance.statut == 'approuvee':
+            _notify(instance.employee, f'Votre demande d’avance de {instance.montant} FCFA a été approuvée.')
+        else:
+            _notify(instance.employee, 'Votre demande d’avance a été refusée.')
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -1500,4 +1494,24 @@ class HeartbeatView(generics.GenericAPIView):
 
     def post(self, request):
         User.objects.filter(pk=request.user.pk).update(last_seen_at=timezone.now())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationListView(generics.ListAPIView):
+    """Notifications système de l'utilisateur connecté (ex. décisions sur ses demandes de congé
+    ou d'avance, voir _notify) — les plus récentes en premier, limitées aux 50 dernières."""
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)[:50]
+
+
+class NotificationMarkReadView(generics.GenericAPIView):
+    """Marque toutes les notifications de l'utilisateur connecté comme lues — appelé à
+    l'ouverture du menu déroulant de la cloche."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        Notification.objects.filter(user=request.user, lue=False).update(lue=True)
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -62,4 +62,6 @@ urlpatterns = [
     path('conversations/<int:pk>/read/', views.ConversationReadView.as_view()),
     path('conversations/<int:pk>/typing/', views.ConversationTypingView.as_view()),
     path('direct-messages/<int:pk>/', views.DirectMessageDetailView.as_view()),
+    path('notifications/', views.NotificationListView.as_view()),
+    path('notifications/read/', views.NotificationMarkReadView.as_view()),
 ]
