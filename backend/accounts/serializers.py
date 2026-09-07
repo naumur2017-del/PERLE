@@ -17,9 +17,11 @@ from .models import (
     LigneBudgetaire,
     Notification,
     Organisation,
+    PrimeAjustement,
     Project,
     ProjectLigne,
     PublicHoliday,
+    Sanction,
     Task,
     TaskAssignment,
     TaskMessage,
@@ -80,6 +82,44 @@ class OrganisationEhsSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError('Le taux doit être supérieur à 0.')
         return value
+
+
+class OrganisationGradeSerializer(serializers.ModelSerializer):
+    """Valeur en FCFA d'un point de grade — sert à calculer le salaire de base d'un salarié
+    (Salarié > Rémunération) : salaire_de_base = grade du salarié × ce taux."""
+    class Meta:
+        model = Organisation
+        fields = ['taux_grade_fcfa']
+
+    def validate_taux_grade_fcfa(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le taux doit être supérieur à 0.')
+        return value
+
+
+class OrganisationRemunerationSerializer(serializers.ModelSerializer):
+    """Taux utilisés pour calculer la prime de performance (note moyenne × taux) et les
+    déductions (charges sociales, impôt sur le revenu) affichées dans Salarié > Rémunération —
+    des taux que l'organisation configure elle-même, pas un barème fiscal officiel."""
+    class Meta:
+        model = Organisation
+        fields = ['taux_prime_performance_fcfa', 'taux_charges_sociales_pct', 'taux_impot_revenu_pct']
+
+    def validate_taux_prime_performance_fcfa(self, value):
+        if value < 0:
+            raise serializers.ValidationError('Le taux ne peut pas être négatif.')
+        return value
+
+    def _validate_pct(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError('Le taux doit être compris entre 0 et 100 %.')
+        return value
+
+    def validate_taux_charges_sociales_pct(self, value):
+        return self._validate_pct(value)
+
+    def validate_taux_impot_revenu_pct(self, value):
+        return self._validate_pct(value)
 
 
 class TeamSummarySerializer(serializers.ModelSerializer):
@@ -802,6 +842,68 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['id', 'message', 'lue', 'created_at']
         read_only_fields = fields
+
+
+class SanctionSerializer(serializers.ModelSerializer):
+    """Sanction disciplinaire réellement enregistrée pour un salarié (Salarié > Rémunération) —
+    voir Sanction. Créée uniquement par un admin/directeur (voir SanctionListCreateView)."""
+    employee_nom = serializers.SerializerMethodField()
+    type_sanction_display = serializers.CharField(source='get_type_sanction_display', read_only=True)
+    created_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sanction
+        fields = [
+            'id', 'employee', 'employee_nom', 'type_sanction', 'type_sanction_display',
+            'motif', 'montant', 'date', 'created_by_nom', 'created_at',
+        ]
+        read_only_fields = ['id', 'employee_nom', 'type_sanction_display', 'created_by_nom', 'created_at']
+
+    def get_employee_nom(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def validate_montant(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le montant doit être supérieur à 0.')
+        return value
+
+    def validate_employee(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce salarié n’appartient pas à votre organisation.')
+        return value
+
+
+class PrimeAjustementSerializer(serializers.ModelSerializer):
+    """Prime/ajustement manuel réellement accordé à un salarié (Salarié > Rémunération) — voir
+    PrimeAjustement. Créé uniquement par un admin/directeur (voir PrimeAjustementListCreateView)."""
+    employee_nom = serializers.SerializerMethodField()
+    created_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrimeAjustement
+        fields = ['id', 'employee', 'employee_nom', 'motif', 'montant', 'date', 'created_by_nom', 'created_at']
+        read_only_fields = ['id', 'employee_nom', 'created_by_nom', 'created_at']
+
+    def get_employee_nom(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'
+
+    def get_created_by_nom(self, obj):
+        return f'{obj.created_by.first_name} {obj.created_by.last_name}' if obj.created_by else None
+
+    def validate_montant(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le montant doit être supérieur à 0.')
+        return value
+
+    def validate_employee(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Ce salarié n’appartient pas à votre organisation.')
+        return value
 
 
 class FermetureTechniqueSerializer(serializers.ModelSerializer):

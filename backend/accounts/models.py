@@ -49,6 +49,19 @@ class Organisation(models.Model):
     # ce taux convertit ces EHS en coût réel, décompté du montant que le projet a attribué à la
     # ligne budgétaire de la tâche (voir TaskAssignment).
     taux_ehs_fcfa = models.DecimalField(max_digits=8, decimal_places=2, default=150)
+    # Valeur en FCFA d'un point de grade, utilisée pour calculer le salaire de base d'un salarié
+    # (Salarié > Rémunération) : salaire_de_base = grade du salarié × ce taux (ex. taux=25000,
+    # salarié de grade 3 → 75 000 FCFA). Configurable par organisation (Paramètres > Grade).
+    taux_grade_fcfa = models.DecimalField(max_digits=10, decimal_places=2, default=25000)
+    # Paramètres > Rémunération : valeur en FCFA d'un point de note (1 à 5 étoiles, voir
+    # TaskAssignment.note) — prime_performance du mois = note moyenne du salarié sur les tâches
+    # notées ce mois-là × ce taux. 0 par défaut : aucune prime tant que l'admin ne l'active pas.
+    taux_prime_performance_fcfa = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Taux appliqués au brut (salaire de base + primes) du mois pour calculer les déductions
+    # affichées dans Salarié > Rémunération — des taux que l'organisation configure elle-même,
+    # pas un barème fiscal officiel calculé par PERLE.
+    taux_charges_sociales_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('10.5'))
+    taux_impot_revenu_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1008,3 +1021,49 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'{self.user.email} — {self.message}'
+
+
+class Sanction(models.Model):
+    """Sanction disciplinaire réellement enregistrée par un admin/directeur pour un salarié —
+    remplace les « Pénalités / Sanctions » qui étaient auparavant des valeurs d'exemple sur la
+    page Salarié > Rémunération : cette liste ne contient que ce qui a été effectivement saisi,
+    vide par défaut pour tout le monde."""
+    TYPE_CHOICES = [
+        ('retard', 'Retard'),
+        ('demande_explication', "Demande d'explication"),
+        ('rappel_ordre', "Rappel à l'ordre"),
+        ('autre', 'Autre'),
+    ]
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sanctions')
+    type_sanction = models.CharField(max_length=20, choices=TYPE_CHOICES, default='autre')
+    motif = models.TextField(blank=True)
+    montant = models.DecimalField(max_digits=12, decimal_places=2)
+    # Mois/date de la sanction — sert à la rattacher au bon mois sur la fiche de rémunération.
+    date = models.DateField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        return f'{self.employee.email} — {self.get_type_sanction_display()} ({self.montant})'
+
+
+class PrimeAjustement(models.Model):
+    """Prime ou ajustement exceptionnel accordé manuellement par un admin/directeur à un salarié
+    (ex. « prime de rattrapage ») — pas de formule automatique par nature (régularisation décidée
+    au cas par cas), à la différence de la prime de performance (voir
+    Organisation.taux_prime_performance_fcfa)."""
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='primes_ajustement')
+    motif = models.CharField(max_length=255)
+    montant = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        return f'{self.employee.email} — {self.motif} ({self.montant})'

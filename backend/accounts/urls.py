@@ -6,6 +6,8 @@ urlpatterns = [
     path('organisations/search/', views.OrganisationSearchView.as_view()),
     path('organisations/levels/', views.OrganisationLevelsView.as_view()),
     path('organisations/ehs/', views.OrganisationEhsView.as_view()),
+    path('organisations/grade/', views.OrganisationGradeView.as_view()),
+    path('organisations/remuneration/', views.OrganisationRemunerationView.as_view()),
     path('organisations/register/personal/', views.RegisterPersonalOrganisationView.as_view()),
     path('organisations/register/company/', views.RegisterCompanyOrganisationView.as_view()),
     path('organisations/register/member/', views.RegisterMemberView.as_view()),
@@ -64,4 +66,8 @@ urlpatterns = [
     path('direct-messages/<int:pk>/', views.DirectMessageDetailView.as_view()),
     path('notifications/', views.NotificationListView.as_view()),
     path('notifications/read/', views.NotificationMarkReadView.as_view()),
+    path('sanctions/', views.SanctionListCreateView.as_view()),
+    path('sanctions/<int:pk>/', views.SanctionDetailView.as_view()),
+    path('primes-ajustement/', views.PrimeAjustementListCreateView.as_view()),
+    path('primes-ajustement/<int:pk>/', views.PrimeAjustementDetailView.as_view()),
 ]

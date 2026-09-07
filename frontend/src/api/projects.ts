@@ -15,6 +15,11 @@ export interface ProjectLigne {
   equipe_nom: string
   equipe_code: string
   montant: number
+  /** Somme réelle de TaskAssignment.montant_fcfa déjà staffé sur cette ligne (voir
+   * ProjectLigneSerializer.get_montant_consomme_fcfa côté backend) — dès le staffing, pas
+   * seulement une fois la tâche terminée. */
+  montant_consomme_fcfa: number
+  montant_reste_fcfa: number
   date_debut: string | null
   date_fin: string | null
   created_at: string

@@ -2,11 +2,17 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent,
 import { createPortal } from 'react-dom'
 import {
   Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Download, Eye, EyeOff, FileText,
-  History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Users, Users2, X, MoreVertical,
+  History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Trash2, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, type Employee, type StatutEmploye, type Team } from '../api/employees'
+import {
+  createPrimeAjustement, createSanction, deletePrimeAjustement, deleteSanction,
+  fetchPrimesAjustement, fetchSanctions,
+  type PrimeAjustement, type Sanction, type SanctionType,
+} from '../api/remunerationExtras'
 import { ApiError } from '../api/client'
+import { formatMontant } from '../utils/currency'
 import CountrySelect from '../components/CountrySelect'
 import RegionSelect from '../components/RegionSelect'
 import PhoneInput from '../components/PhoneInput'
@@ -251,6 +257,236 @@ function AffectationsTab({ employe }: { employe: Employe }) {
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+const todayIso = () => new Date().toLocaleDateString('sv-SE')
+
+const SANCTION_TYPE_OPTIONS: { value: SanctionType; label: string }[] = [
+  { value: 'retard', label: 'Retard' },
+  { value: 'demande_explication', label: 'Demande d’explication' },
+  { value: 'rappel_ordre', label: 'Rappel à l’ordre' },
+  { value: 'autre', label: 'Autre' },
+]
+
+function SanctionModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (data: { type_sanction: SanctionType; motif: string; montant: number; date: string }) => Promise<void> }) {
+  const [typeSanction, setTypeSanction] = useState<SanctionType>('retard')
+  const [motif, setMotif] = useState('')
+  const [montant, setMontant] = useState('')
+  const [date, setDate] = useState(todayIso())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSave = Number(montant) > 0 && date !== '' && !saving
+
+  const handleSave = async () => {
+    if (!canSave) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave({ type_sanction: typeSanction, motif: motif.trim(), montant: Number(montant), date })
+      onClose()
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Enregistrer une sanction" onMouseDown={onClose}>
+      <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <h3>Enregistrer une sanction</h3>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+        <p className="ge-modal-employee">{employe.nom}</p>
+        {error && <p className="ge-form-error">{error}</p>}
+        <div className="param-form">
+          <label className="param-field">Type
+            <select value={typeSanction} onChange={(event) => setTypeSanction(event.target.value as SanctionType)}>
+              {SANCTION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="param-field">Motif
+            <input value={motif} placeholder="Ex. Retard sur tâche « Collecte des données »" onChange={(event) => setMotif(event.target.value)} />
+          </label>
+          <div className="param-form-row">
+            <label className="param-field">Montant (FCFA) *
+              <input required type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} />
+            </label>
+            <DatePicker label="Date" value={date} onChange={setDate} required />
+          </div>
+        </div>
+        <div className="ge-modal-actions">
+          <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+          <button type="button" className="ge-btn-primary" onClick={handleSave} disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PrimeModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (data: { motif: string; montant: number; date: string }) => Promise<void> }) {
+  const [motif, setMotif] = useState('')
+  const [montant, setMontant] = useState('')
+  const [date, setDate] = useState(todayIso())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSave = motif.trim() !== '' && Number(montant) > 0 && date !== '' && !saving
+
+  const handleSave = async () => {
+    if (!canSave) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave({ motif: motif.trim(), montant: Number(montant), date })
+      onClose()
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Accorder une prime" onMouseDown={onClose}>
+      <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <h3>Accorder une prime / un ajustement</h3>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+        </div>
+        <p className="ge-modal-employee">{employe.nom}</p>
+        {error && <p className="ge-form-error">{error}</p>}
+        <div className="param-form">
+          <label className="param-field">Motif *
+            <input required value={motif} placeholder="Ex. Prime de rattrapage — régularisation Q3" onChange={(event) => setMotif(event.target.value)} />
+          </label>
+          <div className="param-form-row">
+            <label className="param-field">Montant (FCFA) *
+              <input required type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} />
+            </label>
+            <DatePicker label="Date" value={date} onChange={setDate} required />
+          </div>
+        </div>
+        <div className="ge-modal-actions">
+          <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+          <button type="button" className="ge-btn-primary" onClick={handleSave} disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RemunerationEmployeTab({ employe }: { employe: Employe }) {
+  const [sanctions, setSanctions] = useState<Sanction[]>([])
+  const [primes, setPrimes] = useState<PrimeAjustement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showSanctionModal, setShowSanctionModal] = useState(false)
+  const [showPrimeModal, setShowPrimeModal] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchSanctions(employe.id), fetchPrimesAjustement(employe.id)])
+      .then(([sanctionsData, primesData]) => {
+        if (cancelled) return
+        setSanctions(sanctionsData)
+        setPrimes(primesData)
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger les sanctions et primes.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [employe.id])
+
+  const handleCreateSanction = async (data: { type_sanction: SanctionType; motif: string; montant: number; date: string }) => {
+    const created = await createSanction({ employee: employe.id, ...data })
+    setSanctions((prev) => [created, ...prev])
+  }
+
+  const handleDeleteSanction = async (id: number) => {
+    if (!window.confirm('Retirer cette sanction ?')) return
+    await deleteSanction(id)
+    setSanctions((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const handleCreatePrime = async (data: { motif: string; montant: number; date: string }) => {
+    const created = await createPrimeAjustement({ employee: employe.id, ...data })
+    setPrimes((prev) => [created, ...prev])
+  }
+
+  const handleDeletePrime = async (id: number) => {
+    if (!window.confirm('Retirer cette prime / cet ajustement ?')) return
+    await deletePrimeAjustement(id)
+    setPrimes((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  if (loading) return <p className="ge-detail-empty">Chargement…</p>
+  if (loadError) return <p className="ge-detail-empty">{loadError}</p>
+
+  return (
+    <>
+      <div className="ge-detail-section">
+        <div className="ge-detail-section-head">
+          <h4><Info size={13} />Sanctions</h4>
+          <button type="button" className="ge-row-action" aria-label="Enregistrer une sanction" title="Enregistrer une sanction" onClick={() => setShowSanctionModal(true)}><Plus size={13} /></button>
+        </div>
+        {sanctions.length === 0 ? (
+          <p className="ge-detail-empty">Aucune sanction enregistrée.</p>
+        ) : (
+          <div className="ge-detail-table-wrap">
+            <table className="ge-detail-table">
+              <thead>
+                <tr><th>Date</th><th>Type</th><th>Motif</th><th>Montant</th><th>Enregistrée par</th><th></th></tr>
+              </thead>
+              <tbody>
+                {sanctions.map((sanction) => (
+                  <tr key={sanction.id}>
+                    <td>{formatDate(sanction.date)}</td>
+                    <td>{sanction.type_sanction_display}</td>
+                    <td>{sanction.motif || '—'}</td>
+                    <td>{formatMontant(sanction.montant)}</td>
+                    <td>{sanction.created_by_nom ?? '—'}</td>
+                    <td><button type="button" className="ge-row-action ge-row-action-danger" aria-label="Retirer" title="Retirer" onClick={() => handleDeleteSanction(sanction.id)}><Trash2 size={12} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="ge-detail-section ge-detail-section-title-spaced">
+        <div className="ge-detail-section-head">
+          <h4><Info size={13} />Primes / Ajustements</h4>
+          <button type="button" className="ge-row-action" aria-label="Accorder une prime" title="Accorder une prime" onClick={() => setShowPrimeModal(true)}><Plus size={13} /></button>
+        </div>
+        {primes.length === 0 ? (
+          <p className="ge-detail-empty">Aucune prime/ajustement accordé.</p>
+        ) : (
+          <div className="ge-detail-table-wrap">
+            <table className="ge-detail-table">
+              <thead>
+                <tr><th>Date</th><th>Motif</th><th>Montant</th><th>Accordée par</th><th></th></tr>
+              </thead>
+              <tbody>
+                {primes.map((prime) => (
+                  <tr key={prime.id}>
+                    <td>{formatDate(prime.date)}</td>
+                    <td>{prime.motif}</td>
+                    <td>{formatMontant(prime.montant)}</td>
+                    <td>{prime.created_by_nom ?? '—'}</td>
+                    <td><button type="button" className="ge-row-action ge-row-action-danger" aria-label="Retirer" title="Retirer" onClick={() => handleDeletePrime(prime.id)}><Trash2 size={12} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {showSanctionModal && <SanctionModal employe={employe} onClose={() => setShowSanctionModal(false)} onSave={handleCreateSanction} />}
+      {showPrimeModal && <PrimeModal employe={employe} onClose={() => setShowPrimeModal(false)} onSave={handleCreatePrime} />}
     </>
   )
 }
@@ -790,7 +1026,7 @@ function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: 
 }
 
 function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => void }) {
-  const [tab, setTab] = useState<'infos' | 'affectations' | 'documents'>('affectations')
+  const [tab, setTab] = useState<'infos' | 'affectations' | 'remuneration' | 'documents'>('affectations')
 
   return (
     <aside className="ge-detail-panel">
@@ -814,12 +1050,14 @@ function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => 
       <nav className="ge-detail-tabs">
         <button className={tab === 'infos' ? 'active' : ''} onClick={() => setTab('infos')}>Infos générales</button>
         <button className={tab === 'affectations' ? 'active' : ''} onClick={() => setTab('affectations')}>Affectation</button>
+        <button className={tab === 'remuneration' ? 'active' : ''} onClick={() => setTab('remuneration')}>Rémunération</button>
         <button className={tab === 'documents' ? 'active' : ''} onClick={() => setTab('documents')}>Documents</button>
       </nav>
 
       <div className="ge-detail-body">
         {tab === 'infos' && <InfosGeneralesTab employe={employe} />}
         {tab === 'affectations' && <AffectationsTab employe={employe} />}
+        {tab === 'remuneration' && <RemunerationEmployeTab employe={employe} />}
         {tab === 'documents' && <DocumentsTab employe={employe} />}
       </div>
     </aside>

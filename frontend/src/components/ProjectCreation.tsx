@@ -167,7 +167,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         ligne_budgetaire_nom: source?.nom ?? '', ligne_budgetaire_code: source?.code ?? '',
         ligne_budgetaire_declinaison: source?.declinaison ?? '', ligne_budgetaire_montant_prevu: source?.montant_prevu ?? null,
         equipe: source?.equipe ?? 0, equipe_nom: source?.equipe_nom ?? '', equipe_code: source?.equipe_code ?? '',
-        montant: values.montant,
+        montant: values.montant, montant_consomme_fcfa: 0, montant_reste_fcfa: values.montant,
         date_debut: values.date_debut || null, date_fin: values.date_fin || null, created_at: '',
       }
       setLignes((prev) => [...prev, pending])

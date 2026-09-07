@@ -15,9 +15,10 @@ from rest_framework.views import APIView
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
-    FermetureTechnique, LigneBudgetaire, Notification, Organisation, Project, ProjectLigne,
-    PublicHoliday, Task, TaskAssignment, TaskMessage, TaskMessageRead, TaskTemplate, Team,
-    TypingStatus, User, compute_conge_solde, create_group_conversation, get_or_create_conversation,
+    FermetureTechnique, LigneBudgetaire, Notification, Organisation, PrimeAjustement, Project,
+    ProjectLigne, PublicHoliday, Sanction, Task, TaskAssignment, TaskMessage, TaskMessageRead,
+    TaskTemplate, Team, TypingStatus, User, compute_conge_solde, create_group_conversation,
+    get_or_create_conversation,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -38,14 +39,18 @@ from .serializers import (
     LoginSerializer,
     NotificationSerializer,
     OrganisationEhsSerializer,
+    OrganisationGradeSerializer,
     OrganisationLevelsSerializer,
+    OrganisationRemunerationSerializer,
     OrganisationSearchSerializer,
+    PrimeAjustementSerializer,
     ProjectLigneSerializer,
     ProjectSerializer,
     PublicHolidaySerializer,
     RegisterCompanyOrganisationSerializer,
     RegisterMemberSerializer,
     RegisterPersonalOrganisationSerializer,
+    SanctionSerializer,
     TaskAssignmentSerializer,
     TaskMessageSerializer,
     TaskSerializer,
@@ -131,6 +136,42 @@ class OrganisationLevelsView(generics.RetrieveUpdateAPIView):
 
 class OrganisationEhsView(generics.RetrieveUpdateAPIView):
     serializer_class = OrganisationEhsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        return organisation
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
+        serializer.save()
+
+
+class OrganisationGradeView(generics.RetrieveUpdateAPIView):
+    """Paramètres > Grade : valeur en FCFA d'un point de grade, utilisée pour calculer le salaire
+    de base d'un salarié (grade × ce taux) — voir Salarié > Rémunération."""
+    serializer_class = OrganisationGradeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
+        return organisation
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
+        serializer.save()
+
+
+class OrganisationRemunerationView(generics.RetrieveUpdateAPIView):
+    """Paramètres > Rémunération : taux de prime de performance (par point de note) et taux de
+    déductions (charges sociales, impôt sur le revenu) — voir Salarié > Rémunération."""
+    serializer_class = OrganisationRemunerationSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
@@ -1515,3 +1556,76 @@ class NotificationMarkReadView(generics.GenericAPIView):
     def post(self, request):
         Notification.objects.filter(user=request.user, lue=False).update(lue=True)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SanctionListCreateView(generics.ListCreateAPIView):
+    """Sanctions disciplinaires réellement enregistrées (Salarié > Rémunération, Gestion des
+    équipes) — un salarié ne voit que les siennes ; un admin/directeur peut consulter celles de
+    toute l'organisation (éventuellement filtrées par ?employee=<id>) et en créer."""
+    serializer_class = SanctionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return Sanction.objects.none()
+        qs = Sanction.objects.filter(employee__organisation=organisation).select_related('employee', 'created_by')
+        if self.request.user.role not in ('admin', 'directeur'):
+            return qs.filter(employee=self.request.user)
+        employee_id = self.request.query_params.get('employee')
+        if employee_id:
+            qs = qs.filter(employee_id=employee_id)
+        return qs
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à enregistrer une sanction.')
+        serializer.save(created_by=self.request.user)
+
+
+class SanctionDetailView(generics.DestroyAPIView):
+    """Retrait d'une sanction — réservé à l'admin/directeur de l'organisation."""
+    serializer_class = SanctionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation or self.request.user.role not in ('admin', 'directeur'):
+            return Sanction.objects.none()
+        return Sanction.objects.filter(employee__organisation=organisation)
+
+
+class PrimeAjustementListCreateView(generics.ListCreateAPIView):
+    """Primes/ajustements manuels réellement accordés (Salarié > Rémunération, Gestion des
+    équipes) — même logique d'accès que les sanctions."""
+    serializer_class = PrimeAjustementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return PrimeAjustement.objects.none()
+        qs = PrimeAjustement.objects.filter(employee__organisation=organisation).select_related('employee', 'created_by')
+        if self.request.user.role not in ('admin', 'directeur'):
+            return qs.filter(employee=self.request.user)
+        employee_id = self.request.query_params.get('employee')
+        if employee_id:
+            qs = qs.filter(employee_id=employee_id)
+        return qs
+
+    def perform_create(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à accorder une prime.')
+        serializer.save(created_by=self.request.user)
+
+
+class PrimeAjustementDetailView(generics.DestroyAPIView):
+    """Retrait d'une prime/ajustement — réservé à l'admin/directeur de l'organisation."""
+    serializer_class = PrimeAjustementSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation or self.request.user.role not in ('admin', 'directeur'):
+            return PrimeAjustement.objects.none()
+        return PrimeAjustement.objects.filter(employee__organisation=organisation)

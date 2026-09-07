@@ -263,6 +263,8 @@
 .ge-detail-section h4 { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 11.5px; font-weight: 700; color: #14123a; }
 .ge-detail-section h4 svg { color: #6b46c1; }
 .ge-detail-section-title-spaced { margin-top: 20px !important; }
+.ge-detail-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ge-detail-section-head h4 { margin: 0; }
 
 .ge-detail-table-wrap { overflow-x: auto; border: 1px solid #eae7f6; border-radius: 9px; }
 .ge-detail-table { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 10.5px; }

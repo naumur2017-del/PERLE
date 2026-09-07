@@ -52,7 +52,10 @@ import {
   type FermetureTechnique,
 } from '../api/demandes'
 import { ApiError } from '../api/client'
-import { fetchOrganisationEhs } from '../api/organisation'
+import { fetchOrganisationEhs, fetchOrganisationGrade, fetchOrganisationRemuneration } from '../api/organisation'
+import { fetchPrimesAjustement, fetchSanctions, type PrimeAjustement, type Sanction } from '../api/remunerationExtras'
+import { fetchNotifications, type SystemNotification } from '../api/notifications'
+import { fetchTaskAssignments, type TaskAssignment } from '../api/taskAssignments'
 import { currencySuffix, formatMontant } from '../utils/currency'
 import type { Session } from '../auth/session'
 import 'flag-icons/css/flag-icons.min.css'
@@ -111,6 +114,11 @@ const STATUT_FROM_API: Record<ApiCongeDemande['statut'], Statut> = {
 }
 
 const formatDateFr = (value: string) => new Date(value).toLocaleDateString('fr-FR')
+const fmtDateOrDash = (value: string | null) => value ? formatDateFr(value) : '—'
+const fmtDureeHM = (totalSeconds: number) => {
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`
+}
 
 const formatInputDate = (value: string) => {
   const [year, month, day] = value.split('-')
@@ -166,7 +174,29 @@ function countByStatut<T extends { statut: Statut }>(items: T[], statut: Statut)
   return items.filter((item) => item.statut === statut).length
 }
 
-const PERIODES = ['Mai 2025', 'Avril 2025', 'Mars 2025', 'Février 2025', 'Janvier 2025', 'Décembre 2024']
+/** Les 12 derniers mois glissants (mois courant en premier) — jamais une liste figée de mois
+ * passés, pour que le filtre de période reste toujours d'actualité. */
+const PERIODES: string[] = Array.from({ length: 12 }, (_, i) => {
+  const now = new Date()
+  const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+  const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+})
+
+/** Reconvertit une période sélectionnée (voir PERIODES) en année/mois exploitables pour filtrer
+ * des données réelles (sanctions, primes, tâches...) par mois calendaire. */
+function periodeToYearMonth(periode: string): { year: number; month: number } {
+  const index = Math.max(0, PERIODES.indexOf(periode))
+  const now = new Date()
+  const d = new Date(now.getFullYear(), now.getMonth() - index, 1)
+  return { year: d.getFullYear(), month: d.getMonth() + 1 }
+}
+
+function dateInPeriode(isoDate: string | null, year: number, month: number): boolean {
+  if (!isoDate) return false
+  const d = new Date(isoDate)
+  return d.getFullYear() === year && d.getMonth() + 1 === month
+}
 
 function PeriodeFilter({ value, onChange, label = 'Période' }: { value: string; onChange: (value: string) => void; label?: string }) {
   return (
@@ -207,7 +237,7 @@ export default function SalariePage({ session, onSessionUpdate }: { session: Ses
         })}
       </nav>
 
-      {activeTab === 'dashboard' ? <DashboardTab session={session} />
+      {activeTab === 'dashboard' ? <DashboardTab session={session} onNavigateTab={setActiveTab} />
         : activeTab === 'activites' ? <ActivitesTab />
         : activeTab === 'remuneration' ? <RemunerationTab />
         : activeTab === 'demandes' ? <DemandesTab session={session} />
@@ -1103,47 +1133,7 @@ function ProfilTab({ onSessionUpdate }: { onSessionUpdate: (patch: Partial<Sessi
 
 const frNumber = (value: number, decimals = 2) => value.toFixed(decimals).replace('.', ',')
 
-const monthlyEhs = [
-  { month: 'Déc. 2024', value: 52.3 },
-  { month: 'Janv. 2025', value: 61.2 },
-  { month: 'Fév. 2025', value: 72.8 },
-  { month: 'Mars 2025', value: 85.1 },
-  { month: 'Avr. 2025', value: 89.3 },
-  { month: 'Mai 2025', value: 67.5 },
-]
-
-const ehsByProject = [
-  { name: 'Projet CGA', value: 27, color: '#2a78d6' },
-  { name: 'Projet PADESCE', value: 18, color: '#eb6834' },
-  { name: 'Projet PERLE', value: 12.5, color: '#4a3aa7' },
-  { name: 'Projet TRANSFAGRI', value: 10, color: '#1baf7a' },
-]
-
-const dashboardStats = [
-  { icon: BarChart3, iconClass: 'ehs', label: 'EHS consommés ce mois', value: '67,50', unit: 'EHS', sub: 'Sur 89,30 EHS consommés en Avril', progress: 75.6 },
-  { icon: Clock, iconClass: 'temps', label: 'Temps total travaillé ce mois', value: '154h 20m', sub: 'Sur 168h ce mois', progress: 91.8 },
-  { icon: CheckCircle2, iconClass: 'taches', label: 'Tâches terminées ce mois', value: '18', sub: 'Sur 24 tâches', progress: 75.0 },
-  { icon: Briefcase, iconClass: 'projets', label: 'Projets actifs', value: '4', sub: 'Sur 7 projets ce mois' },
-  { icon: Wallet, iconClass: 'salaire', label: 'Salaire estimatif', value: '542 000', unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true },
-  { icon: Gift, iconClass: 'prime', label: 'Prime estimative', value: '58 000', unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true },
-]
-
-const bottomStats = [
-  { icon: Calendar, iconClass: 'conge', label: 'Solde de congés', value: '12', unit: 'jours', sub: 'Sur 25 jours/an', link: 'Voir le détail' },
-  { icon: FileText, iconClass: 'attente', label: 'Demandes en attente', value: '1', sub: null, link: 'Voir mes demandes' },
-  { icon: ShieldAlert, iconClass: 'sanction', label: 'Sanctions actives', value: '0', sub: null, link: 'Voir le détail' },
-  { icon: Wallet, iconClass: 'avance', label: 'Avances en cours', value: '150 000', unit: currencySuffix(), sub: `Reste à rembourser 120 000 ${currencySuffix()}`, link: 'Voir le détail' },
-]
-
-const notifications = [
-  { icon: Calendar, iconClass: 'conge', text: <>Votre demande de congé du <strong>05/06/2025</strong> au <strong>07/06/2025</strong> est en attente.</>, time: 'Il y a 1 heure' },
-  { icon: CheckCircle2, iconClass: 'avance', text: <>Votre demande d’avance de <strong>{`150 000 ${currencySuffix()}`}</strong> a été acceptée.</>, time: 'Il y a 1 jour' },
-  { icon: FileText, iconClass: 'paie', text: <>Votre fiche de paie de <strong>Mai 2025</strong> est disponible.</>, time: 'Il y a 2 jours' },
-  { icon: ShieldAlert, iconClass: 'sanction', text: 'Une nouvelle sanction a été enregistrée.', time: 'Il y a 3 jours' },
-  { icon: Bell, iconClass: 'rappel', text: <><strong>Rappel :</strong> Réunion d’équipe prévue demain à 10h00.</>, time: 'Il y a 5 jours' },
-]
-
-function DashboardStatCard({ icon: Icon, iconClass, label, value, unit, sub, progress, link }: { icon: typeof BarChart3; iconClass: string; label: string; value: string; unit?: string; sub?: string | null; progress?: number; link?: boolean }) {
+function DashboardStatCard({ icon: Icon, iconClass, label, value, unit, sub, progress, link, onClick }: { icon: typeof BarChart3; iconClass: string; label: string; value: string; unit?: string; sub?: string | null; progress?: number; link?: boolean; onClick?: () => void }) {
   return (
     <article className="salarie-dash-stat">
       <span className={`salarie-dash-stat-icon ${iconClass}`}><Icon size={18} strokeWidth={2} /></span>
@@ -1151,7 +1141,7 @@ function DashboardStatCard({ icon: Icon, iconClass, label, value, unit, sub, pro
         <span className="salarie-dash-stat-label">{label}</span>
         <strong>{value}{unit && <small> {unit}</small>}</strong>
         {sub && (link
-          ? <a className="salarie-dash-stat-link">{sub} <ArrowRight size={11} strokeWidth={2.4} /></a>
+          ? <button type="button" className="salarie-dash-stat-link" onClick={onClick}>{sub} <ArrowRight size={11} strokeWidth={2.4} /></button>
           : <small className="salarie-dash-stat-sub">{sub}</small>)}
         {typeof progress === 'number' && (
           <div className="salarie-dash-progress">
@@ -1164,16 +1154,18 @@ function DashboardStatCard({ icon: Icon, iconClass, label, value, unit, sub, pro
   )
 }
 
-function LineChart() {
+function LineChart({ monthlyEhs }: { monthlyEhs: { month: string; value: number }[] }) {
   const width = 600
   const height = 220
   const left = 34
   const right = 592
   const top = 26
   const bottom = 180
-  const ticks = [0, 20, 40, 60, 80, 100]
-  const step = (right - left) / (monthlyEhs.length - 1)
-  const valueToY = (value: number) => bottom - (value / 100) * (bottom - top)
+  const maxValue = Math.max(1, ...monthlyEhs.map((entry) => entry.value))
+  const axisMax = Math.ceil(maxValue / 20) * 20 || 20
+  const ticks = [0, axisMax * 0.2, axisMax * 0.4, axisMax * 0.6, axisMax * 0.8, axisMax]
+  const step = (right - left) / Math.max(1, monthlyEhs.length - 1)
+  const valueToY = (value: number) => bottom - (value / axisMax) * (bottom - top)
   const points = monthlyEhs.map((entry, index) => ({ ...entry, x: left + index * step, y: valueToY(entry.value) }))
   const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${bottom} L ${points[0].x} ${bottom} Z`
@@ -1205,7 +1197,7 @@ function LineChart() {
   )
 }
 
-function DonutChart() {
+function DonutChart({ ehsByProject }: { ehsByProject: { name: string; value: number; color: string }[] }) {
   const size = 200
   const center = size / 2
   const radius = 70
@@ -1213,6 +1205,8 @@ function DonutChart() {
   const circumference = 2 * Math.PI * radius
   const gap = 4
   const total = ehsByProject.reduce((sum, entry) => sum + entry.value, 0)
+
+  if (total === 0) return <p className="salarie-empty-hint">Aucun EHS consommé ce mois-ci.</p>
 
   const segments = ehsByProject.reduce<{ name: string; value: number; color: string; dash: number; offset: number; percent: number }[]>((acc, entry) => {
     const offset = acc.length > 0 ? acc[acc.length - 1].offset + (acc[acc.length - 1].dash + gap) : 0
@@ -1254,8 +1248,113 @@ function DonutChart() {
   )
 }
 
-function DashboardTab({ session }: { session: Session }) {
+function DashboardTab({ session, onNavigateTab }: { session: Session; onNavigateTab: (tab: TabId) => void }) {
   const [periode, setPeriode] = useState(PERIODES[0])
+  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [monGrade, setMonGrade] = useState<number | null>(null)
+  const [tauxGrade, setTauxGrade] = useState<number | null>(null)
+  const [tauxPrimePerformance, setTauxPrimePerformance] = useState<number | null>(null)
+  const [congeSolde, setCongeSolde] = useState<CongeSolde[]>([])
+  const [congeDemandes, setCongeDemandes] = useState<ApiCongeDemande[]>([])
+  const [avanceDemandes, setAvanceDemandes] = useState<ApiAvanceDemande[]>([])
+  const [sanctions, setSanctions] = useState<Sanction[]>([])
+  const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((me) => {
+        if (cancelled) return null
+        setMonGrade(me.grade)
+        return Promise.all([
+          fetchTaskAssignments({ user: me.id }),
+          fetchOrganisationGrade(),
+          fetchOrganisationRemuneration(),
+          fetchCongeSolde(),
+          fetchMyCongeDemandes(),
+          fetchMyAvanceDemandes(),
+          fetchSanctions(me.id),
+          fetchNotifications(),
+        ])
+      })
+      .then((result) => {
+        if (cancelled || !result) return
+        const [assignmentsData, gradeData, remuData, soldeData, congesData, avancesData, sanctionsData, notifsData] = result
+        setAssignments(assignmentsData)
+        setTauxGrade(gradeData.taux_grade_fcfa)
+        setTauxPrimePerformance(remuData.taux_prime_performance_fcfa)
+        setCongeSolde(soldeData)
+        setCongeDemandes(congesData)
+        setAvanceDemandes(avancesData)
+        setSanctions(sanctionsData)
+        setSystemNotifications(notifsData)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const { year, month } = periodeToYearMonth(periode)
+  const periodeAssignments = assignments.filter((a) => dateInPeriode(a.created_at, year, month))
+
+  const periodeIndex = PERIODES.indexOf(periode)
+  const previousPeriode = PERIODES[periodeIndex + 1]
+  const previousYearMonth = previousPeriode ? periodeToYearMonth(previousPeriode) : null
+  const previousEhs = previousYearMonth
+    ? assignments.filter((a) => dateInPeriode(a.created_at, previousYearMonth.year, previousYearMonth.month)).reduce((s, a) => s + a.ehs_consomme, 0)
+    : 0
+
+  const ehsConsommes = periodeAssignments.reduce((s, a) => s + a.ehs_consomme, 0)
+  const tempsTotalSecondes = periodeAssignments.reduce((s, a) => s + a.temps_travaille_secondes, 0)
+  const tachesTerminees = periodeAssignments.filter((a) => a.execution_statut === 'terminee').length
+  const projetsActifs = new Set(periodeAssignments.filter((a) => a.execution_statut !== 'terminee').map((a) => a.project_nom ?? 'Transversale')).size
+  const projetsAuTotal = new Set(assignments.map((a) => a.project_nom ?? 'Transversale')).size
+
+  // Prime de performance = note moyenne (tâches notées ce mois-ci) × taux configuré dans
+  // Paramètres > Rémunération — même calcul que RemunerationTab.
+  const notesPeriode = periodeAssignments.filter((a) => a.note !== null && dateInPeriode(a.notee_le, year, month))
+  const noteMoyenne = notesPeriode.length > 0 ? notesPeriode.reduce((s, a) => s + (a.note ?? 0), 0) / notesPeriode.length : null
+  const primePerformance = noteMoyenne !== null && tauxPrimePerformance !== null ? noteMoyenne * tauxPrimePerformance : 0
+  const salaireDeBase = monGrade !== null && tauxGrade !== null ? monGrade * tauxGrade : 0
+
+  const soldeCongesTotal = congeSolde.reduce((s, item) => s + item.solde, 0)
+  const demandesEnAttente = congeDemandes.filter((d) => d.statut === 'attente').length + avanceDemandes.filter((d) => d.statut === 'attente').length
+  const avancesApprouvees = avanceDemandes.filter((d) => d.statut === 'approuvee').reduce((s, d) => s + d.montant, 0)
+
+  const dashboardStats = [
+    { icon: BarChart3, iconClass: 'ehs', label: 'EHS consommés ce mois', value: frNumber(ehsConsommes), unit: 'EHS', sub: previousPeriode ? `Sur ${frNumber(previousEhs)} EHS consommés en ${previousPeriode}` : null },
+    { icon: Clock, iconClass: 'temps', label: 'Temps total travaillé ce mois', value: fmtDureeHM(tempsTotalSecondes), sub: null },
+    { icon: CheckCircle2, iconClass: 'taches', label: 'Tâches terminées ce mois', value: String(tachesTerminees), sub: `Sur ${periodeAssignments.length} tâche(s) attribuée(s)`, progress: periodeAssignments.length > 0 ? (tachesTerminees / periodeAssignments.length) * 100 : undefined },
+    { icon: Briefcase, iconClass: 'projets', label: 'Projets actifs', value: String(projetsActifs), sub: `Sur ${projetsAuTotal} projet(s) au total` },
+    { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(salaireDeBase), unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true, onClick: () => onNavigateTab('remuneration') },
+    { icon: Gift, iconClass: 'prime', label: 'Prime de performance', value: frMontant(primePerformance), unit: currencySuffix(), sub: 'Détails dans Rémunération', link: true, onClick: () => onNavigateTab('remuneration') },
+  ]
+
+  const bottomStats: { icon: typeof Calendar; iconClass: string; label: string; value: string; unit?: string; sub: string | null; link: string; onClick: () => void }[] = [
+    { icon: Calendar, iconClass: 'conge', label: 'Solde de congés', value: frNumber(soldeCongesTotal, 1), unit: 'jours', sub: null, link: 'Voir mes demandes', onClick: () => onNavigateTab('demandes') },
+    { icon: FileText, iconClass: 'attente', label: 'Demandes en attente', value: String(demandesEnAttente), sub: null, link: 'Voir mes demandes', onClick: () => onNavigateTab('demandes') },
+    { icon: ShieldAlert, iconClass: 'sanction', label: 'Sanctions enregistrées', value: String(sanctions.length), sub: null, link: 'Voir le détail', onClick: () => onNavigateTab('remuneration') },
+    { icon: Wallet, iconClass: 'avance', label: 'Avances approuvées', value: frMontant(avancesApprouvees), unit: currencySuffix(), sub: null, link: 'Voir mes demandes', onClick: () => onNavigateTab('demandes') },
+  ]
+
+  const monthlyEhs = PERIODES.slice(0, 6).map((p) => {
+    const ym = periodeToYearMonth(p)
+    const value = assignments.filter((a) => dateInPeriode(a.created_at, ym.year, ym.month)).reduce((s, a) => s + a.ehs_consomme, 0)
+    return { month: p, value }
+  }).reverse()
+
+  const PROJET_CHART_COLORS = ['#2a78d6', '#eb6834', '#4a3aa7', '#1baf7a', '#c026d3', '#0891b2']
+  const ehsByProjetMap = new Map<string, number>()
+  for (const a of periodeAssignments) {
+    const projet = a.project_nom ?? 'Transversale'
+    ehsByProjetMap.set(projet, (ehsByProjetMap.get(projet) ?? 0) + a.ehs_consomme)
+  }
+  const ehsByProject = Array.from(ehsByProjetMap.entries())
+    .map(([name, value], index) => ({ name, value, color: PROJET_CHART_COLORS[index % PROJET_CHART_COLORS.length] }))
+    .sort((a, b) => b.value - a.value)
+
+  if (loading) return <p className="salarie-empty-hint">Chargement de votre tableau de bord…</p>
 
   return (
     <div className="salarie-dashboard">
@@ -1268,9 +1367,9 @@ function DashboardTab({ session }: { session: Session }) {
         <div className="salarie-dash-greeting-text">
           <h3>Bonjour {session.firstName} {session.lastName},</h3>
           <p>
-            Ce mois-ci vous avez travaillé sur <strong>4 projets</strong>, réalisé <strong>18 tâches</strong>, consommé <strong>67,5 EHS</strong>,
-            pour un temps total de <strong>154 h 20 min</strong>. Votre rémunération estimative est de <strong>{`542 000 ${currencySuffix()}`}</strong>,
-            dont <strong>{`58 000 ${currencySuffix()}`}</strong> de primes. Vous avez <strong>1 demande de congé en attente</strong> et <strong>aucune sanction active</strong>.
+            Ce mois-ci vous avez travaillé sur <strong>{projetsActifs} projet{projetsActifs > 1 ? 's' : ''}</strong>, réalisé <strong>{tachesTerminees} tâche{tachesTerminees > 1 ? 's' : ''}</strong>, consommé <strong>{frNumber(ehsConsommes)} EHS</strong>,
+            pour un temps total de <strong>{fmtDureeHM(tempsTotalSecondes)}</strong>. Votre salaire de base est de <strong>{`${frMontant(salaireDeBase)} ${currencySuffix()}`}</strong>,
+            {primePerformance > 0 && <> dont <strong>{`${frMontant(primePerformance)} ${currencySuffix()}`}</strong> de prime de performance,</>} Vous avez <strong>{demandesEnAttente} demande{demandesEnAttente > 1 ? 's' : ''} en attente</strong> et <strong>{sanctions.length === 0 ? 'aucune sanction enregistrée' : `${sanctions.length} sanction${sanctions.length > 1 ? 's' : ''} enregistrée${sanctions.length > 1 ? 's' : ''}`}</strong>.
           </p>
         </div>
         <span className="salarie-dash-illustration" aria-hidden="true">
@@ -1286,38 +1385,37 @@ function DashboardTab({ session }: { session: Session }) {
         <section className="salarie-panel salarie-dash-chart-card">
           <div className="salarie-dash-panel-heading">
             <h3>Évolution mensuelle des EHS consommés</h3>
-            <label className="salarie-filter">6 derniers mois<ChevronDown size={13} strokeWidth={2} /></label>
+            <span className="salarie-filter">6 derniers mois</span>
           </div>
-          <LineChart />
+          <LineChart monthlyEhs={monthlyEhs} />
         </section>
 
         <section className="salarie-panel salarie-dash-donut-card">
           <div className="salarie-dash-panel-heading">
-            <h3>Répartition des EHS par projet (Mai 2025)</h3>
+            <h3>Répartition des EHS par projet ({periode})</h3>
           </div>
-          <DonutChart />
+          <DonutChart ehsByProject={ehsByProject} />
         </section>
 
         <section className="salarie-panel salarie-dash-notifications">
           <div className="salarie-dash-panel-heading">
             <h3>Dernières notifications</h3>
-            <a>Voir tout</a>
           </div>
-          <ul className="salarie-notif-list">
-            {notifications.map((notif, index) => {
-              const Icon = notif.icon
-              return (
-                <li key={index}>
-                  <span className={`salarie-notif-icon ${notif.iconClass}`}><Icon size={14} strokeWidth={2} /></span>
+          {systemNotifications.length === 0 ? (
+            <p className="salarie-empty-hint">Aucune notification pour le moment.</p>
+          ) : (
+            <ul className="salarie-notif-list">
+              {systemNotifications.slice(0, 5).map((notif) => (
+                <li key={notif.id}>
+                  <span className={`salarie-notif-icon ${notif.lue ? 'conge' : 'sanction'}`}><Bell size={14} strokeWidth={2} /></span>
                   <div>
-                    <p>{notif.text}</p>
-                    <small>{notif.time}</small>
+                    <p>{notif.message}</p>
+                    <small>{new Date(notif.created_at).toLocaleString('fr-FR')}</small>
                   </div>
                 </li>
-              )
-            })}
-          </ul>
-          <a className="salarie-dash-stat-link salarie-notif-footer">Voir toutes les notifications <ArrowRight size={12} strokeWidth={2.4} /></a>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
@@ -1329,7 +1427,7 @@ function DashboardTab({ session }: { session: Session }) {
               <span className="salarie-dash-stat-label">{stat.label}</span>
               <strong>{stat.value}{stat.unit && <small> {stat.unit}</small>}</strong>
               {stat.sub && <small className="salarie-dash-stat-sub">{stat.sub}</small>}
-              {stat.link && <a className="salarie-dash-stat-link">{stat.link} <ArrowRight size={11} strokeWidth={2.4} /></a>}
+              {stat.link && <button type="button" className="salarie-dash-stat-link" onClick={stat.onClick}>{stat.link} <ArrowRight size={11} strokeWidth={2.4} /></button>}
             </div>
           </article>
         ))}
@@ -1345,52 +1443,7 @@ interface LigneRemu {
 
 const frMontant = (value: number) => Math.round(value).toLocaleString('fr-FR')
 
-const elementsPositifs: LigneRemu[] = [
-  { label: 'Salaire de base (fixe)', montant: 2000000 },
-  { label: 'Primes de performance', montant: 58000 },
-  { label: 'Prime de rattrapage', montant: 40000 },
-]
-
-const deductionsLegales: LigneRemu[] = [
-  { label: 'Charges sociales (10,5%)', montant: 208290 },
-  { label: 'Impôt sur le revenu', montant: 80000 },
-  { label: 'Autres retenues', montant: 20000 },
-]
-
-const penalitesLignes: LigneRemu[] = [
-  { label: 'Retard', montant: 15000 },
-  { label: 'Demande d’explication', montant: 10000 },
-  { label: 'Rappel à l’ordre', montant: 5000 },
-]
-
 const sumMontants = (lignes: LigneRemu[]) => lignes.reduce((sum, ligne) => sum + ligne.montant, 0)
-
-const totalPositifs = sumMontants(elementsPositifs)
-const totalDeductionsLegales = sumMontants(deductionsLegales)
-const totalPenalites = sumMontants(penalitesLignes)
-const netAPayer = totalPositifs - totalDeductionsLegales - totalPenalites
-
-const penalitesDetails = [
-  { type: 'Retard', motif: 'Retard sur tâche « Collecte des données »', montant: 15000, statut: 'Appliquée' },
-  { type: 'Demande d’explication', motif: 'Justification demandée sur livrable en retard', montant: 10000, statut: 'Appliquée' },
-  { type: 'Rappel à l’ordre', motif: 'Manquement aux règles internes', montant: 5000, statut: 'Appliquée' },
-]
-
-const remuStats = [
-  { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(2000000), unit: currencySuffix(), sub: 'Fixe mensuel' },
-  { icon: Gift, iconClass: 'prime', label: 'Primes du mois', value: frMontant(58000), unit: currencySuffix(), sub: 'Selon résultats' },
-  { icon: Clock, iconClass: 'rattrapage', label: 'Prime de rattrapage', value: frMontant(40000), unit: currencySuffix(), sub: 'Ajustement exceptionnel', tooltip: 'Régularisation exceptionnelle décidée par le pilotage.' },
-  { icon: Percent, iconClass: 'taux', label: 'Taux de charges sociales', value: '10,5', unit: '%', sub: 'Employeur' },
-  { icon: ArrowDownToLine, iconClass: 'deductions', label: 'Total déductions', value: `- ${frMontant(totalDeductionsLegales + totalPenalites)}`, unit: currencySuffix(), sub: 'Retenues & sanctions' },
-  { icon: Wallet2, iconClass: 'net', label: 'Net à payer', value: frMontant(netAPayer), unit: currencySuffix(), sub: 'Après déductions' },
-]
-
-const repartitionElements = [
-  { name: 'Salaire de base', montant: 2000000, color: '#2a78d6' },
-  { name: 'Déductions légales', montant: totalDeductionsLegales, color: '#eb6834' },
-  { name: 'Pénalités / Sanctions', montant: totalPenalites, color: '#4a3aa7' },
-  { name: 'Primes (performance + rattrapage)', montant: 98000, color: '#1baf7a' },
-]
 
 function RemuColumn({ title, tone, lignes, totalLabel, total }: { title: string; tone: string; lignes: LigneRemu[]; totalLabel: string; total: number }) {
   return (
@@ -1406,16 +1459,16 @@ function RemuColumn({ title, tone, lignes, totalLabel, total }: { title: string;
   )
 }
 
-function RemuDonut() {
+function RemuDonut({ elements, totalPositifs }: { elements: { name: string; montant: number; color: string }[]; totalPositifs: number }) {
   const size = 200
   const center = size / 2
   const radius = 70
   const strokeWidth = 30
   const circumference = 2 * Math.PI * radius
   const gap = 4
-  const weightTotal = repartitionElements.reduce((sum, entry) => sum + entry.montant, 0)
+  const weightTotal = elements.reduce((sum, entry) => sum + entry.montant, 0)
 
-  const segments = repartitionElements.reduce<{ name: string; montant: number; color: string; dash: number; offset: number; percent: number }[]>((acc, entry) => {
+  const segments = elements.reduce<{ name: string; montant: number; color: string; dash: number; offset: number; percent: number }[]>((acc, entry) => {
     const offset = acc.length > 0 ? acc[acc.length - 1].offset + (acc[acc.length - 1].dash + gap) : 0
     const raw = (entry.montant / weightTotal) * circumference
     acc.push({ ...entry, dash: Math.max(raw - gap, 0), offset, percent: (entry.montant / totalPositifs) * 100 })
@@ -1462,12 +1515,116 @@ function RemunerationTab() {
   // Valeur réelle configurée dans Paramètres > EHS — jamais une valeur figée en dur, pour rester
   // cohérente avec le reste du système si l'admin la change.
   const [tauxEhs, setTauxEhs] = useState<number | null>(null)
+  // Salaire de base = grade du salarié × valeur du point de grade configurée dans Paramètres >
+  // Grade — calcul simple fait ici à partir des deux valeurs réelles, jamais un montant figé.
+  const [monGrade, setMonGrade] = useState<number | null>(null)
+  const [tauxGrade, setTauxGrade] = useState<number | null>(null)
+  // Paramètres > Rémunération : taux de prime de performance (par point de note) et taux de
+  // déductions (charges sociales, impôt sur le revenu) — configurés par l'organisation.
+  const [tauxPrimePerformance, setTauxPrimePerformance] = useState<number | null>(null)
+  const [tauxCharges, setTauxCharges] = useState<number | null>(null)
+  const [tauxImpot, setTauxImpot] = useState<number | null>(null)
+  // Sanctions et primes/ajustements réellement enregistrés pour moi par l'administration (voir
+  // Gestion des équipes > Rémunération), et mes attributions de tâches (notes, EHS, temps
+  // travaillé) — jamais des lignes d'exemple.
+  const [sanctions, setSanctions] = useState<Sanction[]>([])
+  const [primes, setPrimes] = useState<PrimeAjustement[]>([])
+  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     fetchOrganisationEhs().then((data) => { if (!cancelled) setTauxEhs(data.taux_ehs_fcfa) }).catch(() => {})
+    fetchOrganisationGrade().then((data) => { if (!cancelled) setTauxGrade(data.taux_grade_fcfa) }).catch(() => {})
+    fetchOrganisationRemuneration()
+      .then((data) => {
+        if (cancelled) return
+        setTauxPrimePerformance(data.taux_prime_performance_fcfa)
+        setTauxCharges(data.taux_charges_sociales_pct)
+        setTauxImpot(data.taux_impot_revenu_pct)
+      })
+      .catch(() => {})
+    fetchMe()
+      .then((me) => {
+        if (cancelled) return null
+        setMonGrade(me.grade)
+        // Toujours filtrer explicitement sur mon propre id : un admin/directeur qui consulte SA
+        // PROPRE fiche ne doit voir que ses propres sanctions/primes, pas celles de tout le
+        // monde (l'API renvoie la liste complète de l'organisation pour un admin sans filtre).
+        return Promise.all([fetchSanctions(me.id), fetchPrimesAjustement(me.id), fetchTaskAssignments({ user: me.id })])
+      })
+      .then((result) => {
+        if (cancelled || !result) return
+        const [sanctionsData, primesData, assignmentsData] = result
+        setSanctions(sanctionsData)
+        setPrimes(primesData)
+        setAssignments(assignmentsData)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
+
+  const { year, month } = periodeToYearMonth(periode)
+
+  const salaireDeBase = monGrade !== null && tauxGrade !== null ? monGrade * tauxGrade : 0
+
+  // Prime de performance = note moyenne (1 à 5 étoiles) sur les tâches notées ce mois-ci × le
+  // taux configuré dans Paramètres > Rémunération — 0 tant qu'aucune tâche n'est notée ce mois.
+  const notesPeriode = assignments.filter((a) => a.note !== null && dateInPeriode(a.notee_le, year, month))
+  const noteMoyenne = notesPeriode.length > 0 ? notesPeriode.reduce((sum, a) => sum + (a.note ?? 0), 0) / notesPeriode.length : null
+  const primePerformance = noteMoyenne !== null && tauxPrimePerformance !== null ? noteMoyenne * tauxPrimePerformance : 0
+
+  const primesPeriode = primes.filter((p) => dateInPeriode(p.date, year, month))
+  const totalPrimesAjustement = sumMontants(primesPeriode.map((p) => ({ label: p.motif, montant: p.montant })))
+  const sanctionsPeriode = sanctions.filter((s) => dateInPeriode(s.date, year, month))
+
+  const elementsPositifs: LigneRemu[] = [
+    { label: `Salaire de base (grade ${monGrade ?? '—'} × ${tauxGrade !== null ? formatMontant(tauxGrade) : '…'})`, montant: salaireDeBase },
+    ...(tauxPrimePerformance !== null && tauxPrimePerformance > 0
+      ? [{ label: `Prime de performance (note moyenne ${noteMoyenne !== null ? noteMoyenne.toFixed(1) : '—'}/5)`, montant: primePerformance }]
+      : []),
+    ...primesPeriode.map((p) => ({ label: p.motif, montant: p.montant })),
+  ]
+  const totalPositifs = sumMontants(elementsPositifs)
+
+  const chargesSociales = tauxCharges !== null ? totalPositifs * tauxCharges / 100 : 0
+  const impotRevenu = tauxImpot !== null ? totalPositifs * tauxImpot / 100 : 0
+  const deductionsLegales: LigneRemu[] = [
+    { label: `Charges sociales (${tauxCharges ?? '…'}%)`, montant: chargesSociales },
+    { label: `Impôt sur le revenu (${tauxImpot ?? '…'}%)`, montant: impotRevenu },
+  ]
+  const totalDeductionsLegales = sumMontants(deductionsLegales)
+
+  const penalitesLignes: LigneRemu[] = sanctionsPeriode.map((s) => ({ label: s.type_sanction_display, montant: s.montant }))
+  const totalPenalites = sumMontants(penalitesLignes)
+  const penalitesDetails = sanctionsPeriode.map((s) => ({ id: s.id, type: s.type_sanction_display, motif: s.motif || '—', montant: s.montant, statut: 'Appliquée' }))
+
+  const netAPayer = totalPositifs - totalDeductionsLegales - totalPenalites
+
+  const remuStats = [
+    { icon: Wallet, iconClass: 'salaire', label: 'Salaire de base', value: frMontant(salaireDeBase), unit: currencySuffix(), sub: monGrade !== null ? `Grade ${monGrade} — fixe mensuel` : 'Fixe mensuel' },
+    { icon: Gift, iconClass: 'prime', label: 'Prime de performance', value: frMontant(primePerformance), unit: currencySuffix(), sub: noteMoyenne !== null ? `Note moyenne ${noteMoyenne.toFixed(1)}/5` : 'Aucune tâche notée ce mois-ci' },
+    { icon: Clock, iconClass: 'rattrapage', label: 'Primes / Ajustements', value: frMontant(totalPrimesAjustement), unit: currencySuffix(), sub: primesPeriode.length > 0 ? `${primesPeriode.length} accordée(s) ce mois-ci` : 'Aucune ce mois-ci', tooltip: 'Ajustements exceptionnels décidés par l’administration (Gestion des équipes).' },
+    { icon: Percent, iconClass: 'taux', label: 'Taux de charges sociales', value: tauxCharges !== null ? String(tauxCharges).replace('.', ',') : '…', unit: '%', sub: 'Configuré par votre organisation' },
+    { icon: ArrowDownToLine, iconClass: 'deductions', label: 'Total déductions', value: `- ${frMontant(totalDeductionsLegales + totalPenalites)}`, unit: currencySuffix(), sub: 'Retenues & sanctions' },
+    { icon: Wallet2, iconClass: 'net', label: 'Net à payer', value: frMontant(netAPayer), unit: currencySuffix(), sub: 'Après déductions' },
+  ]
+
+  const repartitionElements = [
+    { name: 'Salaire de base', montant: salaireDeBase, color: '#2a78d6' },
+    { name: 'Déductions légales', montant: totalDeductionsLegales, color: '#eb6834' },
+    { name: 'Pénalités / Sanctions', montant: totalPenalites, color: '#4a3aa7' },
+    { name: 'Primes (performance + ajustements)', montant: primePerformance + totalPrimesAjustement, color: '#1baf7a' },
+  ].filter((element) => element.montant > 0)
+
+  // Récapitulatif des activités : mes attributions de tâches staffées ce mois-ci — mêmes données
+  // réelles que Suivi des staffings / Exécuté staffing (temps travaillé, EHS consommés).
+  const activitesPeriode = assignments.filter((a) => dateInPeriode(a.created_at, year, month))
+  const totalTempsActivitesSecondes = activitesPeriode.reduce((sum, a) => sum + a.temps_travaille_secondes, 0)
+  const totalEhsActivites = activitesPeriode.reduce((sum, a) => sum + a.ehs_consomme, 0)
+
+  if (loading) return <p className="salarie-empty-hint">Chargement de votre rémunération…</p>
 
   return (
     <div className="salarie-remuneration">
@@ -1481,7 +1638,7 @@ function RemunerationTab() {
             {detailsVisibles ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
             {detailsVisibles ? 'Masquer les détails' : 'Afficher les détails'}
           </button>
-          <button className="salarie-primary-btn"><Download size={14} strokeWidth={2.4} />Télécharger le bulletin de paie (PDF)</button>
+          <button className="salarie-primary-btn" disabled title="Fonctionnalité à venir"><Download size={14} strokeWidth={2.4} />Télécharger le bulletin de paie (PDF)</button>
         </div>
       </div>
 
@@ -1530,7 +1687,7 @@ function RemunerationTab() {
           {detailsVisibles && (
             <section className="salarie-panel salarie-remu-donut-card">
               <div className="salarie-dash-panel-heading"><h3>Répartition des éléments</h3></div>
-              <RemuDonut />
+              <RemuDonut elements={repartitionElements} totalPositifs={totalPositifs} />
             </section>
           )}
 
@@ -1543,8 +1700,11 @@ function RemunerationTab() {
                     <tr><th>Type de pénalité</th><th>Motif</th><th>{`Montant (${currencySuffix()})`}</th><th>Statut</th></tr>
                   </thead>
                   <tbody>
+                    {penalitesDetails.length === 0 && (
+                      <tr><td colSpan={4} className="salarie-empty-hint">Aucune sanction enregistrée ce mois-ci.</td></tr>
+                    )}
                     {penalitesDetails.map((ligne) => (
-                      <tr key={ligne.type}>
+                      <tr key={ligne.id}>
                         <td><strong>{ligne.type}</strong></td>
                         <td>{ligne.motif}</td>
                         <td>- {frMontant(ligne.montant)}</td>
@@ -1563,9 +1723,10 @@ function RemunerationTab() {
             <div>
               <strong>Informations importantes</strong>
               <ul>
+                <li>{monGrade !== null && tauxGrade !== null ? `Votre salaire de base est calculé automatiquement : grade ${monGrade} × ${formatMontant(tauxGrade)} = ${formatMontant(salaireDeBase)}.` : `Le salaire de base est calculé à partir de votre grade (configuré dans Paramètres > Grade).`}</li>
+                <li>La prime de performance est calculée à partir de vos notes de tâches (Suivi des staffings) : note moyenne du mois × taux configuré par votre organisation.</li>
+                <li>Les primes/ajustements exceptionnels et les sanctions sont enregistrés par l’administration depuis Gestion des équipes ; ils n’apparaissent ici que s’ils ont été réellement accordés/enregistrés.</li>
                 <li>{tauxEhs !== null ? `La valeur d’un EHS est fixée à ${formatMontant(tauxEhs)}.` : `La valeur d’un EHS est configurée dans Paramètres (en ${currencySuffix()}).`}</li>
-                <li>Les primes sont calculées selon les critères définis par le pilotage.</li>
-                <li>Les bulletins de paie sont disponibles après validation.</li>
               </ul>
             </div>
           </div>
@@ -1590,28 +1751,31 @@ function RemunerationTab() {
               </tr>
             </thead>
             <tbody>
-              {tachesHistorique.map((tache) => (
-                <tr key={tache.tache}>
-                  <td><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
-                  <td><strong>{tache.tache}</strong></td>
-                  <td>{tache.dateDebut}</td>
-                  <td>{tache.dateFin}</td>
-                  <td>{tache.tempsTotal}</td>
-                  <td>{frNumber(tache.ehs)}</td>
+              {activitesPeriode.length === 0 && (
+                <tr><td colSpan={6} className="salarie-empty-hint">Aucune tâche staffée ce mois-ci.</td></tr>
+              )}
+              {activitesPeriode.map((a) => (
+                <tr key={a.id}>
+                  <td><ProjetBadge label={a.project_nom ?? 'Transversale'} tone={PROJET_TONES[(a.project_nom ?? 'Transversale').length % PROJET_TONES.length]} /></td>
+                  <td><strong>{a.template_nom}</strong></td>
+                  <td>{fmtDateOrDash(a.demarree_le)}</td>
+                  <td>{a.execution_statut === 'terminee' ? fmtDateOrDash(a.terminee_le) : 'En cours'}</td>
+                  <td>{fmtDureeHM(a.temps_travaille_secondes)}</td>
+                  <td>{frNumber(a.ehs_consomme)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="salarie-table-total">
                 <td colSpan={4}>Total</td>
-                <td>{totalTempsHistorique}</td>
-                <td>{frNumber(totalEhsHistorique)}</td>
+                <td>{fmtDureeHM(totalTempsActivitesSecondes)}</td>
+                <td>{frNumber(totalEhsActivites)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
         <div className="salarie-table-footer">
-          <span>Affichage de 1 à {tachesHistorique.length} sur {tachesHistorique.length} activités</span>
+          <span>Affichage de {activitesPeriode.length} sur {activitesPeriode.length} activités</span>
           <div className="salarie-pagination">
             <button disabled><ChevronsLeft size={13} /></button>
             <button disabled><ChevronLeft size={13} /></button>
@@ -1626,6 +1790,7 @@ function RemunerationTab() {
 }
 
 interface TacheEnCours {
+  id: number
   projet: string
   badge: string
   tache: string
@@ -1637,6 +1802,7 @@ interface TacheEnCours {
 }
 
 interface TacheHistorique {
+  id: number
   projet: string
   badge: string
   tache: string
@@ -1648,40 +1814,13 @@ interface TacheHistorique {
   dateValidation: string
 }
 
-const tachesEnCours: TacheEnCours[] = [
-  { projet: 'CGA', badge: 'blue', tache: 'Élaboration du rapport financier mensuel', dateDebut: '02/05/2025', dateEcheance: '05/06/2025', tempsPasse: '18h 30m', ehs: 8.5, statut: 'En cours' },
-  { projet: 'PADESCE', badge: 'violet', tache: 'Suivi des formations - Cohorte B', dateDebut: '05/05/2025', dateEcheance: '10/06/2025', tempsPasse: '16h 20m', ehs: 6, statut: 'En cours' },
-  { projet: 'PERLE', badge: 'green', tache: 'Tests module Staffing', dateDebut: '07/05/2025', dateEcheance: '20/05/2025', tempsPasse: '14h 10m', ehs: 5, statut: 'En cours' },
-  { projet: 'TRANSFAGRI', badge: 'red', tache: 'Analyse des données bénéficiaires', dateDebut: '03/05/2025', dateEcheance: '18/05/2025', tempsPasse: '10h 05m', ehs: 4, statut: 'En retard' },
-  { projet: 'DIEGO', badge: 'indigo', tache: 'Collecte et traitement des données', dateDebut: '08/05/2025', dateEcheance: '22/05/2025', tempsPasse: '07h 30m', ehs: 3, statut: 'En cours' },
-  { projet: 'PILOTAGE INTERNE', badge: 'gray', tache: 'Réunions et Reporting', dateDebut: '09/05/2025', dateEcheance: '30/05/2025', tempsPasse: '05h 20m', ehs: 2.5, statut: 'En cours' },
-]
-
-const totalTempsPasse = '71h 55m'
-const totalEhsEnCours = tachesEnCours.reduce((sum, tache) => sum + tache.ehs, 0)
-
-const tachesHistorique: TacheHistorique[] = [
-  { projet: 'CGA', badge: 'blue', tache: 'Collecte des pièces comptables', dateDebut: '01/05/2025', dateFin: '15/05/2025', tempsTotal: '20h 15m', ehs: 8, validePar: 'Ajara LAMARE', dateValidation: '16/05/2025' },
-  { projet: 'PADESCE', badge: 'violet', tache: 'Suivi des formations - Cohorte A', dateDebut: '10/05/2025', dateFin: '25/05/2025', tempsTotal: '30h 00m', ehs: 12, validePar: 'Diego NGOUNOU', dateValidation: '26/05/2025' },
-  { projet: 'PERLE', badge: 'green', tache: 'Conception des spécifications', dateDebut: '05/05/2025', dateFin: '20/05/2025', tempsTotal: '25h 10m', ehs: 10, validePar: 'Théodore BESSALA', dateValidation: '21/05/2025' },
-  { projet: 'TRANSFAGRI', badge: 'red', tache: 'Rapport diagnostic préliminaire', dateDebut: '02/05/2025', dateFin: '12/05/2025', tempsTotal: '18h 45m', ehs: 7.5, validePar: 'Pamella GUEBEDIANG', dateValidation: '13/05/2025' },
-  { projet: 'DIEGO', badge: 'indigo', tache: 'Saisie et vérification des données', dateDebut: '03/05/2025', dateFin: '17/05/2025', tempsTotal: '22h 30m', ehs: 9, validePar: 'Ajara LAMARE', dateValidation: '18/05/2025' },
-]
-
-const parseTempsLabel = (label: string) => {
-  const match = label.match(/(\d+)h\s*(\d+)?/)
-  if (!match) return 0
-  return Number(match[1]) * 60 + Number(match[2] ?? 0)
-}
-
-const formatMinutesToTemps = (totalMinutes: number) => `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`
-
-const totalTempsHistorique = formatMinutesToTemps(tachesHistorique.reduce((sum, tache) => sum + parseTempsLabel(tache.tempsTotal), 0))
-const totalEhsHistorique = tachesHistorique.reduce((sum, tache) => sum + tache.ehs, 0)
-
 function ProjetBadge({ label, tone }: { label: string; tone: string }) {
   return <span className={`salarie-project-badge ${tone}`}>{label}</span>
 }
+
+/** Couleur déterministe (pas de mapping projet → couleur en base) pour distinguer visuellement
+ * les projets dans le récapitulatif d'activités, sans jamais figer une correspondance en dur. */
+const PROJET_TONES = ['blue', 'violet', 'green', 'red', 'indigo', 'gray']
 
 function TacheStatutPill({ statut }: { statut: 'En cours' | 'En retard' }) {
   return <span className={`salarie-pill ${statut === 'En retard' ? 'refusee' : 'attente'}`}>{statut}</span>
@@ -1701,7 +1840,7 @@ const EN_COURS_COLUMNS: ColumnDef<EnCoursColumnId>[] = [
 
 const EN_COURS_LEFT_IDS: EnCoursColumnId[] = ['projet', 'tache', 'dateDebut', 'dateEcheance']
 
-type HistoriqueColumnId = 'projet' | 'tache' | 'dateDebut' | 'dateFin' | 'tempsTotal' | 'ehs' | 'livrable' | 'validePar' | 'dateValidation'
+type HistoriqueColumnId = 'projet' | 'tache' | 'dateDebut' | 'dateFin' | 'tempsTotal' | 'ehs' | 'validePar' | 'dateValidation'
 
 const HISTORIQUE_COLUMNS: ColumnDef<HistoriqueColumnId>[] = [
   { id: 'projet', label: 'Projet' },
@@ -1710,19 +1849,76 @@ const HISTORIQUE_COLUMNS: ColumnDef<HistoriqueColumnId>[] = [
   { id: 'dateFin', label: 'Date de fin' },
   { id: 'tempsTotal', label: 'Temps total' },
   { id: 'ehs', label: 'EHS consommés' },
-  { id: 'livrable', label: 'Livrable' },
-  { id: 'validePar', label: 'Validé par' },
-  { id: 'dateValidation', label: 'Date de validation' },
+  { id: 'validePar', label: 'Noté par' },
+  { id: 'dateValidation', label: 'Date de notation' },
 ]
 
 function ActivitesTab() {
   const [periode, setPeriode] = useState(PERIODES[0])
+  const [filterProjet, setFilterProjet] = useState('Tous')
+  const [filterStatut, setFilterStatut] = useState<'Tous' | 'En cours' | 'En retard'>('Tous')
+  const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [viewEnCours, setViewEnCours] = useState<TacheEnCours | null>(null)
   const [viewHistorique, setViewHistorique] = useState<TacheHistorique | null>(null)
   const enCoursCols = useColumnVisibility(EN_COURS_COLUMNS)
   const historiqueCols = useColumnVisibility(HISTORIQUE_COLUMNS)
   const enCoursLeftCount = enCoursCols.visibleColumns.filter((c) => EN_COURS_LEFT_IDS.includes(c.id)).length
   const enCoursRightCount = (enCoursCols.visibleColumns.some((c) => c.id === 'statut') ? 1 : 0) + 1
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((me) => fetchTaskAssignments({ user: me.id }))
+      .then((data) => { if (!cancelled) setAssignments(data) })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger vos activités.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const projets = Array.from(new Set(assignments.map((a) => a.project_nom ?? 'Transversale'))).sort()
+
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const isEnRetard = (echeance: string | null) => !!echeance && new Date(echeance) < startOfToday
+
+  const resetFiltres = () => { setFilterProjet('Tous'); setFilterStatut('Tous'); setPeriode(PERIODES[0]) }
+
+  const enCoursSource = assignments
+    .filter((a) => a.execution_statut !== 'terminee')
+    .filter((a) => filterProjet === 'Tous' || (a.project_nom ?? 'Transversale') === filterProjet)
+    .filter((a) => filterStatut === 'Tous' || (isEnRetard(a.echeance) ? 'En retard' : 'En cours') === filterStatut)
+
+  const tachesEnCours: TacheEnCours[] = enCoursSource.map((a) => {
+    const projet = a.project_nom ?? 'Transversale'
+    return {
+      id: a.id, projet, badge: PROJET_TONES[projet.length % PROJET_TONES.length],
+      tache: a.template_nom, dateDebut: fmtDateOrDash(a.demarree_le), dateEcheance: fmtDateOrDash(a.echeance),
+      tempsPasse: fmtDureeHM(a.temps_travaille_secondes), ehs: a.ehs_consomme,
+      statut: isEnRetard(a.echeance) ? 'En retard' : 'En cours',
+    }
+  })
+  const totalTempsPasse = fmtDureeHM(enCoursSource.reduce((sum, a) => sum + a.temps_travaille_secondes, 0))
+  const totalEhsEnCours = enCoursSource.reduce((sum, a) => sum + a.ehs_consomme, 0)
+
+  const { year, month } = periodeToYearMonth(periode)
+  const historiqueSource = assignments
+    .filter((a) => a.execution_statut === 'terminee' && dateInPeriode(a.terminee_le, year, month))
+    .filter((a) => filterProjet === 'Tous' || (a.project_nom ?? 'Transversale') === filterProjet)
+
+  const tachesHistorique: TacheHistorique[] = historiqueSource.map((a) => {
+    const projet = a.project_nom ?? 'Transversale'
+    return {
+      id: a.id, projet, badge: PROJET_TONES[projet.length % PROJET_TONES.length],
+      tache: a.template_nom, dateDebut: fmtDateOrDash(a.demarree_le), dateFin: fmtDateOrDash(a.terminee_le),
+      tempsTotal: fmtDureeHM(a.temps_travaille_secondes), ehs: a.ehs_consomme,
+      validePar: a.notee_par_nom ?? '—', dateValidation: a.notee_le ? fmtDateOrDash(a.notee_le) : '—',
+    }
+  })
+
+  if (loading) return <p className="salarie-empty-hint">Chargement de vos activités…</p>
+  if (loadError) return <p className="salarie-empty-hint">{loadError}</p>
 
   return (
     <div className="salarie-activites">
@@ -1743,13 +1939,26 @@ function ActivitesTab() {
         </label>
         <label className="salarie-filter-field">
           <span>Projet</span>
-          <div className="salarie-filter-control select">Tous les projets<ChevronDown size={13} strokeWidth={2} /></div>
+          <div className="salarie-filter-control select">
+            <select value={filterProjet} onChange={(event) => setFilterProjet(event.target.value)}>
+              <option value="Tous">Tous les projets</option>
+              {projets.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <ChevronDown size={13} strokeWidth={2} />
+          </div>
         </label>
         <label className="salarie-filter-field">
-          <span>Statut</span>
-          <div className="salarie-filter-control select">Tous les statuts<ChevronDown size={13} strokeWidth={2} /></div>
+          <span>Statut (tâches en cours)</span>
+          <div className="salarie-filter-control select">
+            <select value={filterStatut} onChange={(event) => setFilterStatut(event.target.value as 'Tous' | 'En cours' | 'En retard')}>
+              <option value="Tous">Tous les statuts</option>
+              <option value="En cours">En cours</option>
+              <option value="En retard">En retard</option>
+            </select>
+            <ChevronDown size={13} strokeWidth={2} />
+          </div>
         </label>
-        <button className="salarie-ghost-btn salarie-filter-reset"><RotateCcw size={13} strokeWidth={2} />Réinitialiser</button>
+        <button type="button" className="salarie-ghost-btn salarie-filter-reset" onClick={resetFiltres}><RotateCcw size={13} strokeWidth={2} />Réinitialiser</button>
       </div>
 
       <section className="salarie-panel">
@@ -1757,7 +1966,6 @@ function ActivitesTab() {
           <div className="salarie-panel-title"><h3>Détail des tâches en cours</h3><span className="salarie-count-badge">{tachesEnCours.length} tâches</span></div>
           <div className="salarie-panel-actions">
             <ColumnsMenu columns={EN_COURS_COLUMNS} hiddenColumns={enCoursCols.hiddenColumns} onToggle={enCoursCols.toggleColumn} />
-            <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
@@ -1769,8 +1977,11 @@ function ActivitesTab() {
               </tr>
             </thead>
             <tbody>
+              {tachesEnCours.length === 0 && (
+                <tr><td colSpan={enCoursCols.visibleColumns.length + 1} className="salarie-empty-hint">Aucune tâche en cours.</td></tr>
+              )}
               {tachesEnCours.map((tache) => (
-                <tr key={tache.tache}>
+                <tr key={tache.id}>
                   {enCoursCols.visibleColumns.map((c) => {
                     if (c.id === 'projet') return <td key={c.id}><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
                     if (c.id === 'tache') return <td key={c.id}>{tache.tache}</td>
@@ -1798,11 +2009,10 @@ function ActivitesTab() {
 
       <section className="salarie-panel">
         <div className="salarie-panel-heading">
-          <div className="salarie-panel-title"><h3>Historique des tâches effectuées</h3><span className="salarie-count-badge">12 tâches</span></div>
+          <div className="salarie-panel-title"><h3>Historique des tâches effectuées</h3><span className="salarie-count-badge">{tachesHistorique.length} tâches</span></div>
           <div className="salarie-panel-actions">
             <PeriodeFilter value={periode} onChange={setPeriode} label="Mois" />
             <ColumnsMenu columns={HISTORIQUE_COLUMNS} hiddenColumns={historiqueCols.hiddenColumns} onToggle={historiqueCols.toggleColumn} />
-            <button className="salarie-ghost-btn"><Download size={13} strokeWidth={2} />Exporter</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
@@ -1814,8 +2024,11 @@ function ActivitesTab() {
               </tr>
             </thead>
             <tbody>
+              {tachesHistorique.length === 0 && (
+                <tr><td colSpan={historiqueCols.visibleColumns.length + 1} className="salarie-empty-hint">Aucune tâche terminée ce mois-ci.</td></tr>
+              )}
               {tachesHistorique.map((tache) => (
-                <tr key={tache.tache}>
+                <tr key={tache.id}>
                   {historiqueCols.visibleColumns.map((c) => {
                     if (c.id === 'projet') return <td key={c.id}><ProjetBadge label={tache.projet} tone={tache.badge} /></td>
                     if (c.id === 'tache') return <td key={c.id}>{tache.tache}</td>
@@ -1823,7 +2036,6 @@ function ActivitesTab() {
                     if (c.id === 'dateFin') return <td key={c.id}>{tache.dateFin}</td>
                     if (c.id === 'tempsTotal') return <td key={c.id}>{tache.tempsTotal}</td>
                     if (c.id === 'ehs') return <td key={c.id}>{frNumber(tache.ehs)}</td>
-                    if (c.id === 'livrable') return <td key={c.id}><span className="salarie-livrable-icon"><FileText size={13} strokeWidth={2} /></span></td>
                     if (c.id === 'validePar') return <td key={c.id}>{tache.validePar}</td>
                     return <td key={c.id}>{tache.dateValidation}</td>
                   })}
@@ -1834,15 +2046,13 @@ function ActivitesTab() {
           </table>
         </div>
         <div className="salarie-table-footer">
-          <span>Affichage de 1 à 5 sur 12 tâches</span>
+          <span>Affichage de {tachesHistorique.length} sur {tachesHistorique.length} tâches</span>
           <div className="salarie-pagination">
             <button disabled><ChevronsLeft size={13} /></button>
             <button disabled><ChevronLeft size={13} /></button>
             <button className="active">1</button>
-            <button>2</button>
-            <button>3</button>
-            <button><ChevronRight size={13} /></button>
-            <button><ChevronsRight size={13} /></button>
+            <button disabled><ChevronRight size={13} /></button>
+            <button disabled><ChevronsRight size={13} /></button>
           </div>
         </div>
       </section>
@@ -1868,8 +2078,8 @@ function ActivitesTab() {
             <InfoRow label="Date de fin" value={viewHistorique.dateFin} />
             <InfoRow label="Temps total" value={viewHistorique.tempsTotal} />
             <InfoRow label="EHS consommés" value={frNumber(viewHistorique.ehs)} />
-            <InfoRow label="Validé par" value={viewHistorique.validePar} />
-            <InfoRow label="Date de validation" value={viewHistorique.dateValidation} />
+            <InfoRow label="Noté par" value={viewHistorique.validePar} />
+            <InfoRow label="Date de notation" value={viewHistorique.dateValidation} />
           </div>
         </Lightbox>
       )}

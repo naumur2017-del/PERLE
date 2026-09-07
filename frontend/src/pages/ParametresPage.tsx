@@ -1,10 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Calendar, CalendarHeart, Gauge, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Banknote, Calendar, CalendarHeart, Gauge, Layers, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import {
   createCongeType, deleteCongeType, fetchCongeTypes, updateCongeType,
   type CongeModePeriode, type CongeType, type CongeUnite,
 } from '../api/demandes'
-import { fetchOrganisationEhs, updateOrganisationEhs } from '../api/organisation'
+import {
+  fetchOrganisationEhs, fetchOrganisationGrade, fetchOrganisationRemuneration,
+  updateOrganisationEhs, updateOrganisationGrade, updateOrganisationRemuneration,
+} from '../api/organisation'
 import {
   createPublicHoliday, deletePublicHoliday, fetchPublicHolidays, syncPublicHolidays, updatePublicHoliday,
   type PublicHoliday,
@@ -564,9 +567,192 @@ function EhsTab() {
   )
 }
 
+function GradeTab() {
+  const [tauxGradeFcfa, setTauxGradeFcfa] = useState<number | null>(null)
+  const [tauxInput, setTauxInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchOrganisationGrade()
+      .then((data) => {
+        if (cancelled) return
+        setTauxGradeFcfa(data.taux_grade_fcfa)
+        setTauxInput(String(data.taux_grade_fcfa))
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger ce paramètre.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const tauxNumber = Number(tauxInput)
+  const canSave = tauxInput.trim() !== '' && tauxNumber > 0 && !saving
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSave) return
+    setSaving(true)
+    setSaveError(null)
+    setSaved(false)
+    try {
+      const updated = await updateOrganisationGrade(tauxNumber)
+      setTauxGradeFcfa(updated.taux_grade_fcfa)
+      setTauxInput(String(updated.taux_grade_fcfa))
+      setSaved(true)
+    } catch (err) {
+      setSaveError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="param-tab">
+      <div className="param-tab-heading">
+        <div>
+          <h2>Grade</h2>
+          <p>{`Le grade d'un salarié détermine son salaire de base : vous définissez ici la valeur en ${currencySuffix()} d'un point de grade, et le salaire de base de chaque salarié est calculé automatiquement (grade × ce taux), affiché dans Salarié > Rémunération.`}</p>
+        </div>
+      </div>
+
+      {loading && <p className="ge-detail-empty">Chargement…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+
+      {!loading && !loadError && (
+        <div className="ge-table-panel">
+          <form className="param-form" onSubmit={handleSubmit}>
+            {saveError && <p className="ge-form-error">{saveError}</p>}
+
+            <label className="param-field">{`Valeur d'un point de grade (${currencySuffix()}) *`}
+              <input
+                required type="number" min={0} step="0.01" value={tauxInput}
+                onChange={(event) => { setTauxInput(event.target.value); setSaved(false) }}
+              />
+            </label>
+            <p className="param-hint">
+              Un salarié de grade 1 aura donc un salaire de base de {tauxInput.trim() !== '' && tauxNumber > 0 ? formatMontant(tauxNumber) : '…'},
+              {' '}et un salarié de grade 3 de {tauxInput.trim() !== '' && tauxNumber > 0 ? formatMontant(3 * tauxNumber) : '…'}.
+            </p>
+            {tauxGradeFcfa !== null && (
+              <p className="param-hint">Valeur actuelle : {formatMontant(tauxGradeFcfa)} par point de grade.</p>
+            )}
+
+            <div className="ge-modal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+              {saved && <span className="ge-pill ge-pill-actif" style={{ marginRight: 'auto' }}>Enregistré</span>}
+              <button type="submit" className="ge-btn-primary" disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RemunerationParamsTab() {
+  const [primeInput, setPrimeInput] = useState('')
+  const [chargesInput, setChargesInput] = useState('')
+  const [impotInput, setImpotInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchOrganisationRemuneration()
+      .then((data) => {
+        if (cancelled) return
+        setPrimeInput(String(data.taux_prime_performance_fcfa))
+        setChargesInput(String(data.taux_charges_sociales_pct))
+        setImpotInput(String(data.taux_impot_revenu_pct))
+      })
+      .catch(() => { if (!cancelled) setLoadError('Impossible de charger ce paramètre.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const primeNumber = Number(primeInput)
+  const chargesNumber = Number(chargesInput)
+  const impotNumber = Number(impotInput)
+  const canSave = primeInput.trim() !== '' && chargesInput.trim() !== '' && impotInput.trim() !== ''
+    && primeNumber >= 0 && chargesNumber >= 0 && chargesNumber <= 100 && impotNumber >= 0 && impotNumber <= 100 && !saving
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!canSave) return
+    setSaving(true)
+    setSaveError(null)
+    setSaved(false)
+    try {
+      await updateOrganisationRemuneration({
+        taux_prime_performance_fcfa: primeNumber, taux_charges_sociales_pct: chargesNumber, taux_impot_revenu_pct: impotNumber,
+      })
+      setSaved(true)
+    } catch (err) {
+      setSaveError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="param-tab">
+      <div className="param-tab-heading">
+        <div>
+          <h2>Rémunération</h2>
+          <p>{`Ces taux sont utilisés dans Salarié > Rémunération pour calculer la prime de performance et les déductions. Ce sont des taux que vous configurez vous-même pour votre organisation — pas un barème fiscal officiel calculé par PERLE.`}</p>
+        </div>
+      </div>
+
+      {loading && <p className="ge-detail-empty">Chargement…</p>}
+      {loadError && <p className="ge-detail-empty">{loadError}</p>}
+
+      {!loading && !loadError && (
+        <div className="ge-table-panel">
+          <form className="param-form" onSubmit={handleSubmit}>
+            {saveError && <p className="ge-form-error">{saveError}</p>}
+
+            <label className="param-field">{`Prime de performance : valeur d'un point de note (${currencySuffix()})`}
+              <input required type="number" min={0} step="0.01" value={primeInput} onChange={(event) => { setPrimeInput(event.target.value); setSaved(false) }} />
+            </label>
+            <p className="param-hint">
+              Chaque mois, la prime de performance d'un salarié = sa note moyenne (1 à 5 étoiles, sur les tâches notées ce mois-là dans Suivi des staffings) × ce taux.
+              {' '}0 par défaut : aucune prime tant que ce taux n'est pas défini.
+            </p>
+
+            <div className="param-form-row">
+              <label className="param-field">Taux de charges sociales (%)
+                <input required type="number" min={0} max={100} step="0.01" value={chargesInput} onChange={(event) => { setChargesInput(event.target.value); setSaved(false) }} />
+              </label>
+              <label className="param-field">Taux d'impôt sur le revenu (%)
+                <input required type="number" min={0} max={100} step="0.01" value={impotInput} onChange={(event) => { setImpotInput(event.target.value); setSaved(false) }} />
+              </label>
+            </div>
+            <p className="param-hint">
+              Ces deux taux sont appliqués au brut du mois (salaire de base + primes) de chaque salarié pour calculer ses déductions.
+            </p>
+
+            <div className="ge-modal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+              {saved && <span className="ge-pill ge-pill-actif" style={{ marginRight: 'auto' }}>Enregistré</span>}
+              <button type="submit" className="ge-btn-primary" disabled={!canSave}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const tabs = [
   { id: 'conges', label: 'Congés', icon: Calendar },
   { id: 'ehs', label: 'EHS', icon: Gauge },
+  { id: 'grade', label: 'Grade', icon: Layers },
+  { id: 'remuneration', label: 'Rémunération', icon: Banknote },
   { id: 'jours-feries', label: 'Jours fériés', icon: CalendarHeart },
 ] as const
 
@@ -590,6 +776,8 @@ export default function ParametresPage() {
 
       {activeTab === 'conges' && <CongesTab />}
       {activeTab === 'ehs' && <EhsTab />}
+      {activeTab === 'grade' && <GradeTab />}
+      {activeTab === 'remuneration' && <RemunerationParamsTab />}
       {activeTab === 'jours-feries' && <JoursFeriesTab />}
     </section>
   )
