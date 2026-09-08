@@ -1,8 +1,13 @@
 from django.urls import path
 
 from . import views
+from . import paiements
 
 urlpatterns = [
+    path('paiements/', paiements.PaiementListView.as_view()),
+    path('paiements/<int:pk>/', paiements.PaiementDetailView.as_view()),
+    path('paiements/<int:pk>/decision/', paiements.PaiementDecisionView.as_view()),
+    path('paiements/<int:pk>/justificatif/', paiements.PaiementJustificatifView.as_view()),
     path('organisations/search/', views.OrganisationSearchView.as_view()),
     path('organisations/levels/', views.OrganisationLevelsView.as_view()),
     path('organisations/ehs/', views.OrganisationEhsView.as_view()),

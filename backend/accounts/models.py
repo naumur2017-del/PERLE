@@ -688,6 +688,31 @@ def next_project_code(organisation):
     return f'{prefix}{str(count + 1).zfill(3)}'
 
 
+class DemandePaiement(models.Model):
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE)
+    projet = models.ForeignKey(Project, on_delete=models.PROTECT, null=True, blank=True)
+    ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, null=True, blank=True)
+    fournisseur = models.CharField(max_length=255, blank=True)
+    type_depense = models.CharField(max_length=20, blank=True, choices=[('Transversal', 'Transversal'), ('Non Transversal', 'Non Transversal')])
+    montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    devise = models.CharField(max_length=3)
+    date_depense = models.DateField(null=True, blank=True)
+    objet = models.TextField(blank=True)
+    commentaires = models.CharField(max_length=500, blank=True)
+    mode_paiement = models.CharField(max_length=40, blank=True, choices=[('Virement bancaire', 'Virement bancaire'), ('Mobile Money', 'Mobile Money'), ('Espèces', 'Espèces'), ('Chèque', 'Chèque')])
+    statut = models.CharField(max_length=12, default='brouillon', choices=[('brouillon', 'Brouillon'), ('attente', 'En attente d’exécution'), ('execute', 'Exécuté (Accepté)'), ('refuse', 'Refusé')])
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    commentaire_execution = models.TextField(blank=True)
+    justificatif = models.FileField(upload_to='paiements/%Y/%m/', blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-pk']
+
+
 class ProjectLigne(models.Model):
     """Attribution d'une ligne budgétaire réelle (Architecture monétaire, tout niveau confondu) à
     un projet : combien d'argent ce projet va consommer sur cette ligne. Le montant est plafonné

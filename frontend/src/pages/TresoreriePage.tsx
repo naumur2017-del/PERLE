@@ -1,14 +1,17 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
-  BadgeCheck, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
+  BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
   CircleDot, Download, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
 import DatePicker from '../components/DatePicker'
+import { fetchProjects, type Project } from '../api/projects'
+import { createPaiement, updatePaiement, deletePaiement, fetchPaiements, paiementDate, paiementError, type Paiement } from '../api/paiements'
 import './TresoreriePage.css'
 
 interface Brouillon {
+  id: number
   numero: string
   dateCreation: string
   projet: string
@@ -21,41 +24,12 @@ interface Brouillon {
   dateMaj: string
 }
 
-const BROUILLONS: Brouillon[] = [
-  { numero: 'DP-2025-096', dateCreation: '11/06/2025', projet: 'Digitalisation AN', ligneBudgetaire: 'LBG-05 – Développement logiciel', fournisseur: 'NAUMUR SARL', mercurial: 'MER-2025-00156', montant: 2350000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '11/06/2025' },
-  { numero: 'DP-2025-095', dateCreation: '10/06/2025', projet: 'PADESCE', ligneBudgetaire: 'LBG-12 – Frais de mission', fournisseur: 'Hôtel Mont Fébé', mercurial: 'MER-2025-00155', montant: 485000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '10/06/2025' },
-  { numero: 'DP-2025-094', dateCreation: '09/06/2025', projet: 'Caravel', ligneBudgetaire: 'LBG-08 – Communication', fournisseur: 'Orange Cameroun', mercurial: 'MER-2025-00154', montant: 150000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '09/06/2025' },
-  { numero: 'DP-2025-093', dateCreation: '09/06/2025', projet: 'PERLE', ligneBudgetaire: 'LBG-01 – Frais généraux', fournisseur: 'TOTAL Energies', mercurial: 'MER-2025-00153', montant: 320000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '09/06/2025' },
-  { numero: 'DP-2025-092', dateCreation: '08/06/2025', projet: 'IPAY', ligneBudgetaire: 'LBG-09 – Matériel informatique', fournisseur: 'Africa IT Solutions', mercurial: 'MER-2025-00152', montant: 1750000, devise: currencySuffix(), statut: 'Brouillon', dateMaj: '08/06/2025' },
-]
-
-interface HistoriqueEntry {
-  reference: string
-  projet: string
-  libelle: string
-  montant: number
-  initiePar: string
-  date: string
-  statut: string
-}
-
-const HISTORIQUE: HistoriqueEntry[] = [
-  { reference: 'PAY-2025-0178', projet: 'TRESORERIE', libelle: 'Remboursement avance salariale', montant: 200000, initiePar: 'Théodore B.', date: '23/05/2025', statut: 'Payé' },
-  { reference: 'PAY-2025-0177', projet: 'PANSFI', libelle: 'Achat carburant véhicule', montant: 65000, initiePar: 'Herman T.', date: '23/05/2025', statut: 'Payé' },
-  { reference: 'PAY-2025-0182', projet: 'MIDER', libelle: 'Frais de déplacement mission terrain', montant: 120000, initiePar: 'Maïa P.', date: '28/05/2025', statut: 'Prête à payer' },
-  { reference: 'PAY-2025-0181', projet: 'PILOTAGE', libelle: 'Consulting externe', montant: 1800000, initiePar: 'Ajara L.', date: '27/05/2025', statut: 'Refusé' },
-  { reference: 'PAY-2025-0179', projet: 'BAC OFFICE', libelle: 'Impression et reliure documents', montant: 95000, initiePar: 'Julienne E.', date: '25/05/2025', statut: 'Correction demandée' },
-]
-
-const PROJETS_OPTIONS = ['Digitalisation AN', 'PADESCE', 'Caravel', 'PERLE', 'IPAY', 'PANSFI', 'MIDER', 'PILOTAGE']
-const LIGNES_OPTIONS = ['LBG-01 – Frais généraux', 'LBG-05 – Développement logiciel', 'LBG-08 – Communication', 'LBG-09 – Matériel informatique', 'LBG-12 – Frais de mission']
-const FOURNISSEURS_OPTIONS = ['NAUMUR SARL', 'Hôtel Mont Fébé', 'Orange Cameroun', 'TOTAL Energies', 'Africa IT Solutions']
 const TYPES_DEPENSE_OPTIONS = ['Transversal', 'Non Transversal']
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 
 const statutClass = (statut: string) => {
-  if (statut === 'Payé') return 'paye'
+  if (statut === 'Payé' || statut.startsWith('Exécuté')) return 'paye'
   if (statut === 'Prête à payer') return 'pret'
   if (statut === 'Refusé') return 'refuse'
   if (statut === 'Correction demandée') return 'correction'
@@ -98,39 +72,94 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
   const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>('nouveau')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [search, setSearch] = useState('')
-  const [drafts, setDrafts] = useState<Brouillon[]>(BROUILLONS)
+  const [records, setRecords] = useState<Paiement[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [projectFilter, setProjectFilter] = useState('')
+  const [lineFilter, setLineFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  useEffect(() => {
+    let active = true
+    Promise.all([fetchPaiements(), fetchProjects()]).then(([payments, availableProjects]) => {
+      if (active) { setRecords(payments); setProjects(availableProjects) }
+    }).catch((err: unknown) => { if (active) setError(paiementError(err)) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+  const lignes = projects.find((project) => String(project.id) === form.projet)?.lignes ?? []
+  const drafts: Brouillon[] = records.filter((record) => record.statut === 'brouillon')
+    .filter((record) => (!projectFilter || String(record.projet) === projectFilter)
+      && (!lineFilter || String(record.ligne_budgetaire) === lineFilter)
+      && (!dateFrom || record.created_at.slice(0, 10) >= dateFrom)
+      && (!dateTo || record.created_at.slice(0, 10) <= dateTo))
+    .map((record) => ({
+      id: record.id, numero: record.numero, dateCreation: paiementDate(record.created_at),
+      projet: record.projet_nom || '—', ligneBudgetaire: record.ligne_budgetaire_nom || '—',
+      fournisseur: record.fournisseur || '—', mercurial: '—', montant: record.montant,
+      devise: record.devise, statut: record.statut_libelle, dateMaj: paiementDate(record.updated_at),
+    }))
+  const historique = records.filter((record) => record.statut !== 'brouillon').map((record) => ({
+    reference: record.numero, projet: record.projet_nom, libelle: record.objet, montant: record.montant,
+    initiePar: record.initie_par, date: paiementDate(record.created_at), statut: record.statut_libelle,
+  }))
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(BROUILLON_COLUMNS)
   const [draftSectionOpen, setDraftSectionOpen] = useState(true)
 
-  const updateField = (field: keyof FormState, value: string) => setForm((current) => ({ ...current, [field]: value }))
-  const resetForm = () => setForm(emptyForm)
+  const updateField = (field: keyof FormState, value: string) => setForm((current) => ({
+    ...current,
+    [field]: value,
+    ...(field === 'projet' ? { ligneBudgetaire: '' } : {}),
+    // Une dépense transversale n'est rattachée à aucun projet ni ligne budgétaire précis (même
+    // logique qu'une tâche transversale ailleurs dans l'application) — on efface tout de suite
+    // une sélection déjà faite plutôt que de la laisser incohérente avec le nouveau type choisi.
+    ...(field === 'typeDepense' && value === 'Transversal' ? { projet: '', ligneBudgetaire: '' } : {}),
+  }))
+  const isTransversal = form.typeDepense === 'Transversal'
+  const resetForm = () => { setForm(emptyForm); setEditingId(null) }
 
-  const submitDemande = () => {
-    if (!form.projet || !form.ligneBudgetaire || !form.fournisseur || !form.typeDepense || !form.montant || !form.dateDepense || !form.objet) {
-      window.alert('Veuillez renseigner tous les champs obligatoires (*).')
-      return
-    }
-    window.alert('La demande de paiement a été soumise avec succès.')
-    resetForm()
+  const save = async (statut: 'brouillon' | 'attente') => {
+    if (busy || loading) return
+    setError(''); setMessage(''); setBusy(true)
+    try {
+      const data = {
+        projet: form.projet ? Number(form.projet) : null,
+        ligne_budgetaire: form.ligneBudgetaire ? Number(form.ligneBudgetaire) : null,
+        fournisseur: form.fournisseur.trim(), type_depense: form.typeDepense,
+        montant: Number(form.montant) || 0, date_depense: form.dateDepense || null,
+        objet: form.objet.trim(), commentaires: form.commentaires, statut,
+      }
+      const saved = editingId === null ? await createPaiement(data) : await updatePaiement(editingId, data)
+      setRecords((current) => [saved, ...current.filter((record) => record.id !== saved.id)])
+      resetForm()
+      setMessage(statut === 'brouillon' ? 'Brouillon enregistré.' : 'Demande soumise et disponible dans les exécutions des paiements.')
+    } catch (err) { setError(paiementError(err)) }
+    finally { setBusy(false) }
   }
-
-  const saveDraft = () => {
-    const today = new Date().toLocaleDateString('fr-FR')
-    const newDraft: Brouillon = {
-      numero: `DP-2025-${String(97 + drafts.length).padStart(3, '0')}`,
-      dateCreation: today,
-      projet: form.projet || '-',
-      ligneBudgetaire: form.ligneBudgetaire || '-',
-      fournisseur: form.fournisseur || '-',
-      mercurial: '-',
-      montant: Number(form.montant) || 0,
-      devise: currencySuffix(),
-      statut: 'Brouillon',
-      dateMaj: today,
-    }
-    setDrafts((current) => [newDraft, ...current])
-    window.alert('La demande a été enregistrée dans le brouillon.')
-    resetForm()
+  const editDraft = (id: number) => {
+    const record = records.find((item) => item.id === id)
+    if (!record) return
+    setEditingId(id)
+    setForm({ projet: record.projet ? String(record.projet) : '', ligneBudgetaire: record.ligne_budgetaire ? String(record.ligne_budgetaire) : '',
+      fournisseur: record.fournisseur, typeDepense: record.type_depense, montant: String(record.montant),
+      dateDepense: record.date_depense ?? '', objet: record.objet, commentaires: record.commentaires })
+    setMessage(''); setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const removeDraft = async (id: number) => {
+    if (busy) return
+    setBusy(true); setError(''); setMessage('')
+    try {
+      await deletePaiement(id)
+      setRecords((current) => current.filter((record) => record.id !== id))
+      if (editingId === id) resetForm()
+      setMessage('Brouillon supprimé.')
+    } catch (err) { setError(paiementError(err)) }
+    finally { setBusy(false) }
   }
 
   const filteredBrouillons = drafts.filter((brouillon) => {
@@ -142,8 +171,20 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
       || brouillon.ligneBudgetaire.toLowerCase().includes(q)
   })
 
+  const exportDrafts = () => {
+    const cell = (value: unknown) => '"' + String(value).replace(/^[=+@-]/, "'$&").replace(/"/g, '""') + '"'
+    const rows = [['Numéro', 'Projet', 'Ligne budgétaire', 'Bénéficiaire', 'Montant', 'Devise'],
+      ...filteredBrouillons.map((draft) => [draft.numero, draft.projet, draft.ligneBudgetaire, draft.fournisseur, draft.montant, draft.devise])]
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map((row) => row.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a'); link.href = url; link.download = 'brouillons-paiements.csv'; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   return (
     <section className="tr-page">
+      {loading && <p role="status">Chargement des demandes…</p>}
+      {error && <p role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
       <nav className="tr-subtabs">
         <button className="active" onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Ordonnances des paiements</button>
         <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Exécutions des paiements</button>
@@ -160,28 +201,25 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
         <>
           <div className="tr-request-card">
             <div className="tr-request-heading">
-              <h2>Nouvelle demande de paiement</h2>
+              <h2>{editingId ? 'Modifier le brouillon' : 'Nouvelle demande de paiement'}</h2>
               <p>Remplissez les informations ci-dessous pour soumettre une demande de paiement.</p>
             </div>
 
             <div className="tr-request-grid four">
-              <label>Projet <em>*</em>
-                <select value={form.projet} onChange={(event) => updateField('projet', event.target.value)}>
-                  <option value="">Sélectionner un projet</option>
-                  {PROJETS_OPTIONS.map((projet) => <option key={projet}>{projet}</option>)}
+              <label>Projet {!isTransversal && <em>*</em>}
+                <select value={form.projet} disabled={isTransversal} onChange={(event) => updateField('projet', event.target.value)}>
+                  <option value="">{isTransversal ? 'Non applicable (dépense transversale)' : 'Sélectionner un projet'}</option>
+                  {projects.map((projet) => <option key={projet.id} value={projet.id}>{projet.nom}</option>)}
                 </select>
               </label>
-              <label>Ligne budgétaire <em>*</em>
-                <select value={form.ligneBudgetaire} onChange={(event) => updateField('ligneBudgetaire', event.target.value)}>
-                  <option value="">Sélectionner une ligne budgétaire</option>
-                  {LIGNES_OPTIONS.map((ligne) => <option key={ligne}>{ligne}</option>)}
+              <label>Ligne budgétaire {!isTransversal && <em>*</em>}
+                <select value={form.ligneBudgetaire} disabled={isTransversal} onChange={(event) => updateField('ligneBudgetaire', event.target.value)}>
+                  <option value="">{isTransversal ? 'Non applicable (dépense transversale)' : 'Sélectionner une ligne budgétaire'}</option>
+                  {lignes.map((ligne) => <option key={ligne.id} value={ligne.ligne_budgetaire}>{ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}</option>)}
                 </select>
               </label>
               <label>Fournisseur / Bénéficiaire <em>*</em>
-                <select value={form.fournisseur} onChange={(event) => updateField('fournisseur', event.target.value)}>
-                  <option value="">Sélectionner un fournisseur</option>
-                  {FOURNISSEURS_OPTIONS.map((fournisseur) => <option key={fournisseur}>{fournisseur}</option>)}
-                </select>
+                <input value={form.fournisseur} maxLength={255} onChange={(event) => updateField('fournisseur', event.target.value)} placeholder="Nom du fournisseur ou bénéficiaire" />
               </label>
               <label>Type de dépense <em>*</em>
                 <select value={form.typeDepense} onChange={(event) => updateField('typeDepense', event.target.value)}>
@@ -190,6 +228,9 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                 </select>
               </label>
             </div>
+            {isTransversal && (
+              <p className="tr-hint">Une dépense transversale n'est rattachée à aucun projet ni ligne budgétaire en particulier.</p>
+            )}
 
             <div className="tr-request-grid three">
               <label>{`Montant demandé (${currencySuffix()}) `}<em>*</em>
@@ -212,9 +253,9 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
             </div>
 
             <div className="tr-request-actions">
-              <button type="button" className="tr-reset" onClick={resetForm}><RotateCcw size={14} />Réinitialiser</button>
-              <button type="button" className="tr-reset" onClick={saveDraft}><Save size={14} />Enregistrer le brouillon</button>
-              <button type="button" className="tr-btn-primary" onClick={submitDemande}>Soumettre la demande</button>
+              <button type="button" className="tr-reset" disabled={busy} onClick={resetForm}><RotateCcw size={14} />Réinitialiser</button>
+              <button type="button" className="tr-reset" disabled={busy || loading} onClick={() => void save('brouillon')}><Save size={14} />Enregistrer le brouillon</button>
+              <button type="button" className="tr-btn-primary" disabled={busy || loading} onClick={() => void save('attente')}>Soumettre la demande</button>
             </div>
           </div>
 
@@ -238,21 +279,20 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
             {draftSectionOpen && (
               <>
                 <div className="tr-filters">
-                  <label>Période
-                    <span className="tr-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</span>
-                  </label>
+                  <DatePicker label="Depuis le" value={dateFrom} onChange={setDateFrom} />
+                  <DatePicker label="Jusqu'au" value={dateTo} min={dateFrom || undefined} onChange={setDateTo} />
                   <label>Projet
-                    <select defaultValue="Tous"><option>Tous les projets</option></select>
+                    <select value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setLineFilter('') }}><option value="">Tous les projets</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.nom}</option>)}</select>
                   </label>
                   <label>Ligne budgétaire
-                    <select defaultValue="Toutes"><option>Toutes les lignes</option></select>
+                    <select value={lineFilter} onChange={(event) => setLineFilter(event.target.value)}><option value="">Toutes les lignes</option>{[...new Map(projects.filter((project) => !projectFilter || String(project.id) === projectFilter).flatMap((project) => project.lignes).map((line) => [line.ligne_budgetaire, line])).values()].map((line) => <option key={line.ligne_budgetaire} value={line.ligne_budgetaire}>{line.ligne_budgetaire_nom}</option>)}</select>
                   </label>
                   <label className="tr-search">
                     <Search size={14} />
                     <input placeholder="Rechercher une demande..." value={search} onChange={(event) => setSearch(event.target.value)} />
                   </label>
                   <ColumnsMenu columns={BROUILLON_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="tr-reset" />
-                  <button type="button" className="tr-btn-primary"><Download size={14} />Exporter</button>
+                  <button type="button" className="tr-btn-primary" onClick={exportDrafts}><Download size={14} />Exporter</button>
                 </div>
 
                 <div className="tr-table-panel">
@@ -273,8 +313,8 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                             })}
                             <td>
                               <div className="tr-draft-actions">
-                                <button type="button" className="tr-row-action" aria-label="Modifier"><Pencil size={13} /></button>
-                                <button type="button" className="tr-row-action danger" aria-label="Supprimer"><Trash2 size={13} /></button>
+                                <button type="button" className="tr-row-action" aria-label="Modifier" disabled={busy} onClick={() => editDraft(brouillon.id)}><Pencil size={13} /></button>
+                                <button type="button" className="tr-row-action danger" aria-label="Supprimer" disabled={busy} onClick={() => void removeDraft(brouillon.id)}><Trash2 size={13} /></button>
                               </div>
                             </td>
                           </tr>
@@ -310,7 +350,8 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
                 <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>{`Montant (${currencySuffix()})`}</th><th>Initié par</th><th>Date</th><th>Statut</th></tr>
               </thead>
               <tbody>
-                {HISTORIQUE.map((entry) => (
+                {historique.length === 0 && <tr><td colSpan={7} className="tr-empty">{loading ? 'Chargement…' : 'Aucune demande soumise.'}</td></tr>}
+                {historique.map((entry) => (
                   <tr key={entry.reference}>
                     <td className="tr-code">{entry.reference}</td>
                     <td>{entry.projet}</td>
