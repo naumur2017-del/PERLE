@@ -23,6 +23,7 @@ export interface Task {
   equipe_nom: string
   equipe_code: string
   equipe_manager_nom: string | null
+  date_debut: string | null
   echeance: string | null
   priorite: TaskPriorite
   priorite_display: string
@@ -42,6 +43,7 @@ export interface TaskFormValues {
   description?: string
   project?: number | null
   ligne_budgetaire: number
+  date_debut?: string | null
   echeance: string
   priorite: TaskPriorite
 }

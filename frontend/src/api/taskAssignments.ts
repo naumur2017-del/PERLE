@@ -39,6 +39,7 @@ export interface TaskAssignment {
   equipe_code: string
   ligne_budgetaire_nom: string
   ligne_budgetaire_code: string
+  task_date_debut: string | null
   echeance: string | null
   priorite_display: string
   task_created_by_nom: string | null

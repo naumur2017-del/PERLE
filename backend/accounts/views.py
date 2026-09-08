@@ -822,6 +822,8 @@ class LigneBudgetaireDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
+        if instance.is_transversale:
+            raise ValidationError({'detail': 'La ligne « Charges transversales » est gérée automatiquement et ne peut pas être supprimée.'})
         if instance.enfants.exists():
             raise ValidationError({'detail': 'Cette ligne a des sous-lignes : supprimez-les d’abord.'})
         instance.delete()
@@ -913,6 +915,8 @@ class ProjectLigneDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
+        if instance.is_transversale:
+            raise ValidationError({'detail': 'La ligne transversale (Ressources) est attribuée d’office à chaque projet et ne peut pas être retirée. Vous pouvez seulement ajuster son montant.'})
         instance.delete()
 
 

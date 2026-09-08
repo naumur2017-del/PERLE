@@ -168,13 +168,16 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         ligne_budgetaire_declinaison: source?.declinaison ?? '', ligne_budgetaire_montant_prevu: source?.montant_prevu ?? null,
         equipe: source?.equipe ?? 0, equipe_nom: source?.equipe_nom ?? '', equipe_code: source?.equipe_code ?? '',
         montant: values.montant, montant_consomme_fcfa: 0, montant_reste_fcfa: values.montant,
-        date_debut: values.date_debut || null, date_fin: values.date_fin || null, created_at: '',
+        date_debut: values.date_debut || null, date_fin: values.date_fin || null,
+        is_transversale: false, montant_auto: false, created_at: '',
       }
       setLignes((prev) => [...prev, pending])
     }
   }
 
   const removeLigne = async (ligne: ProjectLigne) => {
+    // La ligne transversale (Ressources, 10 %) est attribuée d'office et ne se retire pas.
+    if (ligne.is_transversale) return
     if (projectId && ligne.id > 0) {
       await deleteProjectLigne(projectId, ligne.id)
     }
@@ -400,7 +403,10 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
                   <tr key={ligne.id}>
                     <td>{ligne.code}</td>
                     <td>{ligne.equipe_code}</td>
-                    <td>{ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}</td>
+                    <td>
+                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
+                    </td>
                     <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
                     <td>{ligne.montant.toLocaleString('fr-FR')}</td>
                     <td>{fmtDate(ligne.date_debut)}</td>
@@ -455,7 +461,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
       <div className="creation-step active"><b>2</b><span><strong>Charges et planification</strong><small>Sélection des charges</small></span></div>
     </div>
 
-    <div className="charges-heading"><h2>Étape 2 : Lignes budgétaires liées au projet</h2><p>ⓘ &nbsp; Chaque équipe a son propre tableau. Le sélecteur de ligne budgétaire de chaque équipe n’affiche que les lignes du référentiel qui lui sont attribuées.</p></div>
+    <div className="charges-heading"><h2>Étape 2 : Lignes budgétaires liées au projet</h2><p>ⓘ &nbsp; Chaque équipe a son propre tableau. Le sélecteur de ligne budgétaire de chaque équipe n’affiche que les lignes du référentiel qui lui sont attribuées.</p><p>ⓘ &nbsp; La ligne « Charges transversales » de l’équipe Ressources est ajoutée automatiquement à hauteur de 10 % du montant du projet ; elle apparaît une fois le projet enregistré.</p></div>
 
     <div className={`budget-restant-banner${resteProjet < 0 ? ' is-negative' : ''}`}>
       <span>Budget restant du projet</span>
@@ -468,7 +474,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
           key={team.id}
           team={team}
           hasCatalogueLignes={catalogue.some((l) => l.equipe === team.id)}
-          availableLignes={catalogue.filter((l) => l.equipe === team.id && !lignes.some((pl) => pl.ligne_budgetaire === l.id))}
+          availableLignes={catalogue.filter((l) => l.equipe === team.id && !l.is_transversale && !lignes.some((pl) => pl.ligne_budgetaire === l.id))}
           attributedLignes={lignes.filter((l) => l.equipe === team.id)}
           projectDateDebut={projectDateDebut}
           projectDateFin={projectDateFin}
@@ -563,12 +569,19 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                 {attributedLignes.map((ligne) => (
                   <tr key={ligne.id}>
                     <td>{ligne.code}</td>
-                    <td>{ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}</td>
+                    <td>
+                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
+                    </td>
                     <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
                     <td>{ligne.montant.toLocaleString('fr-FR')}</td>
                     <td>{fmtDate(ligne.date_debut)}</td>
                     <td>{fmtDate(ligne.date_fin)}</td>
-                    <td><div className="task-crud"><button className="delete" title="Retirer" disabled={removingId === ligne.id} onClick={() => handleRemove(ligne)}>⌫</button></div></td>
+                    <td>
+                      {ligne.is_transversale
+                        ? <span className="task-crud-locked" title="Attribuée d'office (10 % du montant du projet)">🔒</span>
+                        : <div className="task-crud"><button className="delete" title="Retirer" disabled={removingId === ligne.id} onClick={() => handleRemove(ligne)}>⌫</button></div>}
+                    </td>
                   </tr>
                 ))}
                 {attributedLignes.length === 0 && (

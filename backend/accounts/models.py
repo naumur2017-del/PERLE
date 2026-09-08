@@ -609,6 +609,10 @@ class LigneBudgetaire(models.Model):
     # son côté, attribuer jusqu'à ce montant sur la ligne.
     montant_prevu = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     actif = models.BooleanField(default=True)
+    # Ligne « Charges transversales » de l'équipe Ressources, créée automatiquement une fois par
+    # organisation : elle est attribuée d'office à chaque projet à hauteur de 10 % du montant
+    # (voir ensure_project_transversal_ligne).
+    is_transversale = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -724,6 +728,11 @@ class ProjectLigne(models.Model):
     montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     date_debut = models.DateField(null=True, blank=True)
     date_fin = models.DateField(null=True, blank=True)
+    # Ligne transversale (Ressources) attribuée d'office au projet — voir
+    # ensure_project_transversal_ligne. `montant_auto` reste vrai tant que le directeur n'a pas
+    # ajusté le montant à la main : le montant suit alors automatiquement 10 % du montant du projet.
+    is_transversale = models.BooleanField(default=False)
+    montant_auto = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -736,6 +745,52 @@ class ProjectLigne(models.Model):
 
 def next_project_ligne_code(project):
     return f'PRJ.{str(project.lignes.count() + 1).zfill(3)}'
+
+
+# Part du montant du projet réservée d'office à l'équipe Ressources via une ligne transversale.
+TRANSVERSAL_LIGNE_CODE = 'TRANSV'
+TRANSVERSAL_LIGNE_PART = Decimal('0.10')
+
+
+def get_or_create_transversal_ligne(organisation):
+    """Ligne budgétaire « Charges transversales » de l'organisation, rattachée à l'équipe
+    Ressources (code « RES », sinon l'équipe protégée du niveau le plus bas, sinon la première
+    équipe). Créée une seule fois par organisation."""
+    ligne = LigneBudgetaire.objects.filter(
+        organisation=organisation, code=TRANSVERSAL_LIGNE_CODE,
+    ).first()
+    if ligne:
+        return ligne
+    equipe = (
+        Team.objects.filter(organisation=organisation, code='RES').first()
+        or Team.objects.filter(organisation=organisation, is_protected=True).order_by('-niveau').first()
+        or Team.objects.filter(organisation=organisation).order_by('niveau').first()
+    )
+    if equipe is None:
+        return None
+    return LigneBudgetaire.objects.create(
+        organisation=organisation, code=TRANSVERSAL_LIGNE_CODE, nom='Charges transversales',
+        niveau=1, equipe=equipe, is_transversale=True, actif=True,
+    )
+
+
+def ensure_project_transversal_ligne(project):
+    """Garantit que le projet porte sa ligne transversale (Ressources) à hauteur de 10 % de son
+    montant. Le montant est resynchronisé tant que le directeur ne l'a pas ajusté à la main
+    (`montant_auto`)."""
+    ligne = get_or_create_transversal_ligne(project.organisation)
+    if ligne is None:
+        return
+    cible = (project.montant * TRANSVERSAL_LIGNE_PART).quantize(Decimal('0.01'))
+    project_ligne = project.lignes.filter(is_transversale=True).first()
+    if project_ligne is None:
+        ProjectLigne.objects.create(
+            project=project, code=next_project_ligne_code(project), ligne_budgetaire=ligne,
+            montant=cible, is_transversale=True, montant_auto=True,
+        )
+    elif project_ligne.montant_auto and project_ligne.montant != cible:
+        project_ligne.montant = cible
+        project_ligne.save(update_fields=['montant'])
 
 
 TASK_PRIORITE_CHOICES = [
@@ -826,6 +881,7 @@ class Task(models.Model):
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
     ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, related_name='taches')
     equipe = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='tasks')
+    date_debut = models.DateField(null=True, blank=True)
     echeance = models.DateField(null=True, blank=True)
     priorite = models.CharField(max_length=10, choices=PRIORITE_CHOICES, default='moyenne')
     # Circuit de validation par le manager de l'équipe destinataire, avant staffing.

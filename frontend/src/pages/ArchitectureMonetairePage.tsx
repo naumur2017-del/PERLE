@@ -201,9 +201,11 @@ function RowActionsMenu({ ligne, canAddChild, onEdit, onAddChild, onToggleActif,
               {ligne.actif ? <Ban size={13} strokeWidth={2} /> : <CheckCircle2 size={13} strokeWidth={2} />}
               {ligne.actif ? 'Désactiver' : 'Activer'}
             </button>
-            <button type="button" role="menuitem" className="ge-row-menu-danger" onClick={() => { setOpen(false); onDelete() }}>
-              <Trash2 size={13} strokeWidth={2} />Supprimer
-            </button>
+            {!ligne.is_transversale && (
+              <button type="button" role="menuitem" className="ge-row-menu-danger" onClick={() => { setOpen(false); onDelete() }}>
+                <Trash2 size={13} strokeWidth={2} />Supprimer
+              </button>
+            )}
           </div>
         </>,
         document.body,

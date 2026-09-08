@@ -12,6 +12,8 @@ export interface LigneBudgetaire {
   declinaison: string
   montant_prevu: number | null
   actif: boolean
+  /** Ligne « Charges transversales » créée automatiquement pour l'équipe Ressources — non éditable. */
+  is_transversale: boolean
   created_at: string
 }
 

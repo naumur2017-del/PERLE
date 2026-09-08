@@ -100,7 +100,7 @@ function echeanceDepassee(echeance: string | null, exec: TaskExecutionStatut, no
 
 const DETAIL_CLOSE_MS = 220
 
-type StaffColumnId = 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'heures' | 'echeance' | 'tempsRestant' | 'statutExecution'
+type StaffColumnId = 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'heures' | 'dateDebut' | 'echeance' | 'tempsRestant' | 'statutExecution'
 
 const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'projet', label: 'Projet' },
@@ -108,6 +108,7 @@ const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'attribueePar', label: 'Attribuée par' },
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
   { id: 'heures', label: 'Heures' },
+  { id: 'dateDebut', label: 'Date de début' },
   { id: 'echeance', label: 'Échéance' },
   { id: 'tempsRestant', label: 'Temps restant' },
   { id: 'statutExecution', label: "Statut d'exécution" },
@@ -126,6 +127,7 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (a: T
   },
   ligneBudgetaire: { render: (a) => `${a.ligne_budgetaire_code} — ${a.ligne_budgetaire_nom}` },
   heures: { render: (a) => `${a.heures} h` },
+  dateDebut: { render: (a) => formatDate(a.task_date_debut) },
   echeance: { render: (a) => <span className={a.execution_statut === 'a_demarrer' ? 'es-echeance' : undefined}>{formatDate(a.echeance)}</span> },
   tempsRestant: {
     render: (a, nowMs) => {
@@ -429,7 +431,7 @@ export default function ExecuteStaffingPage({
                     <table className="es-table">
                       <thead>
                         <tr>
-                          <th>Projet</th><th>Tâche</th><th>Heures</th><th>Échéance</th><th>Statut d'exécution</th><th></th>
+                          <th>Projet</th><th>Tâche</th><th>Heures</th><th>Date de début</th><th>Échéance</th><th>Statut d'exécution</th><th></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -438,6 +440,7 @@ export default function ExecuteStaffingPage({
                             <td><span className="es-projet-cell"><Folder size={13} />{assignment.project_nom ?? 'Transversale'}</span></td>
                             <td className="es-name"><strong>{assignment.template_nom}</strong><small>{assignment.task_code}</small></td>
                             <td>{assignment.heures} h</td>
+                            <td>{formatDate(assignment.task_date_debut)}</td>
                             <td>{formatDate(assignment.echeance)}</td>
                             <td><span className={`es-pill es-pill-${STATUT_EXECUTION_CLASS[assignment.execution_statut]}`}>{assignment.execution_statut_display}</span></td>
                             <td onClick={(e) => e.stopPropagation()}>
@@ -477,6 +480,7 @@ export default function ExecuteStaffingPage({
                   <div><dt>Attribuée par</dt><dd>{selected.task_created_by_nom ?? '—'}</dd></div>
                   <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
                   <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>
+                  <div><dt>Date de début</dt><dd>{formatDate(selected.task_date_debut)}</dd></div>
                   <div><dt>Échéance</dt><dd className="es-echeance">{formatDate(selected.echeance)}</dd></div>
                   <div><dt>Priorité</dt><dd>{selected.priorite_display}</dd></div>
                   <div><dt>Heures attribuées</dt><dd>{selected.heures} h</dd></div>

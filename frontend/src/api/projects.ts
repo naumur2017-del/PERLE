@@ -22,6 +22,10 @@ export interface ProjectLigne {
   montant_reste_fcfa: number
   date_debut: string | null
   date_fin: string | null
+  /** Ligne « Charges transversales » (Ressources) attribuée d'office au projet — non supprimable. */
+  is_transversale: boolean
+  /** Vrai tant que le montant suit automatiquement 10 % du montant du projet. */
+  montant_auto: boolean
   created_at: string
 }
 

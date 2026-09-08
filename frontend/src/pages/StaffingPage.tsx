@@ -81,10 +81,14 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
   const meCanSelfAssign = me !== null && selectedTeam !== null
     && (selectedTeam.manager?.id === me.id || me.team?.id === selectedTeam.id)
   const alreadyAssignedIds = new Set(selected?.assignments.map((a) => a.user) ?? [])
-  const availableMembers: (TeamMember | MeProfile)[] = [
+  // Une personne en congé ou inactive ne peut pas être staffée (contrôle aussi côté backend,
+  // voir TaskAssignmentSerializer.validate) : elle reste visible mais désactivée dans la liste.
+  const statutLabel = (statut: string) => statut === 'conge' ? ' — en congé' : statut === 'inactif' ? ' — inactif' : ''
+  const selectableMembers: (TeamMember | MeProfile)[] = [
     ...(me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) ? [me] : []),
     ...(selectedTeam?.members.filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id)) ?? []),
   ]
+  const availableMembers = selectableMembers.filter((m) => m.statut === 'actif')
   const assignMember = availableMembers.find((m) => m.id === assignMemberId) ?? null
   const assignHeuresNumber = Number(assignHeures) || 0
   const ehsPreview = assignMember ? assignMember.grade * assignHeuresNumber : 0
@@ -290,13 +294,13 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                       <thead>
                         <tr>
                           <th>Code</th><th>Projet</th><th>Tâche</th><th>Équipe</th><th>Ligne budgétaire</th>
-                          <th>Échéance</th><th>Priorité</th>
+                          <th>Date de début</th><th>Échéance</th><th>Priorité</th>
                           <th>{activeTab === 'a_valider' ? 'Décision' : 'Attribuée à'}</th><th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.length === 0 && (
-                          <tr><td colSpan={9} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                          <tr><td colSpan={10} className="ns-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
                         )}
                         {filtered.map((task) => (
                           <tr key={task.id} className={selectedId === task.id ? 'ns-row-selected' : ''} onClick={() => handleSelect(task)}>
@@ -305,6 +309,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                             <td className="ns-name">{task.template_nom}</td>
                             <td>{task.equipe_nom}</td>
                             <td>{task.ligne_budgetaire_nom}</td>
+                            <td>{fmtDate(task.date_debut)}</td>
                             <td>{fmtDate(task.echeance)}</td>
                             <td>{task.priorite_display}</td>
                             <td>
@@ -352,6 +357,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                     <div><dt>Projet</dt><dd>{selected.project_nom ? `${selected.project_code} — ${selected.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
                     <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
                     <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>
+                    <div><dt>Date de début</dt><dd>{fmtDate(selected.date_debut)}</dd></div>
                     <div><dt>Échéance</dt><dd>{fmtDate(selected.echeance)}</dd></div>
                     <div><dt>Priorité</dt><dd>{selected.priorite_display}</dd></div>
                     {selected.budget_ligne_montant != null && (
@@ -404,10 +410,12 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                           Personne *
                           <select value={assignMemberId ?? ''} onChange={(e) => setAssignMemberId(e.target.value === '' ? null : Number(e.target.value))}>
                             <option value="">{availableMembers.length === 0 ? 'Personne disponible' : 'Sélectionner'}</option>
-                            {me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) && <option value={me.id}>Moi-même — {me.first_name} {me.last_name} (grade {me.grade})</option>}
+                            {me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) && (
+                              <option value={me.id} disabled={me.statut !== 'actif'}>Moi-même — {me.first_name} {me.last_name} (grade {me.grade}){statutLabel(me.statut)}</option>
+                            )}
                             {selectedTeam?.members
                               .filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id))
-                              .map((m) => <option key={m.id} value={m.id}>{m.first_name} {m.last_name} (grade {m.grade})</option>)}
+                              .map((m) => <option key={m.id} value={m.id} disabled={m.statut !== 'actif'}>{m.first_name} {m.last_name} (grade {m.grade}){statutLabel(m.statut)}</option>)}
                           </select>
                         </label>
                         <label className="ns-detail-field">

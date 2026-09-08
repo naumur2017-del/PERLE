@@ -27,7 +27,7 @@ const STATUT_CLASS: Record<TaskExecutionStatut, string> = {
 
 const initiales = (nom: string) => nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 const fmtHeures = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtDate = (value: string) => new Date(value).toLocaleDateString('fr-FR')
+const fmtDate = (value: string | null) => value ? new Date(value).toLocaleDateString('fr-FR') : '—'
 
 function formatDDHHMMSS(totalSeconds: number) {
   const neg = totalSeconds < 0
@@ -271,12 +271,12 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                 <thead>
                   <tr>
                     <th>Tâche</th><th>Projet</th><th>Équipe</th><th>Collaborateur</th>
-                    <th>Heures</th><th>Staffé le</th><th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th><th>Statut</th><th>Note</th><th></th>
+                    <th>Heures</th><th>Date de début</th><th>Staffé le</th><th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th><th>Statut</th><th>Note</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={10} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
+                    <tr><td colSpan={11} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
                   )}
                   {filtered.map((a) => {
                     const info = tempsRestantInfo(a, nowMs)
@@ -292,6 +292,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                           </span>
                         </td>
                         <td>{fmtHeures(a.heures)} h</td>
+                        <td>{fmtDate(a.task_date_debut)}</td>
                         <td>{fmtDate(a.created_at)}</td>
                         <td><span className={`su-temps-restant su-temps-restant-${info.tone}`}>{info.label}</span></td>
                         <td><span className={`su-statut-pill su-statut-${STATUT_CLASS[a.execution_statut]}`}>{a.execution_statut_display}</span></td>

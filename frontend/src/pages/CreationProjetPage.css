@@ -1,1 +1,16 @@
 .creation-project-page { display: contents; }
+
+/* Ligne transversale (Ressources, 10 %) attribuée d'office — voir ProjectCreation. */
+.creation-transversale-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b4620f;
+  white-space: nowrap;
+}
+.task-crud-locked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  font-size: 0.85rem;
+}

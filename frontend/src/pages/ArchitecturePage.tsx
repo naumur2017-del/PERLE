@@ -61,11 +61,11 @@ type PageTab = 'attribution' | 'banque'
 type PanelMode = { kind: 'create'; from?: Task } | { kind: 'edit'; task: Task } | { kind: 'view'; task: Task } | null
 
 function exportTasksCsv(tasks: Task[]) {
-  const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Échéance', 'Priorité', 'Statut', 'Créé le']
+  const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Date de début', 'Échéance', 'Priorité', 'Statut', 'Créé le']
   const rows = tasks.map((t) => [
     t.template_code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
     `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
-    formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
+    formatDate(t.date_debut), formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
   ])
   const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
   const bom = String.fromCharCode(0xfeff)
@@ -98,6 +98,7 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
   const [projectId, setProjectId] = useState<number | null>(seed?.project ?? null)
   const [equipeId, setEquipeId] = useState<number | null>(seed?.equipe ?? null)
   const [ligneId, setLigneId] = useState<number | null>(seed?.ligne_budgetaire ?? null)
+  const [dateDebut, setDateDebut] = useState(mode.kind === 'create' ? '' : seed?.date_debut ?? '')
   const [echeance, setEcheance] = useState(mode.kind === 'create' ? '' : seed?.echeance ?? '')
   const [priorite, setPriorite] = useState<TaskPriorite>(seed?.priorite ?? 'moyenne')
   const [saving, setSaving] = useState(false)
@@ -159,6 +160,7 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
       description: description.trim(),
       project: transversale ? null : projectId,
       ligne_budgetaire: ligneId,
+      date_debut: dateDebut || null,
       echeance,
       priorite,
     }
@@ -199,6 +201,7 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
             <div><dt>Équipe destinataire</dt><dd>{mode.task.equipe_code} — {mode.task.equipe_nom}</dd></div>
             <div><dt>Manager destinataire</dt><dd>{mode.task.equipe_manager_nom ?? 'Aucun manager défini'}</dd></div>
             <div><dt>Ligne budgétaire</dt><dd>{mode.task.ligne_budgetaire_code} — {mode.task.ligne_budgetaire_nom}</dd></div>
+            <div><dt>Date de début</dt><dd>{formatDate(mode.task.date_debut)}</dd></div>
             <div><dt>Échéance</dt><dd>{formatDate(mode.task.echeance)}</dd></div>
             <div><dt>Priorité</dt><dd>{mode.task.priorite_display}</dd></div>
             <div><dt>Statut</dt><dd>{mode.task.statut_display}{mode.task.statut === 'acceptee' && <span className="arch-staffed-hint"> · {staffingSummary(mode.task).toLowerCase()}</span>}</dd></div>
@@ -226,7 +229,8 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
                 {equipeOptions.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
               </select>
             </label>
-            <DatePicker label="Échéance *" className="param-field" required value={echeance} onChange={setEcheance} />
+            <DatePicker label="Date de début" className="param-field" value={dateDebut} onChange={setDateDebut} />
+            <DatePicker label="Échéance *" className="param-field" required value={echeance} min={dateDebut || undefined} onChange={setEcheance} />
 
             <label className="param-checkbox-field">
               <input type="checkbox" checked={transversale} onChange={(event) => handleTransversaleChange(event.target.checked)} />
@@ -413,12 +417,12 @@ function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading
               <tr>
                 <th className="arch-th-checkbox"><input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" /></th>
                 <th>Code</th><th>Projet / Nature</th><th>Tâche (depuis catalogue)</th><th>Équipe destinataire</th>
-                <th>Manager destinataire</th><th>Ligne budgétaire</th><th>Échéance</th><th>Priorité</th><th>Statut</th>
+                <th>Manager destinataire</th><th>Ligne budgétaire</th><th>Date de début</th><th>Échéance</th><th>Priorité</th><th>Statut</th>
                 <th>Créé le</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={11} className="ge-detail-empty">Chargement…</td></tr>}
+              {loading && <tr><td colSpan={12} className="ge-detail-empty">Chargement…</td></tr>}
               {!loading && pageItems.map((task) => (
                 <tr key={task.id}>
                   <td className="arch-th-checkbox"><input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={`Sélectionner ${task.code}`} /></td>
@@ -428,6 +432,7 @@ function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading
                   <td>{task.equipe_code}</td>
                   <td>{task.equipe_manager_nom ?? '—'}</td>
                   <td>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</td>
+                  <td>{formatDate(task.date_debut)}</td>
                   <td>{formatDate(task.echeance)}</td>
                   <td><span className={`arch-pill arch-pill-prio-${task.priorite}`}>{task.priorite_display}</span></td>
                   <td>
@@ -447,7 +452,7 @@ function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading
                 </tr>
               ))}
               {!loading && pageItems.length === 0 && (
-                <tr><td colSpan={11} className="ge-detail-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
+                <tr><td colSpan={12} className="ge-detail-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
               )}
             </tbody>
           </table>

@@ -31,6 +31,7 @@ from .models import (
     compute_conge_solde,
     create_default_conge_types,
     create_default_teams,
+    ensure_project_transversal_ligne,
     next_project_code,
     next_project_ligne_code,
     next_task_code,
@@ -983,9 +984,9 @@ class LigneBudgetaireSerializer(serializers.ModelSerializer):
         model = LigneBudgetaire
         fields = [
             'id', 'code', 'nom', 'niveau', 'parent', 'equipe', 'equipe_nom', 'equipe_code',
-            'declinaison', 'montant_prevu', 'actif', 'created_at',
+            'declinaison', 'montant_prevu', 'actif', 'is_transversale', 'created_at',
         ]
-        read_only_fields = ['id', 'code', 'niveau', 'parent', 'created_at']
+        read_only_fields = ['id', 'code', 'niveau', 'parent', 'is_transversale', 'created_at']
 
     def validate_equipe(self, value):
         request = self.context['request']
@@ -1067,9 +1068,9 @@ class ProjectLigneSerializer(serializers.ModelSerializer):
             'id', 'code', 'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
             'ligne_budgetaire_declinaison', 'ligne_budgetaire_montant_prevu', 'equipe', 'equipe_nom',
             'equipe_code', 'montant', 'montant_consomme_fcfa', 'montant_reste_fcfa',
-            'date_debut', 'date_fin', 'created_at',
+            'date_debut', 'date_fin', 'is_transversale', 'montant_auto', 'created_at',
         ]
-        read_only_fields = ['id', 'code', 'created_at']
+        read_only_fields = ['id', 'code', 'is_transversale', 'montant_auto', 'created_at']
 
     def get_montant_consomme_fcfa(self, obj):
         # Somme des heures déjà staffées (Nouveau staffing) sur toutes les tâches de ce projet
@@ -1114,6 +1115,13 @@ class ProjectLigneSerializer(serializers.ModelSerializer):
         code = next_project_ligne_code(project)
         return ProjectLigne.objects.create(project=project, code=code, **validated_data)
 
+    def update(self, instance, validated_data):
+        # Ajuster à la main le montant de la ligne transversale fige ce montant : il ne suit
+        # plus automatiquement les 10 % du montant du projet.
+        if instance.is_transversale and 'montant' in validated_data and validated_data['montant'] != instance.montant:
+            instance.montant_auto = False
+        return super().update(instance, validated_data)
+
 
 class ProjectSerializer(serializers.ModelSerializer):
     lignes = ProjectLigneSerializer(many=True, read_only=True)
@@ -1148,7 +1156,15 @@ class ProjectSerializer(serializers.ModelSerializer):
         request = self.context['request']
         organisation = request.user.organisation
         code = next_project_code(organisation)
-        return Project.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)
+        project = Project.objects.create(organisation=organisation, code=code, created_by=request.user, **validated_data)
+        ensure_project_transversal_ligne(project)
+        return project
+
+    def update(self, instance, validated_data):
+        project = super().update(instance, validated_data)
+        # Le montant du projet a pu changer : resynchronise la ligne transversale (10 %).
+        ensure_project_transversal_ligne(project)
+        return project
 
 
 class TaskTemplateSerializer(serializers.ModelSerializer):
@@ -1289,6 +1305,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     equipe_code = serializers.CharField(source='task.equipe.code', read_only=True)
     ligne_budgetaire_nom = serializers.CharField(source='task.ligne_budgetaire.nom', read_only=True)
     ligne_budgetaire_code = serializers.CharField(source='task.ligne_budgetaire.code', read_only=True)
+    task_date_debut = serializers.DateField(source='task.date_debut', read_only=True)
     echeance = serializers.DateField(source='task.echeance', read_only=True)
     priorite_display = serializers.CharField(source='task.get_priorite_display', read_only=True)
     task_created_by_nom = serializers.SerializerMethodField()
@@ -1307,7 +1324,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             'created_by_nom', 'created_at',
             'task_code', 'task_description', 'template_nom', 'template_code',
             'project_nom', 'project_code', 'equipe_nom', 'equipe_code',
-            'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'echeance', 'priorite_display',
+            'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'task_date_debut', 'echeance', 'priorite_display',
             'task_created_by_nom',
         ]
         read_only_fields = [
@@ -1367,6 +1384,12 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             # l'équipe, ou staffer un membre réel de l'équipe.
             if user.id != equipe.manager_id and user.team_id != equipe.id:
                 raise serializers.ValidationError({'user': 'Ce membre doit être le manager de l’équipe ou l’un de ses membres.'})
+            # Une personne en congé (congé individuel ou fermeture technique) ou inactive ne peut
+            # pas être nouvellement staffée tant qu'elle n'est pas revenue.
+            if self.instance is None and user.statut == 'conge':
+                raise serializers.ValidationError({'user': 'Cette personne est en congé : elle ne peut pas être staffée.'})
+            if self.instance is None and user.statut == 'inactif':
+                raise serializers.ValidationError({'user': 'Cette personne est inactive : elle ne peut pas être staffée.'})
             if self.instance is None and TaskAssignment.objects.filter(task=task, user=user).exists():
                 raise serializers.ValidationError({'user': 'Cette personne est déjà staffée sur cette tâche : modifiez plutôt son allocation d’heures.'})
         if task and user and heures:
@@ -1633,7 +1656,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'description', 'project', 'project_nom', 'project_code',
             'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
             'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
-            'echeance', 'priorite', 'priorite_display',
+            'date_debut', 'echeance', 'priorite', 'priorite_display',
             'statut', 'statut_display', 'statut_decide_le',
             'assignments', 'budget_ligne_montant', 'budget_reste_fcfa',
             'actif', 'created_by_nom', 'created_at',
@@ -1697,6 +1720,12 @@ class TaskSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'ligne_budgetaire': 'Cette ligne budgétaire n’est pas attribuée à ce projet.',
                 })
+        date_debut = attrs.get('date_debut', getattr(self.instance, 'date_debut', None))
+        echeance = attrs.get('echeance', getattr(self.instance, 'echeance', None))
+        if date_debut and echeance and date_debut > echeance:
+            raise serializers.ValidationError({
+                'date_debut': 'La date de début doit être antérieure ou égale à l’échéance.',
+            })
         return attrs
 
     def create(self, validated_data):
