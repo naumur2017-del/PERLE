@@ -159,6 +159,7 @@ export interface MeProfile {
   role: string
   organisation: OrganisationSummary | null
   team: TeamSummary | null
+  managed_teams: TeamSummary[]
   profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null

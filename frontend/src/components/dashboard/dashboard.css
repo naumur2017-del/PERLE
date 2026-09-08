@@ -469,3 +469,13 @@
   .dsh-kpi-grid { grid-template-columns: repeat(3, 1fr); }
   .dsh-kpi { break-inside: avoid; box-shadow: none; }
 }
+
+/* --- Ajouts tableaux de bord accueil (chargement API, manager) ------------- */
+.dsh-load-error {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 8px 0 16px; padding: 12px 16px;
+  background: var(--dsh-red-soft); border: 1px solid var(--dsh-red);
+  border-radius: var(--dsh-radius); color: var(--dsh-red); font-size: 13px; font-weight: 600;
+}
+.dsh-stack-lg { height: 30px; }
+.dsh-stack-lg i { font-size: 11px; }

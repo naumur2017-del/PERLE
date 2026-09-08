@@ -5,7 +5,7 @@ import { useState, type MouseEvent, type ReactNode } from 'react'
 import { ChartTable } from './DashboardUI'
 import { focusPoint, labelStep, niceMax, useTooltip } from './chartTools'
 import {
-  DIR_COLORS, DIR_PALETTE, budgetByDepartment, budgetByNature, ehs, ehsRate,
+  DIR_COLORS, DIR_PALETTE, budgetByDepartment, budgetByNature, ehs,
   formatFcfa, marginPercent, projects, teamLoad,
   type CashPoint, type DeliverablePoint, type FinancePoint, type Project,
 } from './directorData'
@@ -112,7 +112,7 @@ const STATUS_TONE: Record<Project['status'], 'ok' | 'warn' | 'danger'> = {
   'En cours': 'ok', 'Terminé': 'ok', 'À surveiller': 'warn', 'En retard': 'danger',
 }
 
-export function PortfolioChart({ onProjectClick }: { onProjectClick: (project: Project) => void }) {
+export function PortfolioChart({ onProjectClick, items = projects }: { onProjectClick: (project: Project) => void; items?: Project[] }) {
   return <div className="dsh-chart-host">
     <Legend items={[
       { label: 'Avancement', color: DIR_COLORS.primary },
@@ -120,7 +120,7 @@ export function PortfolioChart({ onProjectClick }: { onProjectClick: (project: P
     ]} />
 
     <ul className="dsh-portfolio" aria-label="Avancement et consommation budgétaire par projet">
-      {projects.map((project) => {
+      {items.map((project) => {
         const used = Math.round((project.budgetUsed / project.budget) * 100)
         // Un budget consommé nettement au-delà de l'avancement signale une dérive.
         const drift = used - project.progress
@@ -151,7 +151,7 @@ export function PortfolioChart({ onProjectClick }: { onProjectClick: (project: P
     <ChartTable
       caption="Portefeuille de projets"
       columns={['Projet', 'Responsable', 'Avancement', 'Budget consommé', 'Budget total', 'Marge', 'Statut']}
-      rows={projects.map((project) => [
+      rows={items.map((project) => [
         `${project.code} — ${project.name}`, project.manager, `${project.progress} %`,
         formatFcfa(project.budgetUsed), formatFcfa(project.budget), `${project.margin} %`, project.status,
       ])}
@@ -163,11 +163,15 @@ export function PortfolioChart({ onProjectClick }: { onProjectClick: (project: P
 // 3. Répartition du budget — donut avec bascule nature / département
 // ---------------------------------------------------------------------------
 
-export function BudgetDonut({ onSliceClick }: { onSliceClick: (view: string, label: string) => void }) {
+export function BudgetDonut({ onSliceClick, nature = budgetByNature, department = budgetByDepartment }: {
+  onSliceClick: (view: string, label: string) => void
+  nature?: { label: string; value: number }[]
+  department?: { label: string; value: number }[]
+}) {
   const [view, setView] = useState<'nature' | 'department'>('nature')
   const tooltip = useDirTooltip()
-  const data = view === 'nature' ? budgetByNature : budgetByDepartment
-  const total = data.reduce((sum, item) => sum + item.value, 0)
+  const data = view === 'nature' ? nature : department
+  const total = data.reduce((sum, item) => sum + item.value, 0) || 1
 
   const cx = 108, cy = 108, outer = 96, inner = 62
   const offsets = data.map((_, index) => data.slice(0, index).reduce((sum, item) => sum + item.value, 0))
@@ -317,14 +321,16 @@ const TEAM_SERIES = [
   { key: 'unavailable', label: 'Indisponibles', color: DIR_COLORS.slate },
 ] as const
 
-export function TeamLoadChart({ onTeamClick }: { onTeamClick: (label: string) => void }) {
-  const max = Math.max(...teamLoad.map((team) => team.staffed + team.available + team.unavailable))
+type TeamLoadRow = { label: string; staffed: number; available: number; unavailable: number }
+
+export function TeamLoadChart({ onTeamClick, rows = teamLoad }: { onTeamClick: (label: string) => void; rows?: TeamLoadRow[] }) {
+  const max = Math.max(1, ...rows.map((team) => team.staffed + team.available + team.unavailable))
 
   return <div className="dsh-chart-host">
     <Legend items={TEAM_SERIES.map((series) => ({ label: series.label, color: series.color }))} />
 
     <ul className="dsh-teams" aria-label="Charge et disponibilité par département">
-      {teamLoad.map((team) => {
+      {rows.map((team) => {
         const total = team.staffed + team.available + team.unavailable
         const rate = Math.round((team.staffed / total) * 100)
         return <li key={team.label}>
@@ -349,7 +355,7 @@ export function TeamLoadChart({ onTeamClick }: { onTeamClick: (label: string) =>
     <ChartTable
       caption="Charge et disponibilité des équipes par département"
       columns={['Département', 'Staffés', 'Disponibles', 'Indisponibles', 'Effectif', 'Taux d’occupation']}
-      rows={teamLoad.map((team) => {
+      rows={rows.map((team) => {
         const total = team.staffed + team.available + team.unavailable
         return [team.label, team.staffed, team.available, team.unavailable, total, `${Math.round((team.staffed / total) * 100)} %`]
       })}
@@ -361,7 +367,10 @@ export function TeamLoadChart({ onTeamClick }: { onTeamClick: (label: string) =>
 // 6. Consommation EHS — jauge semi-circulaire et ventilation par département
 // ---------------------------------------------------------------------------
 
-export function EhsChart({ onDepartmentClick }: { onDepartmentClick: (label: string) => void }) {
+type EhsData = { consumed: number; planned: number; byDepartment: { label: string; consumed: number; planned: number }[] }
+
+export function EhsChart({ onDepartmentClick, data = ehs }: { onDepartmentClick: (label: string) => void; data?: EhsData }) {
+  const ehsRate = data.planned ? Math.round((data.consumed / data.planned) * 100) : 0
   const tone = ehsRate > 90 ? 'danger' : ehsRate >= 75 ? 'warn' : 'ok'
   const color = { ok: DIR_COLORS.green, warn: DIR_COLORS.orange, danger: DIR_COLORS.red }[tone]
   const toneLabel = { ok: 'Sous contrôle', warn: 'À surveiller', danger: 'Dépassement' }[tone]
@@ -381,7 +390,7 @@ export function EhsChart({ onDepartmentClick }: { onDepartmentClick: (label: str
   return <div className="dsh-ehs">
     <div className="dsh-gauge">
       <svg viewBox={`0 0 ${W} ${H}`} className="dsh-svg" role="img"
-        aria-label={`Consommation EHS : ${ehs.consumed.toLocaleString('fr-FR')} EHS consommés sur ${ehs.planned.toLocaleString('fr-FR')} planifiés, soit ${ehsRate} %. Niveau ${toneLabel}.`}>
+        aria-label={`Consommation EHS : ${data.consumed.toLocaleString('fr-FR')} EHS consommés sur ${data.planned.toLocaleString('fr-FR')} planifiés, soit ${ehsRate} %. Niveau ${toneLabel}.`}>
         <path d={arc(0, 1)} fill="none" stroke="#eae5f7" strokeWidth="20" strokeLinecap="round" />
         <path d={arc(0, ehsRate / 100)} fill="none" stroke={color} strokeWidth="20" strokeLinecap="round" />
         <text x={cx} y={cy - 34} className="dsh-donut-value" textAnchor="middle">{ehsRate} %</text>
@@ -389,17 +398,17 @@ export function EhsChart({ onDepartmentClick }: { onDepartmentClick: (label: str
       </svg>
       <p className={`dsh-tag dsh-tag-${tone}`}><i aria-hidden="true">{toneIcon}</i>{toneLabel}</p>
       <dl className="dsh-facts">
-        <div><dt>EHS consommés</dt><dd>{ehs.consumed.toLocaleString('fr-FR')}</dd></div>
-        <div><dt>EHS planifiés</dt><dd>{ehs.planned.toLocaleString('fr-FR')}</dd></div>
-        <div><dt>Reste disponible</dt><dd>{(ehs.planned - ehs.consumed).toLocaleString('fr-FR')}</dd></div>
+        <div><dt>EHS consommés</dt><dd>{data.consumed.toLocaleString('fr-FR')}</dd></div>
+        <div><dt>EHS planifiés</dt><dd>{data.planned.toLocaleString('fr-FR')}</dd></div>
+        <div><dt>Reste disponible</dt><dd>{(data.planned - data.consumed).toLocaleString('fr-FR')}</dd></div>
       </dl>
     </div>
 
     <div className="dsh-breakdown">
       <p className="dsh-subhead">Consommation par département</p>
       <ul>
-        {ehs.byDepartment.map((item) => {
-          const rate = Math.round((item.consumed / item.planned) * 100)
+        {data.byDepartment.map((item) => {
+          const rate = item.planned ? Math.round((item.consumed / item.planned) * 100) : 0
           return <li key={item.label}>
             <button type="button" onClick={() => onDepartmentClick(item.label)}
               aria-label={`${item.label} : ${item.consumed.toLocaleString('fr-FR')} EHS consommés sur ${item.planned.toLocaleString('fr-FR')} planifiés, soit ${rate} %. Ouvrir la gestion des équipes.`}>
@@ -413,7 +422,7 @@ export function EhsChart({ onDepartmentClick }: { onDepartmentClick: (label: str
       <ChartTable
         caption="Consommation EHS par département"
         columns={['Département', 'EHS consommés', 'EHS planifiés', 'Taux']}
-        rows={ehs.byDepartment.map((item) => [item.label, item.consumed, item.planned, `${Math.round((item.consumed / item.planned) * 100)} %`])}
+        rows={data.byDepartment.map((item) => [item.label, item.consumed, item.planned, `${item.planned ? Math.round((item.consumed / item.planned) * 100) : 0} %`])}
       />
     </div>
   </div>

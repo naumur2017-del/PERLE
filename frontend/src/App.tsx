@@ -39,12 +39,6 @@ import TaskMessagesModal from './components/TaskMessagesModal'
 import { useUnreadMessages } from './hooks/useUnreadMessages'
 import { useSystemNotifications } from './hooks/useSystemNotifications'
 
-interface Module {
-  id: number
-  icon: ReactNode
-  title: string
-  description: string
-}
 
 const pageConfig: Record<string, { path: string; title: string; description: string }> = {
   accueil: { path: '/', title: 'Accueil', description: 'Bienvenue dans PERLE, votre système de pilotage intégré.' },
@@ -245,7 +239,21 @@ function App() {
     setMyAssignmentsLoading(true)
     setMyAssignmentsError(null)
     fetchMe()
-      .then((me) => fetchTaskAssignments({ user: me.id }))
+      .then((me) => {
+        if (!cancelled) {
+          // Réhydrate la session (les sessions créées avant l'ajout de ces champs
+          // n'ont ni userId ni managedTeams tant que l'utilisateur ne se reconnecte pas).
+          const managedTeams = me.managed_teams ?? []
+          setSession((prev) => {
+            if (!prev) return prev
+            if (prev.userId === me.id && JSON.stringify(prev.managedTeams ?? []) === JSON.stringify(managedTeams)) return prev
+            const next = { ...prev, userId: me.id, managedTeams }
+            saveSession(next)
+            return next
+          })
+        }
+        return fetchTaskAssignments({ user: me.id })
+      })
       .then((assignments) => {
         if (cancelled) return
         setMyAssignments(assignments)
@@ -437,51 +445,6 @@ function App() {
     { id: 'deconnexion', label: 'Déconnexion', icon: icons.deconnexion },
   ]
 
-  const modules: Module[] = [
-    {
-      id: 1,
-      icon: icons.pilotage,
-      title: 'Pilotage des projets',
-      description: 'Vue globale de l\'ensemble des projets, activités et indicateurs de performance. Consolidez, fonctionnez et réorganisez les lignes.'
-    },
-    {
-      id: 2,
-      icon: icons.creation,
-      title: 'Création de projet',
-      description: 'Créer de nouveaux projets et consulter leur Projet Plan initial (paramètres financiers, activités, lignes budgétaires...).'
-    },
-    {
-      id: 3,
-      icon: icons.staffing,
-      title: 'Staffing',
-      description: 'Affecter les collaborateurs aux lignes budgétaires, ouvrir les staffings en cours de l\'historique des allocations.'
-    },
-    {
-      id: 4,
-      icon: icons.gestion,
-      title: 'Gestion des équipes',
-      description: 'Gérer les équipes, collaborateurs, grades et compétences EHS. Suivre l\'évolution des équipes et des compétences.'
-    },
-    {
-      id: 5,
-      icon: icons.tresorerie,
-      title: 'Trésorerie',
-      description: 'Ordonner et suivre les paiements, transferts et flux financiers. Validation, exécution et suivi par la trésorerie.'
-    },
-    {
-      id: 6,
-      icon: icons.salarie,
-      title: 'Salarié',
-      description: 'Consulter vos fiches de paie, demander des avances, poser des congés et suivre vos EHS et rémunérations.'
-    },
-    {
-      id: 7,
-      icon: icons.architecture,
-      title: 'Architecture',
-      description: 'Gérer les référentiels : architecture des tâches et architecture monétaire (types de dépenses, recettes, transferts...).'
-    },
-  ]
-
   const isHomePage = activeNav === 'accueil'
   const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
   const pageTitle = currentPage.title
@@ -544,7 +507,7 @@ function App() {
       case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
       case 'parametres': return <ParametresPage />
-      default: return <HomePage modules={modules} navigateTo={navigateTo} />
+      default: return <HomePage session={session!} navigateTo={navigateTo} />
     }
   }
 

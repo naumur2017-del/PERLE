@@ -1,7 +1,8 @@
-// Tableau de bord de direction affiché sous la section « Modules » de l'accueil.
-// Destiné au directeur, administrateur d'une entreprise cliente de PERLE.
+// Tableau de bord de direction affiché sur l'accueil du directeur (administrateur d'une
+// entreprise cliente de PERLE). Toutes les données proviennent de l'API d'agrégation
+// (voir backend/accounts/dashboard.py).
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './HomeDashboard.css'
 import { ChartTable, KpiCard, Panel, type PanelState } from '../components/dashboard/DashboardUI'
 import {
@@ -9,10 +10,10 @@ import {
 } from '../components/dashboard/DirectorCharts'
 import { downloadCsv } from '../components/dashboard/chartTools'
 import {
-  DIR_PERIOD_LABELS, cashSeries, deliverableSeries, dirAlerts, dirKpi, financeSeries,
-  formatFcfa, marginPercent, projects, type DirPeriod,
+  DIR_PERIOD_LABELS, formatFcfa, type DirPeriod, type Project,
 } from '../components/dashboard/directorData'
 import { currencySuffix } from '../utils/currency'
+import { fetchDirectionDashboard, type DirectionDashboard } from '../api/dashboard'
 
 const FILTER_KEY = 'perle-direction-filters'
 
@@ -24,35 +25,49 @@ const ALERT_META = {
   info: { label: 'Information', icon: 'ⓘ', tone: 'info' },
 } as const
 
+const toProject = (row: DirectionDashboard['projects'][number]): Project => ({
+  code: row.code, name: row.name, manager: row.manager, progress: row.progress,
+  budgetUsed: row.budget_used, budget: row.budget || 1, margin: row.margin,
+  status: (['En cours', 'À surveiller', 'En retard', 'Terminé'].includes(row.status)
+    ? row.status : 'En cours') as Project['status'],
+  deadline: row.deadline,
+})
+
 export default function HomeDashboard({ navigateTo }: { navigateTo: (page: string) => void }) {
   const stored = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem(FILTER_KEY) ?? '{}') } catch { return {} }
   }, [])
 
   const [period, setPeriod] = useState<DirPeriod>(stored.period ?? 'year')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [data, setData] = useState<DirectionDashboard | null>(null)
   const [refreshedAt, setRefreshedAt] = useState(clock())
   const [collapsed, setCollapsed] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   // Le filtre de période est conservé pendant la session.
   useEffect(() => { sessionStorage.setItem(FILTER_KEY, JSON.stringify({ period })) }, [period])
 
-  const refresh = useCallback(() => {
-    setLoading(true)
-    const timer = setTimeout(() => { setLoading(false); setRefreshedAt(clock()) }, 600)
-    return () => clearTimeout(timer)
-  }, [])
+  useEffect(() => {
+    let cancelled = false
+    fetchDirectionDashboard(period)
+      .then((payload) => { if (!cancelled) { setData(payload); setRefreshedAt(clock()); setError(false) } })
+      .catch(() => { if (!cancelled) setError(true) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [period, reloadKey])
 
-  const changePeriod = (next: DirPeriod) => { setPeriod(next); refresh() }
+  const changePeriod = (next: DirPeriod) => {
+    if (next === period) return
+    setLoading(true); setError(false); setPeriod(next)
+  }
+  const refresh = () => { setLoading(true); setError(false); setReloadKey((key) => key + 1) }
 
-  const data = useMemo(() => ({
-    finance: financeSeries(period),
-    cash: cashSeries(period),
-    deliverables: deliverableSeries(period),
-  }), [period])
-
-  const state: PanelState = loading ? 'loading' : 'ready'
+  const state: PanelState = error ? 'error' : loading || !data ? 'loading' : 'ready'
   const periodLabel = DIR_PERIOD_LABELS[period]
+  const kpi = data?.kpi
+  const projects = useMemo(() => (data?.projects ?? []).map(toProject), [data])
 
   return <section className="dsh-root" aria-labelledby="dsh-title">
     <div className="dsh-head">
@@ -88,40 +103,45 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
       </div>
     </div>
 
+    {error && <div className="dsh-load-error" role="alert">
+      Impossible de charger le tableau de bord.
+      <button type="button" className="dsh-btn" onClick={refresh}>Réessayer</button>
+    </div>}
+
     {!collapsed && <>
     {/* ---------------------------------------------------------------- */}
     {/* Indicateurs de tête                                               */}
     {/* ---------------------------------------------------------------- */}
     <div className="dsh-kpi-grid">
       <KpiCard loading={loading} icon="₣" tone="primary" label="Chiffre d’affaires"
-        value={formatFcfa(dirKpi.revenue)}
-        trend={{ direction: 'up', text: `+${dirKpi.revenueDelta} % vs période précédente`, good: true }}
-        details={`${periodLabel} · 6 projets facturés`}
+        value={formatFcfa(kpi?.revenue ?? 0)}
+        trend={{ direction: (kpi?.revenue_delta ?? 0) >= 0 ? 'up' : 'down', text: `${(kpi?.revenue_delta ?? 0) >= 0 ? '+' : ''}${kpi?.revenue_delta ?? 0} % vs période précédente`, good: (kpi?.revenue_delta ?? 0) >= 0 }}
+        details={`${periodLabel} · ${data?.projects.length ?? 0} projets suivis`}
         onOpen={() => navigateTo('pilotage')} />
       <KpiCard loading={loading} icon="◈" tone="ok" label="Marge nette"
-        value={`${dirKpi.margin} %`}
-        trend={{ direction: 'up', text: `+${dirKpi.marginDelta} pt`, good: true }}
-        details="Objectif annuel : 20 %"
+        value={`${kpi?.margin ?? 0} %`}
+        trend={{ direction: (kpi?.margin_delta ?? 0) >= 0 ? 'up' : 'down', text: `${(kpi?.margin_delta ?? 0) >= 0 ? '+' : ''}${kpi?.margin_delta ?? 0} pt`, good: (kpi?.margin_delta ?? 0) >= 0 }}
+        details="Recettes projets moins dépenses engagées"
         onOpen={() => navigateTo('pilotage')} />
       <KpiCard loading={loading} icon="▤" tone="primary" label="Projets actifs"
-        value={String(dirKpi.activeProjects)}
-        trend={{ direction: 'flat', text: `${dirKpi.watchProjects} à surveiller` }}
-        details="2 livraisons prévues ce mois"
+        value={String(kpi?.active_projects ?? 0)}
+        trend={{ direction: 'flat', text: `${kpi?.watch_projects ?? 0} à surveiller` }}
+        details="Projets définitifs non terminés"
         onOpen={() => navigateTo('pilotage')} />
       <KpiCard loading={loading} icon="☰" tone="warn" label="Taux d’occupation"
-        value={`${dirKpi.occupancy} %`}
-        trend={{ direction: 'flat', text: `${dirKpi.headcount} collaborateurs` }}
-        details="10 collaborateurs disponibles"
+        value={`${kpi?.occupancy ?? 0} %`}
+        trend={{ direction: 'flat', text: `${kpi?.headcount ?? 0} collaborateurs` }}
+        details="Collaborateurs staffés sur l’effectif"
         onOpen={() => navigateTo('staffing')} />
-      <KpiCard loading={loading} icon="◉" tone="ok" label="Trésorerie disponible"
-        value={formatFcfa(dirKpi.cash)}
-        trend={{ direction: 'down', text: `${dirKpi.cashDelta} % vs période précédente`, good: false }}
-        details={`Seuil de confort : 80 M ${currencySuffix()}`}
+      <KpiCard loading={loading} icon="◉" tone="ok" label="Trésorerie estimée"
+        value={formatFcfa(kpi?.cash ?? 0)}
+        trend={{ direction: (kpi?.cash_delta ?? 0) >= 0 ? 'up' : 'down', text: `${kpi?.cash_delta ?? 0} % vs période précédente`, good: (kpi?.cash_delta ?? 0) >= 0 }}
+        details={`Solde projeté · ${currencySuffix()}`}
         onOpen={() => navigateTo('tresorerie')} />
       <KpiCard loading={loading} icon="⛔" tone="danger" label="Tâches en retard"
-        value={String(dirKpi.lateTasks)}
-        trend={{ direction: 'down', text: `${dirKpi.lateTasksDelta} vs période précédente`, good: true }}
-        details="Réparties sur 2 projets"
+        value={String(kpi?.late_tasks ?? 0)}
+        trend={{ direction: 'flat', text: 'Échéance dépassée, non terminées' }}
+        details="Sur l’ensemble des projets"
         onOpen={() => navigateTo('staffing')} />
     </div>
 
@@ -131,59 +151,62 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
     <div className="dsh-grid">
       <Panel className="dsh-col-8" title="Performance financière" subtitle={`Recettes, dépenses et taux de marge · ${periodLabel}`}
         state={state} onRetry={refresh}
-        actions={<button type="button" className="dsh-link" onClick={() => downloadCsv(
+        actions={data && <button type="button" className="dsh-link" onClick={() => downloadCsv(
           'perle-performance-financiere.csv',
-          ['Période', 'Recettes', 'Dépenses', 'Résultat', 'Taux de marge'],
-          data.finance.map((point) => [point.label, point.revenue, point.costs, point.revenue - point.costs, `${marginPercent(point).toFixed(1)} %`]),
+          ['Période', 'Recettes', 'Dépenses', 'Résultat'],
+          data.finance.map((point) => [point.label, point.revenue, point.costs, point.revenue - point.costs]),
         )}>Export CSV</button>}>
-        <FinanceChart data={data.finance} onPointClick={() => navigateTo('pilotage')} />
+        {data && <FinanceChart data={data.finance} onPointClick={() => navigateTo('pilotage')} />}
       </Panel>
 
       <Panel className="dsh-col-4" title="Répartition du budget" subtitle="Par nature de charge ou par département"
         state={state} onRetry={refresh}>
-        <BudgetDonut onSliceClick={() => navigateTo('architecture')} />
+        {data && <BudgetDonut nature={data.budget_by_nature} department={data.budget_by_department} onSliceClick={() => navigateTo('architecture')} />}
       </Panel>
 
       <Panel className="dsh-col-5" title="Portefeuille de projets" subtitle="Avancement comparé à la consommation budgétaire"
         state={state} onRetry={refresh}
         footer={<button type="button" className="dsh-btn dsh-btn-block" onClick={() => navigateTo('pilotage')}>Voir tous les projets</button>}>
-        <PortfolioChart onProjectClick={() => navigateTo('pilotage')} />
+        {data && <PortfolioChart items={projects} onProjectClick={() => navigateTo('pilotage')} />}
       </Panel>
 
-      <Panel className="dsh-col-7" title="Trésorerie" subtitle={`Solde et flux nets · ${periodLabel}`}
+      <Panel className="dsh-col-7" title="Trésorerie" subtitle={`Solde et flux nets estimés · ${periodLabel}`}
         state={state} onRetry={refresh}
-        actions={<button type="button" className="dsh-link" onClick={() => downloadCsv(
+        actions={data && <button type="button" className="dsh-link" onClick={() => downloadCsv(
           'perle-tresorerie.csv',
           ['Période', 'Encaissements', 'Décaissements', 'Solde'],
           data.cash.map((point) => [point.label, point.inflow, point.outflow, point.balance]),
         )}>Export CSV</button>}
         footer={<button type="button" className="dsh-btn dsh-btn-block" onClick={() => navigateTo('tresorerie')}>Ouvrir la trésorerie</button>}>
-        <CashChart data={data.cash} onPointClick={() => navigateTo('tresorerie')} />
+        {data && <CashChart data={data.cash} onPointClick={() => navigateTo('tresorerie')} />}
       </Panel>
 
       <Panel className="dsh-col-7" title="Consommation EHS" subtitle="Volume de ressources consommé face au volume planifié"
         state={state} onRetry={refresh}>
-        <EhsChart onDepartmentClick={() => navigateTo('gestion')} />
+        {data && <EhsChart data={{ consumed: data.ehs.consumed, planned: data.ehs.planned, byDepartment: data.ehs.by_department }} onDepartmentClick={() => navigateTo('gestion')} />}
       </Panel>
 
       <Panel className="dsh-col-5" title="Charge des équipes" subtitle="Collaborateurs staffés, disponibles et indisponibles"
         state={state} onRetry={refresh}
         footer={<button type="button" className="dsh-btn dsh-btn-block" onClick={() => navigateTo('staffing')}>Ouvrir le staffing</button>}>
-        <TeamLoadChart onTeamClick={() => navigateTo('staffing')} />
+        {data && <TeamLoadChart rows={data.team_load} onTeamClick={() => navigateTo('staffing')} />}
       </Panel>
 
       <Panel className="dsh-col-8" title="Livrables et échéances" subtitle={`Livrés, en cours et en retard · ${periodLabel}`}
         state={state} onRetry={refresh}>
-        <DeliverablesChart data={data.deliverables} onBucketClick={() => navigateTo('pilotage')} />
+        {data && <DeliverablesChart
+          data={data.deliverables.map((point) => ({ label: point.label, delivered: point.delivered, inProgress: point.in_progress, late: point.late }))}
+          onBucketClick={() => navigateTo('pilotage')} />}
       </Panel>
 
       {/* ------------------------------------------------------------ */}
       {/* Alertes de direction                                          */}
       {/* ------------------------------------------------------------ */}
-      <Panel className="dsh-col-4" title="Alertes de direction" subtitle={`${dirAlerts.filter((alert) => alert.level === 'high').length} points de vigilance élevés`}
-        state={state} onRetry={refresh}>
+      <Panel className="dsh-col-4" title="Alertes de direction" subtitle={`${(data?.alerts ?? []).filter((alert) => alert.level === 'high').length} points de vigilance élevés`}
+        state={state} onRetry={refresh}
+        emptyLabel="Aucune alerte sur la période.">
         <ul className="dsh-alerts">
-          {dirAlerts.map((alert) => {
+          {(data?.alerts ?? []).map((alert) => {
             const meta = ALERT_META[alert.level]
             return <li key={alert.id} className={`dsh-alert dsh-alert-${meta.tone}`}>
               <span className={`dsh-tag dsh-tag-${meta.tone}`}><i aria-hidden="true">{meta.icon}</i>{meta.label}</span>
@@ -192,6 +215,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
               <button type="button" className="dsh-link" onClick={() => navigateTo(alert.target)}>Ouvrir le module concerné →</button>
             </li>
           })}
+          {data && data.alerts.length === 0 && <li className="dsh-alert dsh-alert-info"><p>Aucune alerte sur la période.</p></li>}
         </ul>
       </Panel>
     </div>
@@ -199,9 +223,9 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
     {/* ---------------------------------------------------------------- */}
     {/* Projets prioritaires                                              */}
     {/* ---------------------------------------------------------------- */}
-    <Panel title="Projets prioritaires" subtitle="Les six projets les plus engagés de l’exercice"
+    <Panel title="Projets prioritaires" subtitle="Les projets les plus engagés de l’exercice"
       state={state} onRetry={refresh}
-      actions={<button type="button" className="dsh-link" onClick={() => downloadCsv(
+      actions={data && <button type="button" className="dsh-link" onClick={() => downloadCsv(
         'perle-projets-prioritaires.csv',
         ['Code', 'Projet', 'Responsable', 'Avancement', 'Budget consommé', 'Budget', 'Marge', 'Statut', 'Échéance'],
         projects.map((project) => [project.code, project.name, project.manager, `${project.progress} %`, project.budgetUsed, project.budget, `${project.margin} %`, project.status, project.deadline]),
@@ -238,16 +262,16 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
           })}</tbody>
         </table>
       </div>
-      <ChartTable
+      {data && <ChartTable
         caption="Synthèse chiffrée du portefeuille"
         columns={['Indicateur', 'Valeur']}
         rows={[
           ['Budget total engagé', formatFcfa(projects.reduce((sum, project) => sum + project.budget, 0))],
           ['Budget consommé', formatFcfa(projects.reduce((sum, project) => sum + project.budgetUsed, 0))],
-          ['Avancement moyen', `${Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / projects.length)} %`],
-          ['Projets en difficulté', String(projects.filter((project) => project.status !== 'En cours').length)],
+          ['Avancement moyen', `${projects.length ? Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / projects.length) : 0} %`],
+          ['Projets en difficulté', String(projects.filter((project) => project.status !== 'En cours' && project.status !== 'Terminé').length)],
         ]}
-      />
+      />}
     </Panel>
     </>}
   </section>

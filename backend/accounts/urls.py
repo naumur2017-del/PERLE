@@ -2,8 +2,11 @@ from django.urls import path
 
 from . import views
 from . import paiements
+from . import dashboard
 
 urlpatterns = [
+    path('dashboard/direction/', dashboard.DirectionDashboardView.as_view()),
+    path('dashboard/manager/', dashboard.ManagerDashboardView.as_view()),
     path('paiements/', paiements.PaiementListView.as_view()),
     path('paiements/<int:pk>/', paiements.PaiementDetailView.as_view()),
     path('paiements/<int:pk>/decision/', paiements.PaiementDecisionView.as_view()),

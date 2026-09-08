@@ -25,6 +25,7 @@ type UserSummary = {
   pays: string
   ville: string
   team: { id: number; code: string; name: string } | null
+  managed_teams: { id: number; code: string; name: string }[]
 }
 type AuthResponse = { token: string; user: UserSummary }
 
@@ -109,6 +110,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
   const authenticated = (response: AuthResponse) => {
     const session: Session = {
       token: response.token,
+      userId: response.user.id,
       role: response.user.role,
       email: response.user.email,
       firstName: response.user.first_name,
@@ -122,6 +124,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
       pays: response.user.pays,
       ville: response.user.ville,
       team: response.user.team,
+      managedTeams: response.user.managed_teams ?? [],
     }
     saveSession(session)
     onLogin(session)

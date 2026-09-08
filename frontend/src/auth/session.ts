@@ -10,6 +10,7 @@ export type TeamSummary = {
 
 export type Session = {
   token: string
+  userId: number
   role: UserRole
   email: string
   firstName: string
@@ -24,6 +25,8 @@ export type Session = {
   pays: string
   ville: string
   team: TeamSummary | null
+  /* Équipes dont l'utilisateur est le manager — pilote l'affichage du tableau de bord manager. */
+  managedTeams: TeamSummary[]
 }
 
 export function saveSession(session: Session): void {

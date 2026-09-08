@@ -1,0 +1,18 @@
+/* Le tableau de bord manager partage la feuille de styles des composants de
+   dashboard (« dsh-* »). Ce fichier ajoute les quelques éléments propres à la
+   vue manager et respecte la convention « une page, sa feuille homonyme »
+   vérifiée par scripts/check-page-structure.mjs. */
+
+@import '../components/dashboard/dashboard.css';
+
+.mgr-team-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--dsh-border-strong);
+  border-radius: 8px;
+  background: var(--dsh-surface);
+  color: var(--dsh-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.mgr-team-select:focus-visible { outline: 2px solid var(--dsh-primary); outline-offset: 1px; }

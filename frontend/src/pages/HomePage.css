@@ -1,5 +1,30 @@
 .home-page { animation: page-enter 180ms ease-out; }
-.clickable-module-card { cursor: pointer; }
-.clickable-module-card:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }
-.clickable-module-card:hover .acceder-btn { color: var(--primary-dark); transform: translateX(4px); }
 @keyframes page-enter { from { opacity: 0; transform: translateY(4px); } }
+
+/* Bascule Direction / Manager en tête de l'accueil du directeur. */
+.home-dashboards { display: flex; flex-direction: column; gap: 12px; }
+.home-dash-tabs { align-self: flex-start; max-width: 100%; }
+
+/* Accueil épuré pour un salarié sans tableau de bord. */
+.home-welcome { display: flex; flex-direction: column; gap: 24px; }
+.home-welcome-intro h2 { margin: 4px 0; font-size: 1.6rem; }
+.home-welcome-intro p { margin: 0; color: var(--text-muted, #5b6072); }
+.home-welcome-eyebrow {
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--primary, #6b46c1);
+}
+.home-welcome-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.home-welcome-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 18px;
+  text-align: left; cursor: pointer;
+  background: var(--surface, #fff); border: 1px solid var(--border, #e6e4ef);
+  border-radius: 14px; transition: border-color 140ms ease, transform 140ms ease;
+}
+.home-welcome-card:hover { border-color: var(--primary-light, #a78bfa); transform: translateY(-2px); }
+.home-welcome-card:focus-visible { outline: 3px solid var(--primary-light, #a78bfa); outline-offset: 3px; }
+.home-welcome-card h3 { margin: 0; font-size: 1rem; }
+.home-welcome-card p { margin: 0; font-size: 0.85rem; color: var(--text-muted, #5b6072); }
+.home-welcome-card .acceder-btn { margin-top: auto; color: var(--primary, #6b46c1); font-weight: 600; font-size: 0.85rem; }
