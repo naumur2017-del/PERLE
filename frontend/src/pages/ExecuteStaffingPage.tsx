@@ -152,11 +152,13 @@ interface ExecuteStaffingPageProps {
   // sans ça, la tâche en cours/en pause resterait invisible tant qu'on est sur l'onglet
   // « À démarrer » par défaut.
   focusCode?: string | null
+  // Id de tâche à ouvrir directement (ex. depuis une notification « une tâche vous a été attribuée »).
+  focusTaskId?: number | null
   onFocusConsumed?: () => void
 }
 
 export default function ExecuteStaffingPage({
-  navigateTo, assignments, loading, loadError, onAssignmentUpdate, onAssignmentRemove, focusCode, onFocusConsumed,
+  navigateTo, assignments, loading, loadError, onAssignmentUpdate, onAssignmentRemove, focusCode, focusTaskId, onFocusConsumed,
 }: ExecuteStaffingPageProps) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
@@ -218,17 +220,19 @@ export default function ExecuteStaffingPage({
   // invisible sous « À démarrer », l'onglet par défaut) quand on arrive via une demande externe
   // (ex. le « Voir » du minuteur flottant). N'agit qu'une fois les données chargées.
   useEffect(() => {
-    if (!focusCode || loading) return
-    const assignment = assignments.find((a) => a.task_code === focusCode)
+    if ((!focusCode && focusTaskId == null) || loading) return
+    const assignment = assignments.find((a) => (
+      (focusCode != null && a.task_code === focusCode) || (focusTaskId != null && a.task === focusTaskId)
+    ))
     if (assignment) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusCode), pas dérivé du rendu
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusCode/focusTaskId), pas dérivé du rendu
       setPageTab('mes-taches')
       setActiveTab(assignment.execution_statut)
       handleSelect(assignment)
     }
     onFocusConsumed?.()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSelect est stable pour ce composant ; ne doit réagir qu'à focusCode/loading/assignments
-  }, [focusCode, loading, assignments])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSelect est stable pour ce composant ; ne doit réagir qu'à focusCode/focusTaskId/loading/assignments
+  }, [focusCode, focusTaskId, loading, assignments])
 
   const closePanel = () => {
     setPanelClosing(true)

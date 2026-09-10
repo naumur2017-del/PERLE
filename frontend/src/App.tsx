@@ -162,6 +162,7 @@ function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [pilotageFocus, setPilotageFocus] = useState<PilotageFocusTarget | null>(null)
   const [executeFocusCode, setExecuteFocusCode] = useState<string | null>(null)
+  const [executeFocusTaskId, setExecuteFocusTaskId] = useState<number | null>(null)
   const mainContentRef = useRef<HTMLElement>(null)
 
   const addNotification = (message: string) => {
@@ -527,7 +528,8 @@ function App() {
           onAssignmentUpdate={applyAssignmentUpdate}
           onAssignmentRemove={removeMyAssignment}
           focusCode={executeFocusCode}
-          onFocusConsumed={() => setExecuteFocusCode(null)}
+          focusTaskId={executeFocusTaskId}
+          onFocusConsumed={() => { setExecuteFocusCode(null); setExecuteFocusTaskId(null) }}
         />
       )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
@@ -766,7 +768,15 @@ function App() {
                         <li
                           key={`sys-${notification.id}`}
                           className="notification-link"
-                          onClick={() => { navigateTo('salarie'); setNotificationsOpen(false) }}
+                          onClick={() => {
+                            if (notification.cible_type === 'task' && notification.cible_id != null) {
+                              setExecuteFocusTaskId(notification.cible_id)
+                              navigateTo('staffing-execute')
+                            } else {
+                              navigateTo('salarie')
+                            }
+                            setNotificationsOpen(false)
+                          }}
                         >
                           <span>🔔 {notification.message}</span>
                           <small>{new Date(notification.created_at).toLocaleString('fr-FR')}</small>

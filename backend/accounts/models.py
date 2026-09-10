@@ -1095,6 +1095,10 @@ class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     message = models.CharField(max_length=255)
     lue = models.BooleanField(default=False)
+    # Cible de navigation facultative : quand elle est renseignée, cliquer sur la notification
+    # renvoie l'utilisateur vers l'objet concerné (ex. cible_type='task', cible_id=<Task.id>).
+    cible_type = models.CharField(max_length=20, blank=True)
+    cible_id = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -387,10 +387,14 @@
 
 /* --- Sections et grille 12 colonnes -------------------------------------- */
 
-.adm-section { margin-bottom: 26px; }
+.adm-section { margin-bottom: 20px; }
 .adm-section-title { margin-bottom: 12px; font-size: 14px; font-weight: 700; letter-spacing: -.1px; }
 
-.adm-grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+/* `stretch` (au lieu de `start`) : deux widgets d'une même rangée prennent la hauteur du plus
+   grand, plus aucun trou dans la grille sous le plus court. Le contenu de chaque carte remplit
+   ensuite la hauteur disponible (voir .adm-widget-body). */
+.adm-grid-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.adm-grid-12 > .adm-section-title { align-self: start; }
 .adm-col-4 { grid-column: span 4; }
 .adm-col-5 { grid-column: span 5; }
 .adm-col-7 { grid-column: span 7; }
@@ -485,19 +489,29 @@
 .adm-widget-head h3 { font-size: 13px; font-weight: 700; }
 .adm-widget-head p { margin-top: 2px; color: var(--adm-muted); font-size: 11px; }
 .adm-widget-actions { display: flex; gap: 10px; flex-shrink: 0; }
-.adm-widget-body { padding: 14px 16px; }
+/* Le corps absorbe toute la hauteur que la carte gagne en s'alignant sur sa voisine ;
+   son contenu principal (graphique, tableau, liste) est ensuite étiré pour occuper cet espace. */
+.adm-widget-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px; }
+.adm-widget-body > .adm-chart-host,
+.adm-widget-body > .adm-storage,
+.adm-widget-body > .adm-table-scroll,
+.adm-widget-body > .adm-alerts { flex: 1 1 auto; min-height: 0; }
+/* Un tableau plus court que la carte voisine se centre au lieu de laisser un vide en bas. */
+.adm-widget-body > .adm-table-scroll { display: flex; flex-direction: column; justify-content: center; }
 .adm-widget-foot { padding: 10px 16px 14px; border-top: 1px solid var(--adm-border); background: var(--adm-surface-2); }
 
-.adm-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 20px 16px; }
+.adm-skeleton { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 20px 16px; }
 .adm-skeleton-chart i { height: 200px; border-radius: var(--adm-radius-sm); }
 .adm-skeleton-table i:nth-child(odd) { width: 92%; }
 .adm-skeleton-table i:nth-child(even) { width: 74%; }
 .adm-skeleton-list i { height: 34px; }
 
 .adm-widget-fallback {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 34px 20px;
   text-align: center;
@@ -513,7 +527,9 @@
 
 /* --- Graphiques ---------------------------------------------------------- */
 
-.adm-chart-host { position: relative; }
+/* Le graphique se centre verticalement dans la carte : l'espace gagné par l'alignement
+   se répartit symétriquement au lieu de laisser un vide sous le tracé. */
+.adm-chart-host { position: relative; display: flex; flex-direction: column; justify-content: center; }
 .adm-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .adm-grid { stroke: #edf0f6; stroke-width: 1; }
 .adm-axis { fill: var(--adm-muted); font-size: 10px; }
@@ -581,7 +597,7 @@
 .adm-down { color: var(--adm-green); }
 
 /* Jauge de stockage */
-.adm-storage { display: grid; gap: 16px; }
+.adm-storage { display: grid; gap: 16px; align-content: center; }
 .adm-gauge { text-align: center; }
 .adm-gauge .adm-svg { max-width: 300px; margin: 0 auto; }
 .adm-gauge-value { fill: var(--adm-text); font-size: 30px; font-weight: 700; }
@@ -755,7 +771,7 @@
 }
 .adm-alert-filters button.is-active { border-color: var(--adm-blue); background: var(--adm-blue-soft); color: var(--adm-blue-dark); font-weight: 700; }
 
-.adm-alerts { display: flex; flex-direction: column; gap: 10px; max-height: 620px; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
+.adm-alerts { display: flex; flex-direction: column; gap: 10px; max-height: 460px; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
 .adm-alert { padding: 11px 12px; border: 1px solid var(--adm-border); border-left: 3px solid var(--adm-muted); border-radius: var(--adm-radius-sm); background: var(--adm-surface); }
 .adm-alert-critical { border-left-color: var(--adm-red); background: var(--adm-red-soft); }
 .adm-alert-high { border-left-color: var(--adm-orange); background: var(--adm-orange-soft); }
@@ -769,8 +785,11 @@
 
 /* --- Actions rapides ----------------------------------------------------- */
 
-.adm-quick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+/* Flex plutôt que grille : les cartes de la dernière rangée s'étirent pour occuper toute
+   la largeur, sans cellule vide en fin de ligne. */
+.adm-quick-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .adm-quick {
+  flex: 1 1 260px;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -953,7 +972,7 @@
   .adm-page-title h1 { font-size: 19px; }
   .adm-filters { align-items: stretch; flex-direction: column; }
   .adm-segmented { flex-wrap: wrap; }
-  .adm-quick-grid { grid-template-columns: 1fr; }
+  .adm-quick { flex-basis: 100%; }
   .adm-donut-layout { justify-content: center; }
   .adm-detail-list > div { grid-template-columns: 1fr; gap: 2px; }
   .adm-diff { grid-template-columns: 1fr; }

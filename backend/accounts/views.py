@@ -583,8 +583,8 @@ class OrganisationCongeDemandeListView(generics.ListAPIView):
         return qs.select_related('employee', 'reviewed_by')
 
 
-def _notify(user, message):
-    Notification.objects.create(user=user, message=message)
+def _notify(user, message, cible_type='', cible_id=None):
+    Notification.objects.create(user=user, message=message, cible_type=cible_type, cible_id=cible_id)
 
 
 class CongeDemandeReviewView(generics.UpdateAPIView):
@@ -1129,7 +1129,14 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
         task = serializer.validated_data.get('task')
         if task and not _can_manage_task(self.request.user, task):
             raise PermissionDenied('Vous n’êtes pas autorisé à staffer cette tâche.')
-        serializer.save()
+        assignment = serializer.save()
+        assignee = assignment.user
+        if assignee and assignee.id != self.request.user.id:
+            _notify(
+                assignee,
+                f'Une tâche vous a été attribuée : {assignment.task.code} — {assignment.task.template.nom}.',
+                cible_type='task', cible_id=assignment.task_id,
+            )
 
 
 class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1189,6 +1196,17 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
         action = request.data.get('action')
         if action not in ('demarrer', 'pause', 'reprendre', 'terminer', 'decliner'):
             raise ValidationError({'action': 'Action invalide.'})
+        task = assignment.task
+
+        def _notify_manager(verbe):
+            manager = task.equipe.manager
+            if manager and manager.id != user.id:
+                membre = f'{user.first_name} {user.last_name}'.strip() or user.email
+                _notify(
+                    manager,
+                    f'{membre} a {verbe} la tâche {task.code} — {task.template.nom}.',
+                    cible_type='task', cible_id=task.id,
+                )
 
         if action == 'demarrer':
             if assignment.execution_statut != 'a_demarrer':
@@ -1196,12 +1214,14 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
             assignment.execution_statut = 'en_cours'
             assignment.demarree_le = timezone.now()
             assignment.save(update_fields=['execution_statut', 'demarree_le'])
+            _notify_manager('démarré')
         elif action == 'pause':
             if assignment.execution_statut != 'en_cours':
                 raise ValidationError({'detail': 'Cette tâche n’est pas en cours d’exécution.'})
             assignment.temps_travaille_secondes += _segment_seconds(assignment.demarree_le)
             assignment.execution_statut = 'en_pause'
             assignment.save(update_fields=['execution_statut', 'temps_travaille_secondes'])
+            _notify_manager('mis en pause')
         elif action == 'reprendre':
             if assignment.execution_statut != 'en_pause':
                 raise ValidationError({'detail': 'Cette tâche n’est pas en pause.'})
@@ -1210,6 +1230,7 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
             # tout ce qui a été accumulé avant cette pause.
             assignment.demarree_le = timezone.now()
             assignment.save(update_fields=['execution_statut', 'demarree_le'])
+            _notify_manager('repris')
         elif action == 'terminer':
             if assignment.execution_statut not in ('en_cours', 'en_pause'):
                 raise ValidationError({'detail': 'Cette tâche doit être démarrée avant de pouvoir être terminée.'})
@@ -1218,11 +1239,12 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
             assignment.execution_statut = 'terminee'
             assignment.terminee_le = timezone.now()
             assignment.save(update_fields=['execution_statut', 'terminee_le', 'temps_travaille_secondes'])
+            _notify_manager('terminé')
         elif action == 'decliner':
             if assignment.execution_statut == 'terminee':
                 raise ValidationError({'detail': 'Cette tâche est déjà terminée.'})
-            task = assignment.task
             assignment.delete()
+            _notify_manager('décliné')
             return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
 
         return Response(TaskAssignmentSerializer(assignment, context=self.get_serializer_context()).data)

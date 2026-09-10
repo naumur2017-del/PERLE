@@ -34,6 +34,8 @@ export interface SystemNotification {
   id: number
   message: string
   lue: boolean
+  cible_type: string
+  cible_id: number | null
   created_at: string
 }
 

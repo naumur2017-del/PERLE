@@ -862,7 +862,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     voir Notification et _notify dans les vues."""
     class Meta:
         model = Notification
-        fields = ['id', 'message', 'lue', 'created_at']
+        fields = ['id', 'message', 'lue', 'cible_type', 'cible_id', 'created_at']
         read_only_fields = fields
 
 
