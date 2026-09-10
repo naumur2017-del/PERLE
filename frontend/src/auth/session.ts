@@ -27,6 +27,8 @@ export type Session = {
   team: TeamSummary | null
   /* Équipes dont l'utilisateur est le manager — pilote l'affichage du tableau de bord manager. */
   managedTeams: TeamSummary[]
+  /* Fonctionnalités autorisées (voir auth/permissions.ts et backend accounts/access.py). */
+  permissions: string[]
 }
 
 export function saveSession(session: Session): void {

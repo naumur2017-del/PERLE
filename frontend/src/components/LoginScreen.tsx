@@ -26,6 +26,7 @@ type UserSummary = {
   ville: string
   team: { id: number; code: string; name: string } | null
   managed_teams: { id: number; code: string; name: string }[]
+  permissions: string[]
 }
 type AuthResponse = { token: string; user: UserSummary }
 
@@ -125,6 +126,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
       ville: response.user.ville,
       team: response.user.team,
       managedTeams: response.user.managed_teams ?? [],
+      permissions: response.user.permissions ?? [],
     }
     saveSession(session)
     onLogin(session)

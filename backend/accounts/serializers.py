@@ -36,6 +36,7 @@ from .models import (
     next_project_ligne_code,
     next_task_code,
 )
+from .access import feature_permissions
 from .holidays_utils import sync_public_holidays
 
 
@@ -135,17 +136,22 @@ class UserSummarySerializer(serializers.ModelSerializer):
     # Équipes dont l'utilisateur est le manager — permet à l'accueil d'afficher le
     # tableau de bord manager (voir accounts/dashboard.py).
     managed_teams = serializers.SerializerMethodField()
+    # Fonctionnalités autorisées pour cet utilisateur (voir accounts/access.py).
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role', 'organisation',
             'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'team',
-            'managed_teams',
+            'managed_teams', 'permissions',
         ]
 
     def get_managed_teams(self, obj):
         return TeamSummarySerializer(obj.teams_managed.all(), many=True).data
+
+    def get_permissions(self, obj):
+        return feature_permissions(obj)
 
 
 class RegisterPersonalOrganisationSerializer(serializers.Serializer):
@@ -513,6 +519,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
     departement = serializers.SerializerMethodField()
     responsable_hierarchique = serializers.SerializerMethodField()
     managed_teams = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -520,7 +527,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
             'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
-            'departement', 'responsable_hierarchique', 'managed_teams', 'date_embauche', 'type_contrat',
+            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions', 'date_embauche', 'type_contrat',
             'periode_essai', 'temps_travail', 'anciennete',
             'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
@@ -528,11 +535,14 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'role', 'organisation', 'team', 'date_joined', 'statut', 'grade',
-            'departement', 'responsable_hierarchique', 'managed_teams',
+            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions',
         ]
 
     def get_managed_teams(self, obj):
         return TeamSummarySerializer(obj.teams_managed.all(), many=True).data
+
+    def get_permissions(self, obj):
+        return feature_permissions(obj)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():

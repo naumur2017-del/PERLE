@@ -238,3 +238,12 @@
 @media (max-width: 900px) {
   .eq-detail-panel { padding: 14px 14px 18px; }
 }
+
+/* Gestion des rôles : bandeau lecture seule quand l'utilisateur ne peut pas modifier les équipes. */
+.eq-readonly-banner {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 14px; padding: 10px 14px;
+  background: #f7f5ff; border: 1px solid #ddd8f2; border-radius: 8px;
+  color: #5b3aa8; font-size: 12.5px; font-weight: 600;
+}
+.eq-row-action-none { color: #b8b4d0; }

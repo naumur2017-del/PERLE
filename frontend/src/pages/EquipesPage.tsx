@@ -10,6 +10,8 @@ import {
 } from '../api/employees'
 import { fetchOrganisationLevels, updateOrganisationLevels } from '../api/organisation'
 import { ApiError } from '../api/client'
+import { can } from '../auth/permissions'
+import type { Session } from '../auth/session'
 import './GestionEquipesPage.css'
 import './EquipesPage.css'
 
@@ -334,7 +336,10 @@ function AddMemberPicker({ employees, onAdd, onCancel }: { employees: Employee[]
   )
 }
 
-export default function EquipesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function EquipesPage({ navigateTo, session }: { navigateTo: (page: string) => void; session: Session | null }) {
+  // Lecture ouverte à tous ; création / modification / suppression réservées au directeur, au
+  // Pilotage et aux Ressources (voir auth/permissions.ts, backend accounts/access.py).
+  const canManage = can(session, 'equipes:manage')
   const [equipes, setEquipes] = useState<Team[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
@@ -487,22 +492,28 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
           <span className="eq-title-icon"><Users2 size={20} /></span>
           <div>
             <h1>Équipes</h1>
-            <p>Création et gestion des équipes de l'organisation.</p>
+            <p>{canManage ? "Création et gestion des équipes de l'organisation." : "Consultation des équipes de l'organisation."}</p>
           </div>
         </div>
-        <button type="button" className="ge-btn-primary" onClick={() => setShowCreateModal(true)}><Plus size={14} />Créer une équipe</button>
+        {canManage && <button type="button" className="ge-btn-primary" onClick={() => setShowCreateModal(true)}><Plus size={14} />Créer une équipe</button>}
       </div>
+
+      {!canManage && (
+        <p className="eq-readonly-banner"><Lock size={13} strokeWidth={2} />Lecture seule — seuls le directeur, le Pilotage et les Ressources peuvent modifier les équipes.</p>
+      )}
 
       <div className="eq-levels-bar">
         <span className="eq-levels-label"><Layers size={14} />Niveaux dans l'organigramme : <strong>{levelsCount}</strong></span>
-        <div className="eq-levels-actions">
-          <button type="button" className="eq-levels-btn" onClick={handleRemoveLevel} disabled={levelsBusy || levelsCount <= 4} title="Retirer le dernier niveau">
-            <Minus size={13} />Retirer un niveau
-          </button>
-          <button type="button" className="eq-levels-btn" onClick={handleAddLevel} disabled={levelsBusy} title="Ajouter un niveau">
-            <Plus size={13} />Ajouter un niveau
-          </button>
-        </div>
+        {canManage && (
+          <div className="eq-levels-actions">
+            <button type="button" className="eq-levels-btn" onClick={handleRemoveLevel} disabled={levelsBusy || levelsCount <= 4} title="Retirer le dernier niveau">
+              <Minus size={13} />Retirer un niveau
+            </button>
+            <button type="button" className="eq-levels-btn" onClick={handleAddLevel} disabled={levelsBusy} title="Ajouter un niveau">
+              <Plus size={13} />Ajouter un niveau
+            </button>
+          </div>
+        )}
         {levelsError && <p className="eq-levels-error">{levelsError}</p>}
       </div>
 
@@ -582,9 +593,9 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                         <td className="eq-count">{equipe.members.length}</td>
                         <td className={`eq-count ${actifs < equipe.members.length ? 'eq-count-warn' : ''}`}>{actifs}</td>
                         <td onClick={(e) => e.stopPropagation()}>
-                          {equipe.is_protected ? (
-                            <span className="eq-level-locked" title="Le niveau de cette équipe protégée ne peut pas être modifié.">
-                              <Lock size={11} strokeWidth={2} />Niveau {equipe.niveau}
+                          {equipe.is_protected || !canManage ? (
+                            <span className="eq-level-locked" title={equipe.is_protected ? 'Le niveau de cette équipe protégée ne peut pas être modifié.' : undefined}>
+                              {equipe.is_protected && <Lock size={11} strokeWidth={2} />}Niveau {equipe.niveau}
                             </span>
                           ) : (
                             <select
@@ -600,11 +611,13 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <div className="eq-row-actions">
-                            <TeamRowMenu
-                              team={equipe}
-                              onEdit={() => setEditingTeamId(equipe.id)}
-                              onDelete={() => handleDeleteEquipe(equipe)}
-                            />
+                            {canManage
+                              ? <TeamRowMenu
+                                  team={equipe}
+                                  onEdit={() => setEditingTeamId(equipe.id)}
+                                  onDelete={() => handleDeleteEquipe(equipe)}
+                                />
+                              : <span className="eq-row-action-none">—</span>}
                           </div>
                         </td>
                       </tr>
@@ -614,7 +627,7 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                             <div className="eq-detail-panel">
                               <div className="eq-detail-panel-head">
                                 <span className="eq-detail-panel-title"><Users2 size={14} />Membres de l'équipe</span>
-                                {addingMemberFor === equipe.id ? (
+                                {canManage && (addingMemberFor === equipe.id ? (
                                   <AddMemberPicker
                                     employees={disponibles}
                                     onAdd={(userId) => handleAddMember(equipe.id, userId)}
@@ -622,13 +635,13 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                                   />
                                 ) : (
                                   <button type="button" className="eq-add-member-btn" onClick={() => setAddingMemberFor(equipe.id)}><UserPlus size={13} />Ajouter un membre</button>
-                                )}
+                                ))}
                               </div>
                               <div className="eq-members-table-wrap">
                                 <table className="eq-members-table">
                                   <thead>
                                     <tr>
-                                      <th>Matricule</th><th>Employé</th><th>Fonction</th><th>Rôle dans l'équipe</th><th>Statut</th><th></th>
+                                      <th>Matricule</th><th>Employé</th><th>Fonction</th><th>Rôle dans l'équipe</th><th>Statut</th>{canManage && <th></th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -644,13 +657,15 @@ export default function EquipesPage({ navigateTo }: { navigateTo: (page: string)
                                         <td>{m.fonction || 'Sans fonction'}</td>
                                         <td><span className={`eq-role-pill ${!m.is_manager ? 'eq-role-pill-muted' : ''}`}>{m.is_manager ? 'Manager' : 'Membre'}</span></td>
                                         <td><span className={`eq-pill ${m.statut === 'actif' ? 'eq-pill-actif' : 'eq-pill-inactif'}`}>{m.statut === 'actif' ? 'Actif' : m.statut === 'conge' ? 'En congé' : 'Inactif'}</span></td>
-                                        <td>
-                                          <button type="button" className="eq-row-action" aria-label={`Retirer ${nomComplet(m)}`} onClick={() => handleRemoveMember(equipe.id, m.id)}><X size={13} /></button>
-                                        </td>
+                                        {canManage && (
+                                          <td>
+                                            <button type="button" className="eq-row-action" aria-label={`Retirer ${nomComplet(m)}`} onClick={() => handleRemoveMember(equipe.id, m.id)}><X size={13} /></button>
+                                          </td>
+                                        )}
                                       </tr>
                                     ))}
                                     {equipe.members.length === 0 && (
-                                      <tr><td colSpan={6} className="eq-empty-row">Aucun membre pour le moment.</td></tr>
+                                      <tr><td colSpan={canManage ? 6 : 5} className="eq-empty-row">Aucun membre pour le moment.</td></tr>
                                     )}
                                   </tbody>
                                 </table>

@@ -160,6 +160,7 @@ export interface MeProfile {
   organisation: OrganisationSummary | null
   team: TeamSummary | null
   managed_teams: TeamSummary[]
+  permissions: string[]
   profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null

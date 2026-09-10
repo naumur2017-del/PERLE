@@ -33,6 +33,7 @@ import ModulePage from './pages/ModulePage'
 import LoginScreen from './components/LoginScreen'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import { clearSession, getSession, saveSession, type Session } from './auth/session'
+import { can, type Feature } from './auth/permissions'
 import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment } from './api/taskAssignments'
 import { fetchMe, sendHeartbeat } from './api/employees'
 import TaskMessagesModal from './components/TaskMessagesModal'
@@ -114,6 +115,26 @@ const fmtTimer = (totalSeconds: number) => {
   const m = Math.floor((totalSeconds % 3600) / 60)
   const s = totalSeconds % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// Affiché à la place d'une page réservée quand la session n'a pas la permission requise
+// (voir auth/permissions.ts). Le backend refuse déjà les requêtes correspondantes.
+function RestrictedPage({ title, message, navigateTo }: { title: string; message: string; navigateTo: (page: string) => void }) {
+  return (
+    <section className="generic-page">
+      <div className="generic-page-card">
+        <span className="section-eyebrow">Accès restreint</span>
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <div className="generic-placeholder">
+          <strong>Vous n’avez pas accès à cette page.</strong>
+          <button type="button" className="nav-item" style={{ marginTop: 12 }} onClick={() => navigateTo('accueil')}>
+            Retour à l’accueil
+          </button>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function App() {
@@ -241,13 +262,17 @@ function App() {
     fetchMe()
       .then((me) => {
         if (!cancelled) {
-          // Réhydrate la session (les sessions créées avant l'ajout de ces champs
-          // n'ont ni userId ni managedTeams tant que l'utilisateur ne se reconnecte pas).
+          // Réhydrate la session (les sessions créées avant l'ajout de ces champs n'ont ni
+          // userId, ni managedTeams, ni permissions tant que l'utilisateur ne se reconnecte pas).
           const managedTeams = me.managed_teams ?? []
+          const permissions = me.permissions ?? []
           setSession((prev) => {
             if (!prev) return prev
-            if (prev.userId === me.id && JSON.stringify(prev.managedTeams ?? []) === JSON.stringify(managedTeams)) return prev
-            const next = { ...prev, userId: me.id, managedTeams }
+            const unchanged = prev.userId === me.id
+              && JSON.stringify(prev.managedTeams ?? []) === JSON.stringify(managedTeams)
+              && JSON.stringify(prev.permissions ?? []) === JSON.stringify(permissions)
+            if (unchanged) return prev
+            const next = { ...prev, userId: me.id, managedTeams, permissions }
             saveSession(next)
             return next
           })
@@ -368,7 +393,7 @@ function App() {
     guide: <AppIcon><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></AppIcon>,
   }
 
-  const navItems: { id: string; label: string; icon: ReactNode; children?: { id: string; label: string }[] }[] = [
+  const allNavItems: { id: string; label: string; icon: ReactNode; feature?: Feature; children?: { id: string; label: string; feature?: Feature }[] }[] = [
     { id: 'accueil', label: 'Accueil', icon: icons.accueil },
     { id: 'messagerie', label: 'Messagerie', icon: icons.messagerie },
     {
@@ -379,11 +404,11 @@ function App() {
         { id: 'controle-execution', label: 'Performance & Staffing' },
       ],
     },
-    { id: 'creation', label: 'Création de projet', icon: icons.creation },
+    { id: 'creation', label: 'Création de projet', icon: icons.creation, feature: 'projets:create' },
     {
       id: 'staffing', label: 'Staffing', icon: icons.staffing,
       children: [
-        { id: 'staffing', label: 'Nouveau staffing' },
+        { id: 'staffing', label: 'Nouveau staffing', feature: 'staffing:new' },
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
     },
@@ -398,7 +423,7 @@ function App() {
       ],
     },
     {
-      id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie,
+      id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie, feature: 'tresorerie:view',
       children: [
         { id: 'tresorerie', label: 'Ordonnances des paiements' },
         { id: 'tresorerie-paiements', label: 'Exécutions des paiements' },
@@ -409,7 +434,7 @@ function App() {
     },
     { id: 'salarie', label: 'Salarié', icon: icons.salarie },
     {
-      id: 'architecture', label: 'Architecture', icon: icons.architecture,
+      id: 'architecture', label: 'Architecture', icon: icons.architecture, feature: 'config:view',
       children: [
         { id: 'architecture', label: 'Architecture des tâches' },
         { id: 'architecture-monetaire', label: 'Architecture monétaire' },
@@ -441,9 +466,19 @@ function App() {
         { id: 'guide-parametres', label: 'Paramètres' },
       ],
     },
-    { id: 'parametres', label: 'Paramètres', icon: icons.parametres },
+    { id: 'parametres', label: 'Paramètres', icon: icons.parametres, feature: 'config:view' },
     { id: 'deconnexion', label: 'Déconnexion', icon: icons.deconnexion },
   ]
+
+  // Gestion des rôles : une entrée (ou sous-entrée) porteuse d'une `feature` n'apparaît que si
+  // la session la détient (voir auth/permissions.ts). Un groupe dont toutes les sous-entrées
+  // sont masquées disparaît. Le backend applique la même règle sur ses endpoints.
+  const navItems = allNavItems
+    .filter((item) => !item.feature || can(session, item.feature))
+    .map((item) => item.children
+      ? { ...item, children: item.children.filter((child) => !child.feature || can(session, child.feature)) }
+      : item)
+    .filter((item) => !item.children || item.children.length > 0)
 
   const isHomePage = activeNav === 'accueil'
   const currentPage = pageConfig[activeNav] ?? pageConfig.accueil
@@ -462,9 +497,27 @@ function App() {
       case 'pilotage': return <PilotagePage navigateTo={navigateTo} focusTarget={pilotageFocus} onFocusConsumed={() => setPilotageFocus(null)} />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
-      case 'creation': return <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
-      case 'staffing': return <StaffingPage navigateTo={navigateTo} />
-      case 'staffing-suivi': return <SuiviStaffingPage navigateTo={navigateTo} />
+      case 'creation': return can(session, 'projets:create')
+        ? <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
+        : <RestrictedPage
+            title="Création de projet"
+            message="Cette page est réservée aux membres des équipes Direction et Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
+            navigateTo={navigateTo}
+          />
+      case 'staffing': return can(session, 'staffing:new')
+        ? <StaffingPage navigateTo={navigateTo} />
+        : <RestrictedPage
+            title="Nouveau staffing"
+            message="Cette page est réservée aux équipes Direction et Pilotage et aux managers d’équipe. Contactez votre administrateur si vous pensez devoir y accéder."
+            navigateTo={navigateTo}
+          />
+      case 'staffing-suivi': return can(session, 'staffing:new')
+        ? <SuiviStaffingPage navigateTo={navigateTo} />
+        : <RestrictedPage
+            title="Suivi des staffings"
+            message="Cette page est réservée aux équipes Direction et Pilotage et aux managers d’équipe."
+            navigateTo={navigateTo}
+          />
       case 'staffing-execute': return (
         <ExecuteStaffingPage
           navigateTo={navigateTo}
@@ -478,18 +531,34 @@ function App() {
         />
       )
       case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
-      case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} />
+      case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} session={session} />
       case 'gestion-organigramme': return <OrganigrammePage navigateTo={navigateTo} session={session!} />
       case 'gestion-historique': return <HistoriqueEmployesPage navigateTo={navigateTo} />
       case 'gestion-demandes': return <DemandesEmployesPage navigateTo={navigateTo} />
-      case 'tresorerie': return <TresoreriePage navigateTo={navigateTo} />
-      case 'tresorerie-paiements': return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
-      case 'tresorerie-comptes': return <ComptesOperationsPage navigateTo={navigateTo} />
-      case 'tresorerie-rapports': return <JournalTresoreriePage navigateTo={navigateTo} />
-      case 'tresorerie-mercuriales': return <MercurialesPage navigateTo={navigateTo} />
+      case 'tresorerie':
+      case 'tresorerie-paiements':
+      case 'tresorerie-comptes':
+      case 'tresorerie-rapports':
+      case 'tresorerie-mercuriales':
+        if (!can(session, 'tresorerie:view')) return <RestrictedPage
+          title="Trésorerie"
+          message="Les pages de trésorerie sont réservées à la Direction, au Pilotage, aux Ressources et aux managers d’équipe."
+          navigateTo={navigateTo}
+        />
+        if (activeNav === 'tresorerie') return <TresoreriePage navigateTo={navigateTo} />
+        if (activeNav === 'tresorerie-paiements') return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
+        if (activeNav === 'tresorerie-comptes') return <ComptesOperationsPage navigateTo={navigateTo} />
+        if (activeNav === 'tresorerie-rapports') return <JournalTresoreriePage navigateTo={navigateTo} />
+        return <MercurialesPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage session={session!} onSessionUpdate={updateSession} />
-      case 'architecture': return <ArchitecturePage />
-      case 'architecture-monetaire': return <ArchitectureMonetairePage />
+      case 'architecture':
+      case 'architecture-monetaire':
+        if (!can(session, 'config:view')) return <RestrictedPage
+          title="Architecture"
+          message="Les pages Architecture sont réservées à la Direction et au Pilotage."
+          navigateTo={navigateTo}
+        />
+        return activeNav === 'architecture' ? <ArchitecturePage /> : <ArchitectureMonetairePage />
       case 'aide': return <CentreAssistancePage navigateTo={navigateTo} />
       case 'aide-faq': return <ModulePage title={pageConfig['aide-faq'].title} description={pageConfig['aide-faq'].description} icon={icons.aide} />
       case 'aide-connaissances': return <ModulePage title={pageConfig['aide-connaissances'].title} description={pageConfig['aide-connaissances'].description} icon={icons.aide} />
@@ -506,7 +575,13 @@ function App() {
       case 'guide-salarie': return <ModulePage title={pageConfig['guide-salarie'].title} description={pageConfig['guide-salarie'].description} icon={icons.guide} />
       case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
-      case 'parametres': return <ParametresPage />
+      case 'parametres': return can(session, 'config:view')
+        ? <ParametresPage />
+        : <RestrictedPage
+            title="Paramètres"
+            message="La page Paramètres est réservée à la Direction et au Pilotage."
+            navigateTo={navigateTo}
+          />
       default: return <HomePage session={session!} navigateTo={navigateTo} />
     }
   }

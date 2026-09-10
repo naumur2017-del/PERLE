@@ -14,9 +14,14 @@ class PaiementTests(APITestCase):
         self.other_org = Organisation.objects.create(name='Autre', org_type='company')
         self.director = User.objects.create_user(email='director@payments.test', password='test', role='directeur', organisation=self.org)
         self.employee = User.objects.create_user(email='employee@payments.test', password='test', role='salarie', organisation=self.org)
+        # Un salarié sans équipe ni management : aucune visibilité sur la trésorerie.
+        self.stranger = User.objects.create_user(email='stranger@payments.test', password='test', role='salarie', organisation=self.org)
         self.outsider = User.objects.create_user(email='outsider@payments.test', password='test', role='directeur', organisation=self.other_org)
         self.client.force_authenticate(self.director)
-        team = Team.objects.create(organisation=self.org, code='T1', name='Finance')
+        team = Team.objects.create(organisation=self.org, code='T1', name='Finance', manager=self.employee)
+        # `self.employee` voit la trésorerie (manager d'équipe) mais reste limité à ses propres demandes.
+        self.employee.team = team
+        self.employee.save(update_fields=['team'])
         self.project = Project.objects.create(organisation=self.org, code='PRJ1', nom='Projet')
         self.line = LigneBudgetaire.objects.create(organisation=self.org, code='L1', nom='Achats', niveau=1, equipe=team)
         ProjectLigne.objects.create(project=self.project, ligne_budgetaire=self.line, code='PL1')
@@ -95,6 +100,10 @@ class PaiementTests(APITestCase):
         self.assertEqual(self.client.get('/api/paiements/').data, [])
         own = self.create_payment()
         self.assertEqual(self.client.post(f"/api/paiements/{own['id']}/decision/", {'decision': 'refuse', 'commentaire': 'Non'}).status_code, 403)
+        # Un salarié sans équipe ni management ne voit pas du tout la trésorerie.
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.get('/api/paiements/').status_code, 403)
+        self.assertEqual(self.client.post('/api/paiements/', self.data, format='json').status_code, 403)
         self.client.force_authenticate(self.director)
         self.assertEqual(self.client.delete(url).status_code, 204)
         self.assertFalse(DemandePaiement.objects.filter(pk=payment['id']).exists())

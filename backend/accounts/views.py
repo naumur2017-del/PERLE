@@ -12,6 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .access import can_access_config, can_manage_projects, can_manage_teams
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
@@ -133,6 +134,11 @@ class OrganisationLevelsView(generics.RetrieveUpdateAPIView):
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
         return organisation
 
+    def perform_update(self, serializer):
+        if not can_manage_teams(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier le nombre de niveaux d’équipes.')
+        serializer.save()
+
 
 class OrganisationEhsView(generics.RetrieveUpdateAPIView):
     serializer_class = OrganisationEhsSerializer
@@ -145,7 +151,7 @@ class OrganisationEhsView(generics.RetrieveUpdateAPIView):
         return organisation
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
         serializer.save()
 
@@ -163,7 +169,7 @@ class OrganisationGradeView(generics.RetrieveUpdateAPIView):
         return organisation
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
         serializer.save()
 
@@ -181,7 +187,7 @@ class OrganisationRemunerationView(generics.RetrieveUpdateAPIView):
         return organisation
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce paramètre.')
         serializer.save()
 
@@ -336,6 +342,11 @@ class TeamListCreateView(generics.ListCreateAPIView):
     def get_serializer_context(self):
         return {**super().get_serializer_context(), 'request': self.request}
 
+    def perform_create(self, serializer):
+        if not can_manage_teams(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à créer une équipe.')
+        serializer.save()
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -357,7 +368,14 @@ class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_serializer_context(self):
         return {**super().get_serializer_context(), 'request': self.request}
 
+    def perform_update(self, serializer):
+        if not can_manage_teams(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier une équipe.')
+        serializer.save()
+
     def perform_destroy(self, instance):
+        if not can_manage_teams(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à supprimer une équipe.')
         if instance.is_protected:
             raise PermissionDenied('Cette équipe est protégée et ne peut pas être supprimée.')
         if instance.lignes_budgetaires.exists():
@@ -369,6 +387,8 @@ class _TeamMembershipView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_manage_teams(request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier la composition d’une équipe.')
         organisation = request.user.organisation
         team = get_object_or_404(Team, pk=pk, organisation=organisation)
         user = get_object_or_404(User, pk=request.data.get('user_id'), organisation=organisation)
@@ -399,7 +419,7 @@ class CongeTypeListCreateView(generics.ListCreateAPIView):
         return CongeType.objects.filter(organisation=organisation)
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -420,12 +440,12 @@ class CongeTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
         return CongeType.objects.filter(organisation=organisation)
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer les types de congé.')
         if instance.categorie != 'standard':
             raise PermissionDenied('Ce type de congé par défaut ne peut pas être supprimé.')
@@ -448,7 +468,7 @@ class PublicHolidayListCreateView(generics.ListCreateAPIView):
         return PublicHoliday.objects.filter(organisation=organisation)
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -466,12 +486,12 @@ class PublicHolidayDetailView(generics.RetrieveUpdateDestroyAPIView):
         return PublicHoliday.objects.filter(organisation=organisation)
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         instance.delete()
 
@@ -483,7 +503,7 @@ class PublicHolidaySyncView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à gérer les jours fériés.')
         organisation = request.user.organisation
         if not organisation:
@@ -788,7 +808,7 @@ class LigneBudgetaireListCreateView(generics.ListCreateAPIView):
         return LigneBudgetaire.objects.filter(organisation=organisation).select_related('equipe', 'parent')
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -815,12 +835,12 @@ class LigneBudgetaireDetailView(generics.RetrieveUpdateDestroyAPIView):
         return LigneBudgetaire.objects.filter(organisation=organisation).select_related('equipe', 'parent')
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à configurer l’architecture monétaire.')
         if instance.is_transversale:
             raise ValidationError({'detail': 'La ligne « Charges transversales » est gérée automatiquement et ne peut pas être supprimée.'})
@@ -846,7 +866,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_manage_projects(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à créer un projet.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -865,7 +885,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Project.objects.filter(organisation=organisation).prefetch_related('lignes')
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_manage_projects(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
         serializer.save()
 
@@ -891,7 +911,7 @@ class ProjectLigneListCreateView(generics.ListCreateAPIView):
         return {**super().get_serializer_context(), 'project': self.get_project()}
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_manage_projects(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
         serializer.save()
 
@@ -908,12 +928,12 @@ class ProjectLigneDetailView(generics.RetrieveUpdateDestroyAPIView):
         return ProjectLigne.objects.filter(project__organisation=organisation)
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_manage_projects(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_manage_projects(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier ce projet.')
         if instance.is_transversale:
             raise ValidationError({'detail': 'La ligne transversale (Ressources) est attribuée d’office à chaque projet et ne peut pas être retirée. Vous pouvez seulement ajuster son montant.'})
@@ -932,7 +952,7 @@ class TaskTemplateListCreateView(generics.ListCreateAPIView):
         return TaskTemplate.objects.filter(organisation=organisation)
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à ajouter une tâche à la banque.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -953,12 +973,12 @@ class TaskTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
         return TaskTemplate.objects.filter(organisation=organisation)
 
     def perform_update(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier cette tâche du catalogue.')
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à supprimer cette tâche du catalogue.')
         if instance.enfants.exists():
             raise ValidationError({'detail': 'Ce nœud contient des sous-éléments : supprimez-les d’abord.'})
@@ -971,9 +991,9 @@ class TaskListCreateView(generics.ListCreateAPIView):
     """Référentiel Attribution des tâches : consulté par tous, géré par admin/directeur.
     Filtrable via ?equipe=<id> ou ?assignee=<id> (utilisé par l'arborescence équipes/membres),
     ?a_valider=1 pour les tâches en attente de décision, ou ?staffing=1 pour les tâches acceptées
-    (utilisé par Nouveau staffing) : admin/directeur voient celles de toute l'organisation (ils
-    peuvent déjà statuer sur n'importe quelle tâche, voir _can_manage_task) ; les autres managers
-    ne voient que celles des équipes dont ils sont effectivement le manager."""
+    (utilisé par Nouveau staffing) : directeur/admin et les équipes Direction / Pilotage voient
+    celles de toute l'organisation (voir can_manage_projects / _can_manage_task) ; les autres
+    managers ne voient que celles des équipes dont ils sont effectivement le manager."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
@@ -990,7 +1010,9 @@ class TaskListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(equipe_id=equipe_id)
         if assignee_id:
             qs = qs.filter(assignments__user_id=assignee_id).distinct()
-        is_org_wide_manager = self.request.user.role in ('admin', 'directeur')
+        # Direction, Pilotage et directeur/admin pilotent le staffing de toute l'organisation ;
+        # les autres managers ne voient que les tâches des équipes dont ils sont le manager.
+        is_org_wide_manager = can_manage_projects(self.request.user)
         if self.request.query_params.get('staffing'):
             qs = qs.filter(statut='acceptee')
             if not is_org_wide_manager:
@@ -1002,7 +1024,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à créer une tâche.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
@@ -1010,7 +1032,9 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
 
 def _can_manage_task(user, task):
-    return user.role in ('admin', 'directeur') or task.equipe.manager_id == user.id
+    # Le manager de l'équipe destinataire, plus Direction / Pilotage / directeur / admin qui
+    # pilotent le staffing de toute l'organisation (voir accounts/access.py).
+    return can_manage_projects(user) or task.equipe.manager_id == user.id
 
 
 def _can_access_task_messages(user, task):
@@ -1040,7 +1064,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer.save()
 
     def perform_destroy(self, instance):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_access_config(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à supprimer cette tâche.')
         instance.delete()
 

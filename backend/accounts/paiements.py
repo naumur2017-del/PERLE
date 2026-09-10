@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .access import CanViewTreasury
 from .models import DemandePaiement, LigneBudgetaire, Project, ProjectLigne
 
 
@@ -84,7 +85,9 @@ class PaiementSerializer(serializers.ModelSerializer):
 
 
 class PaiementScope:
-    permission_classes = [IsAuthenticated]
+    # Les pages Trésorerie ne sont visibles que par la direction, le pilotage, les ressources
+    # et les managers (voir accounts/access.py).
+    permission_classes = [IsAuthenticated, CanViewTreasury]
     serializer_class = PaiementSerializer
 
     def get_queryset(self):
