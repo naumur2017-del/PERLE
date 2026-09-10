@@ -2,7 +2,7 @@ from rest_framework.test import APITestCase
 
 from .access import (
     can_access_config, can_access_new_staffing, can_manage_projects, can_manage_teams,
-    can_view_treasury, feature_permissions,
+    can_view_treasury, feature_permissions, is_org_supervisor,
 )
 from .models import Organisation, Team, User, create_default_teams
 
@@ -18,6 +18,11 @@ class ProjectAccessTests(APITestCase):
         self.pilotage = Team.objects.get(organisation=self.org, code='PIL')
         self.ressources = Team.objects.get(organisation=self.org, code='RES')
 
+        # De simples membres (aucun n'est manager de son équipe) : l'accès doit leur être
+        # ouvert au même titre qu'à un manager.
+        self.direction_member = User.objects.create_user(
+            email='dg@acc.test', password='x', role='salarie', organisation=self.org,
+            first_name='G', last_name='M', team=self.direction)
         self.pilotage_member = User.objects.create_user(
             email='pil@acc.test', password='x', role='salarie', organisation=self.org,
             first_name='P', last_name='M', team=self.pilotage)
@@ -31,9 +36,26 @@ class ProjectAccessTests(APITestCase):
     # --- règle -------------------------------------------------------
     def test_rule(self):
         self.assertTrue(can_manage_projects(self.director))
-        self.assertTrue(can_manage_projects(self.pilotage_member))
+        self.assertTrue(can_manage_projects(self.direction_member))   # simple membre de la Direction
+        self.assertTrue(can_manage_projects(self.pilotage_member))    # simple membre du Pilotage
         self.assertFalse(can_manage_projects(self.ressources_member))
         self.assertFalse(can_manage_projects(self.no_team))
+
+    def test_plain_members_get_team_access_not_just_managers(self):
+        """Ces utilisateurs ne managent aucune équipe : l'accès doit tout de même passer par
+        leur simple appartenance à l'équipe."""
+        for member in (self.direction_member, self.pilotage_member, self.ressources_member):
+            self.assertFalse(member.teams_managed.exists())
+        self.assertTrue(is_org_supervisor(self.direction_member))
+        self.assertTrue(is_org_supervisor(self.pilotage_member))
+        self.assertTrue(is_org_supervisor(self.ressources_member))
+        self.assertFalse(is_org_supervisor(self.no_team))
+        # Direction + Pilotage → création de projet et configuration
+        self.assertTrue(can_access_config(self.direction_member))
+        self.assertTrue(can_access_config(self.pilotage_member))
+        # Pilotage + Ressources → gestion des équipes
+        self.assertTrue(can_manage_teams(self.pilotage_member))
+        self.assertTrue(can_manage_teams(self.ressources_member))
 
     def test_manager_of_direction_gets_access(self):
         # Le directeur manage déjà la Direction Générale (create_default_teams) : on vérifie
@@ -45,15 +67,18 @@ class ProjectAccessTests(APITestCase):
 
     # --- nouveau staffing -----------------------------------------
     def test_new_staffing_rule(self):
+        # Back-office : Direction + Pilotage + Ressources (simples membres compris).
         self.assertTrue(can_access_new_staffing(self.director))
+        self.assertTrue(can_access_new_staffing(self.direction_member))
         self.assertTrue(can_access_new_staffing(self.pilotage_member))
-        self.assertFalse(can_access_new_staffing(self.ressources_member))
+        self.assertTrue(can_access_new_staffing(self.ressources_member))
         self.assertFalse(can_access_new_staffing(self.no_team))
-        # Un manager d'une équipe quelconque y a accès.
+        # En plus : le manager de n'importe quelle équipe y a accès.
         team = Team.objects.create(organisation=self.org, code='OPS', name='Opérations', manager=self.no_team)
         self.no_team.refresh_from_db()
         self.assertTrue(can_access_new_staffing(self.no_team))
         self.assertFalse(can_manage_projects(self.no_team))  # mais pas la création de projet
+        self.assertFalse(is_org_supervisor(self.no_team))    # ni le back-office
         team.delete()
 
     # --- gestion des équipes -------------------------------------
@@ -106,7 +131,8 @@ class ProjectAccessTests(APITestCase):
     def test_login_exposes_permissions(self):
         for email, expected in (
             ('pil@acc.test', ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:view']),
-            ('res@acc.test', ['equipes:manage', 'tresorerie:view']),
+            ('res@acc.test', ['equipes:manage', 'staffing:new', 'tresorerie:view']),
+            ('dg@acc.test', ['config:view', 'projets:create', 'staffing:new', 'tresorerie:view']),
             ('none@acc.test', []),
         ):
             response = self.client.post('/api/auth/login/', {'email': email, 'password': 'x'}, format='json')
@@ -118,7 +144,14 @@ class ProjectAccessTests(APITestCase):
             feature_permissions(self.pilotage_member),
             ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:view'],
         )
-        self.assertEqual(feature_permissions(self.ressources_member), ['equipes:manage', 'tresorerie:view'])
+        self.assertEqual(
+            feature_permissions(self.ressources_member),
+            ['equipes:manage', 'staffing:new', 'tresorerie:view'],
+        )
+        self.assertEqual(
+            feature_permissions(self.direction_member),
+            ['config:view', 'projets:create', 'staffing:new', 'tresorerie:view'],
+        )
         self.assertEqual(feature_permissions(self.no_team), [])
 
     # --- endpoints ------------------------------------------------

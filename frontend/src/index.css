@@ -18,6 +18,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Coquille applicative : la fenêtre ne défile jamais elle-même — seule la zone de
+   contenu (.main-content) défile. Sans ça, une seconde barre de défilement (celle du
+   navigateur) apparaît et laisse voir une bande blanche sous l'application. */
 html,
 body,
 #root {
@@ -25,12 +28,11 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 body {
-  margin: 0;
   min-width: 320px;
-  min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -40,8 +42,10 @@ body {
 }
 
 #root {
-  width: 100%;
-  height: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 * {
@@ -56,16 +60,6 @@ h1, h2, h3, h4, h5, h6 {
 button {
   font-family: inherit;
   cursor: pointer;
-}
-
-#root {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
 }
 
 body {

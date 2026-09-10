@@ -12,7 +12,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .access import can_access_config, can_manage_projects, can_manage_teams
+from .access import (
+    can_access_config, can_manage_projects, can_manage_teams, is_org_supervisor,
+)
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
@@ -991,9 +993,10 @@ class TaskListCreateView(generics.ListCreateAPIView):
     """Référentiel Attribution des tâches : consulté par tous, géré par admin/directeur.
     Filtrable via ?equipe=<id> ou ?assignee=<id> (utilisé par l'arborescence équipes/membres),
     ?a_valider=1 pour les tâches en attente de décision, ou ?staffing=1 pour les tâches acceptées
-    (utilisé par Nouveau staffing) : directeur/admin et les équipes Direction / Pilotage voient
-    celles de toute l'organisation (voir can_manage_projects / _can_manage_task) ; les autres
-    managers ne voient que celles des équipes dont ils sont effectivement le manager."""
+    (utilisé par Nouveau staffing) : directeur/admin et le back-office (Direction / Pilotage /
+    Ressources, membres compris) voient celles de toute l'organisation (voir is_org_supervisor
+    / _can_manage_task) ; les autres managers ne voient que celles des équipes dont ils sont
+    effectivement le manager."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
@@ -1010,9 +1013,10 @@ class TaskListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(equipe_id=equipe_id)
         if assignee_id:
             qs = qs.filter(assignments__user_id=assignee_id).distinct()
-        # Direction, Pilotage et directeur/admin pilotent le staffing de toute l'organisation ;
-        # les autres managers ne voient que les tâches des équipes dont ils sont le manager.
-        is_org_wide_manager = can_manage_projects(self.request.user)
+        # Le back-office (Direction / Pilotage / Ressources) et directeur/admin pilotent le
+        # staffing de toute l'organisation ; les autres managers ne voient que les tâches des
+        # équipes dont ils sont le manager.
+        is_org_wide_manager = is_org_supervisor(self.request.user)
         if self.request.query_params.get('staffing'):
             qs = qs.filter(statut='acceptee')
             if not is_org_wide_manager:
@@ -1032,9 +1036,10 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
 
 def _can_manage_task(user, task):
-    # Le manager de l'équipe destinataire, plus Direction / Pilotage / directeur / admin qui
-    # pilotent le staffing de toute l'organisation (voir accounts/access.py).
-    return can_manage_projects(user) or task.equipe.manager_id == user.id
+    # Le manager de l'équipe destinataire, plus le back-office (Direction / Pilotage /
+    # Ressources) et directeur/admin qui pilotent le staffing de toute l'organisation
+    # (voir accounts/access.py).
+    return is_org_supervisor(user) or task.equipe.manager_id == user.id
 
 
 def _can_access_task_messages(user, task):

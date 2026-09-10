@@ -1,12 +1,19 @@
-.home-page { animation: page-enter 180ms ease-out; }
+/* L'accueil occupe toute la hauteur disponible entre l'en-tête et le pied de page,
+   pour que le footer reste collé en bas quand le tableau de bord est court. */
+.home-page {
+  flex: 1;
+  min-width: 0;
+  background: var(--background);
+  animation: page-enter 180ms ease-out;
+}
 @keyframes page-enter { from { opacity: 0; transform: translateY(4px); } }
 
 /* Bascule Direction / Manager en tête de l'accueil du directeur. */
 .home-dashboards { display: flex; flex-direction: column; gap: 12px; }
-.home-dash-tabs { align-self: flex-start; max-width: 100%; }
+.home-dash-tabs { align-self: flex-start; max-width: 100%; margin: 12px 32px 0; }
 
 /* Accueil épuré pour un salarié sans tableau de bord. */
-.home-welcome { display: flex; flex-direction: column; gap: 24px; }
+.home-welcome { display: flex; flex-direction: column; gap: 24px; padding: 32px; }
 .home-welcome-intro h2 { margin: 4px 0; font-size: 1.6rem; }
 .home-welcome-intro p { margin: 0; color: var(--text-muted, #5b6072); }
 .home-welcome-eyebrow {
