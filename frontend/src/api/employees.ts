@@ -36,6 +36,7 @@ export interface Employee {
   date_naissance: string | null
   pays: string
   pays_code: string
+  region: string
   ville: string
   statut: StatutEmploye
   grade: number
@@ -153,6 +154,7 @@ export interface MeProfile {
   date_naissance: string | null
   pays: string
   pays_code: string
+  region: string
   ville: string
   statut: StatutEmploye
   grade: number
@@ -188,14 +190,19 @@ export interface MeProfile {
 
 export type MeProfileEditableFields = Pick<
   MeProfile,
-  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'matricule' | 'date_naissance' | 'pays' | 'pays_code' | 'ville'
+  // Le matricule est calculé automatiquement à la création et modifiable seulement par le
+  // directeur/admin (page Gestion des équipes) — pas par le salarié lui-même.
+  | 'email' | 'first_name' | 'last_name' | 'phone' | 'fonction' | 'date_naissance' | 'pays' | 'pays_code' | 'region' | 'ville'
   | 'date_embauche' | 'type_contrat' | 'periode_essai'
   | 'temps_travail' | 'competences_principales' | 'competences_secondaires'
   | 'cnps' | 'contribuable' | 'banque' | 'compte_bancaire' | 'groupe_sanguin'
   | 'contact_urgence_nom' | 'contact_urgence_telephone' | 'assurance_sante'
 >
 
-export type DocumentField = 'profile_photo' | 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
+// Le contrat de travail n'en fait pas partie : il est en lecture seule côté salarié
+// (voir accounts.access.can_manage_employee_documents côté backend) — seuls les Ressources
+// et le directeur/admin peuvent le téléverser, via uploadEmployeeContract ci-dessous.
+export type DocumentField = 'profile_photo' | 'cni_document' | 'autre_piece_document' | 'cv_document'
 
 export const fetchMe = () => apiGet<MeProfile>('/employees/me/')
 
@@ -205,4 +212,12 @@ export const uploadMyDocument = (field: DocumentField, file: File) => {
   const formData = new FormData()
   formData.append(field, file)
   return apiUpload<MeProfile>('/employees/me/', formData)
+}
+
+/** Téléverse/remplace le contrat de travail d'un salarié — réservé aux Ressources et au
+ * directeur/admin (voir accounts.access.can_manage_employee_documents, feature `employes:contrat`). */
+export const uploadEmployeeContract = (id: number, file: File) => {
+  const formData = new FormData()
+  formData.append('contrat_document', file)
+  return apiUpload<Employee>(`/employees/${id}/contrat/`, formData)
 }

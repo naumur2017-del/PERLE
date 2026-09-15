@@ -25,6 +25,7 @@ urlpatterns = [
     path('employees/heartbeat/', views.HeartbeatView.as_view()),
     path('employees/<int:pk>/', views.EmployeeDetailView.as_view()),
     path('employees/<int:pk>/edit/', views.EmployeeAdminEditView.as_view()),
+    path('employees/<int:pk>/contrat/', views.EmployeeContractView.as_view()),
     path('teams/', views.TeamListCreateView.as_view()),
     path('teams/<int:pk>/', views.TeamDetailView.as_view()),
     path('teams/<int:pk>/add-member/', views.TeamAddMemberView.as_view()),

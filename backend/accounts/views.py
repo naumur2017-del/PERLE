@@ -13,7 +13,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .access import (
-    can_access_config, can_manage_projects, can_manage_teams, is_org_supervisor,
+    can_access_config, can_manage_employee_documents, can_manage_projects, can_manage_teams,
+    is_org_supervisor,
 )
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
@@ -34,6 +35,7 @@ from .serializers import (
     EmployeeAdminEditSerializer,
     FermetureTechniqueSerializer,
     EmployeeAdminUpdateSerializer,
+    EmployeeContractSerializer,
     EmployeeCreateSerializer,
     EmployeeMeSerializer,
     EmployeeSerializer,
@@ -316,6 +318,36 @@ class EmployeeAdminEditView(generics.UpdateAPIView):
     def perform_update(self, serializer):
         if self.request.user.role not in ('admin', 'directeur'):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier un employé.')
+        serializer.save()
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        employee = EmployeeSerializer(serializer.instance, context=self.get_serializer_context())
+        return Response(employee.data)
+
+
+class EmployeeContractView(generics.UpdateAPIView):
+    """Téléversement/remplacement du contrat de travail d'un salarié (page Profil ›
+    Documents) — réservé aux Ressources et au directeur/admin (voir
+    accounts.access.can_manage_employee_documents). Le salarié le consulte et le télécharge
+    depuis son propre profil mais ne peut pas l'y modifier (voir EmployeeMeSerializer)."""
+    serializer_class = EmployeeContractSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return User.objects.none()
+        return User.objects.filter(organisation=organisation)
+
+    def perform_update(self, serializer):
+        if not can_manage_employee_documents(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à téléverser le contrat de ce salarié.')
         serializer.save()
 
     def update(self, request, *args, **kwargs):

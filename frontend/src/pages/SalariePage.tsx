@@ -798,6 +798,12 @@ const formatDateNaissance = (value: string | null) => {
   return `${day}/${month}/${year}`
 }
 
+/* Ville, Région, Pays — chaque partie est facultative (n'affiche que celles renseignées). */
+const lieuDeResidence = (profile: Pick<MeProfile, 'ville' | 'region' | 'pays'>) => {
+  const parts = [profile.ville, profile.region, profile.pays].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : 'Non renseigné'
+}
+
 const STATUT_LABELS: Record<MeProfile['statut'], string> = { actif: 'Actif', conge: 'En congé', inactif: 'Inactif' }
 const STATUT_PILL_CLASS: Record<MeProfile['statut'], string> = { actif: 'approuvee', conge: 'attente', inactif: 'refusee' }
 
@@ -828,7 +834,7 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
     ['Grade', `G${profile.grade}`],
     ['Nom complet', fullName],
     ['Date de naissance', formatDateNaissance(profile.date_naissance)],
-    ['Lieu de résidence', profile.ville && profile.pays ? `${profile.ville}, ${profile.pays}` : 'Non renseigné'],
+    ['Lieu de résidence', lieuDeResidence(profile)],
   ]
 
   const personalInfoRight: [string, ReactNode][] = [
@@ -865,11 +871,14 @@ function PersonalInfoCard({ profile, onUpdated }: { profile: MeProfile; onUpdate
 
 type DocField = 'cni_document' | 'autre_piece_document' | 'cv_document' | 'contrat_document'
 
-const DOCUMENTS_META: { field: DocField; title: string; kind: 'image' | 'pdf' }[] = [
-  { field: 'cni_document', title: 'Carte Nationale d’Identité (CNI)', kind: 'image' },
-  { field: 'autre_piece_document', title: 'Autres pièces d’identité', kind: 'image' },
-  { field: 'cv_document', title: 'CV à jour', kind: 'pdf' },
-  { field: 'contrat_document', title: 'Contrat de travail', kind: 'pdf' },
+// Le contrat de travail est téléversé par les Ressources (page Gestion des équipes › Employés) :
+// ici, le salarié le consulte et le télécharge, mais ne peut pas le remplacer lui-même — voir
+// accounts.access.can_manage_employee_documents côté backend.
+const DOCUMENTS_META: { field: DocField; title: string; kind: 'image' | 'pdf'; uploadable: boolean }[] = [
+  { field: 'cni_document', title: 'Carte Nationale d’Identité (CNI)', kind: 'image', uploadable: true },
+  { field: 'autre_piece_document', title: 'Autres pièces d’identité', kind: 'image', uploadable: true },
+  { field: 'cv_document', title: 'CV à jour', kind: 'pdf', uploadable: true },
+  { field: 'contrat_document', title: 'Contrat de travail', kind: 'pdf', uploadable: false },
 ]
 
 const documentFileName = (url: string) => decodeURIComponent(url.split('/').pop() ?? '')
@@ -879,7 +888,7 @@ function DocumentsCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: 
   const [uploadingField, setUploadingField] = useState<DocField | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const handleUpload = async (field: DocField, event: ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (field: Exclude<DocField, 'contrat_document'>, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
@@ -916,22 +925,41 @@ function DocumentsCard({ profile, onUpdated }: { profile: MeProfile; onUpdated: 
               </div>
               <div className="salarie-actions">
                 {url && <button aria-label={`Voir ${doc.title}`} onClick={() => setOpenField(doc.field)}><Eye size={14} strokeWidth={2} /></button>}
-                <label className="salarie-upload-btn" aria-label={`Téléverser ${doc.title}`} title={url ? 'Remplacer le document' : 'Téléverser le document'}>
-                  <UploadCloud size={14} strokeWidth={2} />
-                  <input
-                    type="file"
-                    accept={doc.kind === 'pdf' ? 'application/pdf' : 'image/*'}
-                    className="salarie-upload-input"
-                    disabled={uploadingField !== null}
-                    onChange={(event) => handleUpload(doc.field, event)}
-                  />
-                </label>
+                {url && (
+                  <a
+                    className="salarie-download-btn"
+                    aria-label={`Télécharger ${doc.title}`}
+                    title="Télécharger"
+                    href={url}
+                    download={documentFileName(url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download size={14} strokeWidth={2} />
+                  </a>
+                )}
+                {doc.uploadable ? (
+                  <label className="salarie-upload-btn" aria-label={`Téléverser ${doc.title}`} title={url ? 'Remplacer le document' : 'Téléverser le document'}>
+                    <UploadCloud size={14} strokeWidth={2} />
+                    <input
+                      type="file"
+                      accept={doc.kind === 'pdf' ? 'application/pdf' : 'image/*'}
+                      className="salarie-upload-input"
+                      disabled={uploadingField !== null}
+                      onChange={(event) => handleUpload(doc.field as Exclude<DocField, 'contrat_document'>, event)}
+                    />
+                  </label>
+                ) : !url && (
+                  <span className="salarie-doc-pending-hint" title="Téléversé par les Ressources">
+                    En attente des Ressources
+                  </span>
+                )}
               </div>
             </article>
           )
         })}
       </div>
-      <Note>Pièces d’identité : formats JPG ou PNG. CV et contrat : format PDF uniquement.</Note>
+      <Note>Pièces d’identité : formats JPG ou PNG. CV et contrat : format PDF uniquement. Le contrat de travail est téléversé par les Ressources ; vous pouvez le consulter et le télécharger ici dès qu’il est disponible.</Note>
 
       {openDoc && openDocUrl && (
         <Lightbox title={openDoc.title} onClose={() => setOpenField(null)} wide={openDoc.kind === 'pdf'}>
@@ -1114,6 +1142,7 @@ function ProfilTab({ onSessionUpdate }: { onSessionUpdate: (patch: Partial<Sessi
       matricule: updated.matricule,
       dateNaissance: updated.date_naissance,
       pays: updated.pays,
+      region: updated.region,
       ville: updated.ville,
     })
   }

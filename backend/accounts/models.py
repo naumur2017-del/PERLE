@@ -120,9 +120,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_naissance = models.DateField(null=True, blank=True)
     pays = models.CharField(max_length=100, blank=True)
     pays_code = models.CharField(max_length=2, blank=True)
-    # Contient en réalité la région/l'état du pays choisi, pas une ville précise (voir
-    # Organisation.city).
-    ville = models.CharField(max_length=100, blank=True)
+    # Région/état du pays choisi (liste dépendante du pays côté frontend, voir RegionSelect) —
+    # distincte de `ville`, une vraie ville saisie librement. Lieu de résidence = ville, region, pays.
+    region = models.CharField(max_length=100, blank=True)
+    ville = models.CharField(max_length=150, blank=True)
     profile_photo = models.ImageField(upload_to='documents/photos/', null=True, blank=True)
     cni_document = models.ImageField(upload_to='documents/cni/', null=True, blank=True)
     autre_piece_document = models.ImageField(upload_to='documents/autres/', null=True, blank=True)
@@ -221,6 +222,18 @@ class User(AbstractBaseUser, PermissionsMixin):
         GradeHistory.objects.create(
             employee=self, ancien_grade=ancien_grade, nouveau_grade=new_grade, changed_by=changed_by,
         )
+
+
+def next_matricule(organisation, date_embauche=None):
+    """<3 premières initiales de l'organisation>-<année de la date d'embauche>-<numéro
+    séquentiel sur 3 chiffres, propre à l'organisation et à cette année> — ex. NAU-2026-001.
+    Calculé une seule fois à la création de l'employé (voir EmployeeCreateSerializer,
+    RegisterMemberSerializer) ; modifiable ensuite par le directeur/admin si besoin."""
+    initials = ''.join(char for char in organisation.name.upper() if char.isalpha())[:3] or 'ORG'
+    year = (date_embauche or timezone.localdate()).year
+    prefix = f'{initials}-{year}-'
+    count = User.objects.filter(organisation=organisation, matricule__startswith=prefix).count()
+    return f'{prefix}{str(count + 1).zfill(3)}'
 
 
 class Team(models.Model):

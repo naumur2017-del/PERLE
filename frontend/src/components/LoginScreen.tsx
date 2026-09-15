@@ -23,6 +23,7 @@ type UserSummary = {
   matricule: string
   date_naissance: string | null
   pays: string
+  region: string
   ville: string
   team: { id: number; code: string; name: string } | null
   managed_teams: { id: number; code: string; name: string }[]
@@ -123,6 +124,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
       matricule: response.user.matricule,
       dateNaissance: response.user.date_naissance,
       pays: response.user.pays,
+      region: response.user.region,
       ville: response.user.ville,
       team: response.user.team,
       managedTeams: response.user.managed_teams ?? [],
@@ -317,11 +319,13 @@ export default function LoginScreen({ onLogin }: { onLogin: (session: Session) =
             <div className="registration-row"><label className="login-field"><span>Nom</span><input name="last_name" required placeholder="Votre nom" /></label><label className="login-field"><span>Prénom</span><input name="first_name" required placeholder="Votre prénom" /></label></div>
             <label className="login-field"><span>Adresse e-mail professionnelle</span><input type="email" name="email" required placeholder="prenom.nom@organisation.com" /></label>
             <label className="login-field"><span>Mot de passe</span><input type="password" name="password" required minLength={4} placeholder="Créez un mot de passe" /></label>
-            <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input name="fonction" required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Matricule (facultatif)</span><input name="matricule" placeholder="Ex. NM-2041" /></label></div>
+            {/* Le matricule n'est plus saisi ici : il est calculé automatiquement à la création
+                du compte (voir next_matricule côté backend). */}
+            <div className="registration-row"><label className="login-field"><span>Fonction / poste</span><input name="fonction" required placeholder="Ex. Chargé HSE" /></label><label className="login-field"><span>Ville</span><input name="ville" required placeholder="Ex. Douala" /></label></div>
             <DatePicker name="date_naissance" label="Date de naissance" required className="login-field" />
             <div className="registration-row">
               <CountrySelect name="pays" label="Pays" required value={countryIso} onChange={(c) => setCountryIso(c?.isoCode ?? null)} />
-              <RegionSelect name="ville" label="Ville" required countryCode={countryIso} className="login-field" />
+              <RegionSelect name="region" label="Région" required countryCode={countryIso} className="login-field" />
             </div>
             <p className="registration-note">Vous rejoindrez immédiatement {selectedOrg ? selectedOrg.name : 'l’organisation'}.</p>
           </div> : isCompany ? <>

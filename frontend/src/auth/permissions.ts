@@ -11,6 +11,7 @@ export type Feature =
   | 'equipes:manage' // Créer / modifier / supprimer les équipes et leurs membres (page « Équipes »)
   | 'tresorerie:view' // Voir les pages Trésorerie
   | 'config:view'     // Voir / configurer les pages Architecture et Paramètres
+  | 'employes:contrat' // Téléverser le contrat de travail d'un salarié (page Profil › Documents)
 
 export function can(session: Session | null, feature: Feature): boolean {
   return !!session && (session.permissions ?? []).includes(feature)

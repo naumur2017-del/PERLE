@@ -32,6 +32,7 @@ from .models import (
     create_default_conge_types,
     create_default_teams,
     ensure_project_transversal_ligne,
+    next_matricule,
     next_project_code,
     next_project_ligne_code,
     next_task_code,
@@ -143,7 +144,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'role', 'organisation',
-            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'team',
+            'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'team',
             'managed_teams', 'permissions',
         ]
 
@@ -284,11 +285,11 @@ class RegisterMemberSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     fonction = serializers.CharField(max_length=150)
-    matricule = serializers.CharField(max_length=50, required=False, allow_blank=True)
     date_naissance = serializers.DateField()
     pays = serializers.CharField(max_length=100)
     pays_code = serializers.CharField(max_length=2, required=False, allow_blank=True)
-    ville = serializers.CharField(max_length=100)
+    region = serializers.CharField(max_length=100)
+    ville = serializers.CharField(max_length=150)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -300,19 +301,21 @@ class RegisterMemberSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
+        organisation = validated_data['organisation']
         return User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
             fonction=validated_data['fonction'],
-            matricule=validated_data.get('matricule', ''),
+            matricule=next_matricule(organisation),
             date_naissance=validated_data['date_naissance'],
             pays=validated_data['pays'],
             pays_code=validated_data.get('pays_code', ''),
+            region=validated_data['region'],
             ville=validated_data['ville'],
             role='salarie',
-            organisation=validated_data['organisation'],
+            organisation=organisation,
         )
 
 
@@ -376,7 +379,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'is_active',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'is_active',
             'team', 'date_joined', 'date_embauche', 'last_seen_at', 'is_online',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
             'type_contrat', 'periode_essai', 'temps_travail',
@@ -400,14 +403,14 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
             'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'matricule']
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -427,10 +430,12 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         request = self.context['request']
+        organisation = request.user.organisation
         return User.objects.create_user(
             password=password,
             role='salarie',
-            organisation=request.user.organisation,
+            organisation=organisation,
+            matricule=next_matricule(organisation, validated_data.get('date_embauche')),
             **validated_data,
         )
 
@@ -467,7 +472,7 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
@@ -512,6 +517,16 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
         return instance
 
 
+class EmployeeContractSerializer(serializers.ModelSerializer):
+    """Téléversement du contrat de travail d'un salarié (page Profil › Documents) — réservé aux
+    Ressources et au directeur/admin, voir EmployeeContractView / accounts.access.can_manage_employee_documents."""
+
+    class Meta:
+        model = User
+        fields = ['id', 'contrat_document']
+        read_only_fields = ['id']
+
+
 class EmployeeMeSerializer(serializers.ModelSerializer):
     organisation = OrganisationSearchSerializer(read_only=True)
     team = TeamSummarySerializer(read_only=True)
@@ -525,7 +540,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
-            'date_naissance', 'pays', 'pays_code', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
+            'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
             'departement', 'responsable_hierarchique', 'managed_teams', 'permissions', 'date_embauche', 'type_contrat',
             'periode_essai', 'temps_travail', 'anciennete',
@@ -536,6 +551,13 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'role', 'organisation', 'team', 'date_joined', 'statut', 'grade',
             'departement', 'responsable_hierarchique', 'managed_teams', 'permissions',
+            # Le contrat de travail est téléversé par les Ressources (ou le directeur/admin),
+            # jamais par le salarié lui-même — voir EmployeeContractSerializer et accounts/access.py.
+            'contrat_document',
+            # Calculé automatiquement à la création (voir next_matricule) et modifiable
+            # seulement par le directeur/admin (EmployeeAdminEditSerializer), jamais par le
+            # salarié lui-même.
+            'matricule',
         ]
 
     def get_managed_teams(self, obj):

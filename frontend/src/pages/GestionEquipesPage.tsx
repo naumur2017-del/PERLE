@@ -2,10 +2,15 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent,
 import { createPortal } from 'react-dom'
 import {
   Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Download, Eye, EyeOff, FileText,
-  History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Trash2, Users, Users2, X, MoreVertical,
+  History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Trash2, UploadCloud, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
-import { createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, type Employee, type StatutEmploye, type Team } from '../api/employees'
+import {
+  createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, uploadEmployeeContract,
+  type Employee, type StatutEmploye, type Team,
+} from '../api/employees'
+import { can } from '../auth/permissions'
+import type { Session } from '../auth/session'
 import {
   createPrimeAjustement, createSanction, deletePrimeAjustement, deleteSanction,
   fetchPrimesAjustement, fetchSanctions,
@@ -570,16 +575,39 @@ const EMPLOYEE_DOC_META: { field: EmployeeDocField; title: string; kind: 'image'
   { field: 'contratDocument', title: 'Contrat de travail', kind: 'pdf' },
 ]
 
-function DocumentsTab({ employe }: { employe: Employe }) {
+function DocumentsTab({ employe, canUploadContract, onEmployeeUpdated }: {
+  employe: Employe
+  canUploadContract: boolean
+  onEmployeeUpdated: (employee: Employee) => void
+}) {
   const [openField, setOpenField] = useState<EmployeeDocField | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const openDoc = EMPLOYEE_DOC_META.find((doc) => doc.field === openField) ?? null
   const openUrl = openField ? employe[openField] : null
 
+  const handleUploadContrat = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    try {
+      onEmployeeUpdated(await uploadEmployeeContract(employe.id, file))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <>
+      {error && <p className="ge-form-error">{error}</p>}
       <ul className="ge-doc-list">
         {EMPLOYEE_DOC_META.map((doc) => {
           const url = employe[doc.field]
+          const isContrat = doc.field === 'contratDocument'
           return (
             <li key={doc.field}>
               <span className="ge-doc-icon"><FileText size={14} /></span>
@@ -587,11 +615,24 @@ function DocumentsTab({ employe }: { employe: Employe }) {
                 <strong>{doc.title}</strong>
                 <small>{url ? 'Document disponible' : `Aucun document pour ${employe.nom}`}</small>
               </div>
-              {url && (
-                <button type="button" className="ge-doc-view-btn" onClick={() => setOpenField(doc.field)}>
-                  <Eye size={13} strokeWidth={2} />Voir
-                </button>
-              )}
+              <div className="ge-doc-actions">
+                {url && (
+                  <button type="button" className="ge-doc-view-btn" onClick={() => setOpenField(doc.field)}>
+                    <Eye size={13} strokeWidth={2} />Voir
+                  </button>
+                )}
+                {url && (
+                  <a className="ge-doc-view-btn" href={url} download target="_blank" rel="noopener noreferrer">
+                    <Download size={13} strokeWidth={2} />Télécharger
+                  </a>
+                )}
+                {isContrat && canUploadContract && (
+                  <label className="ge-doc-upload-btn" title={url ? 'Remplacer le contrat' : 'Téléverser le contrat'}>
+                    <UploadCloud size={13} strokeWidth={2} />{uploading ? 'Envoi…' : url ? 'Remplacer' : 'Téléverser'}
+                    <input type="file" accept="application/pdf" disabled={uploading} onChange={handleUploadContrat} />
+                  </label>
+                )}
+              </div>
             </li>
           )
         })}
@@ -619,6 +660,7 @@ type CreateEmployeeForm = {
   date_naissance: string
   pays: string
   pays_code: string
+  region: string
   ville: string
   statut: StatutEmploye
   grade: string
@@ -651,7 +693,7 @@ type Credentials = { name: string; email: string; password: string }
 
 const EMPTY_CREATE_FORM: CreateEmployeeForm = {
   first_name: '', last_name: '', email: '', password: '', phone: '', fonction: '', matricule: '',
-  date_naissance: '', pays: '', pays_code: '', ville: '', statut: 'actif', grade: '0', team_id: '', date_embauche: '',
+  date_naissance: '', pays: '', pays_code: '', region: '', ville: '', statut: 'actif', grade: '0', team_id: '', date_embauche: '',
   type_contrat: '', periode_essai: '', temps_travail: '', competences_principales: '',
   competences_secondaires: '', cnps: '', contribuable: '', banque: '', compte_bancaire: '',
   groupe_sanguin: '', contact_urgence_nom: '', contact_urgence_telephone: '', assurance_sante: '',
@@ -672,6 +714,7 @@ const employeeToForm = (employee: Employee): CreateEmployeeForm => ({
   date_naissance: employee.date_naissance ?? '',
   pays: employee.pays,
   pays_code: employee.pays_code,
+  region: employee.region,
   ville: employee.ville,
   statut: employee.statut,
   grade: String(employee.grade),
@@ -780,16 +823,25 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
                 name="phone" label="Téléphone" countryCode={form.pays_code || null} value={form.phone}
                 onChange={(v) => setForm((previous) => ({ ...previous, phone: v }))}
               />
-              <label>Matricule<input value={form.matricule} onChange={handleChange('matricule')} /></label>
+              <label>
+                Matricule
+                <input
+                  value={isEdit ? form.matricule : 'Généré automatiquement à la création'}
+                  disabled={!isEdit}
+                  title={isEdit ? undefined : 'Calculé à partir de l’organisation et de la date d’embauche (voir next_matricule)'}
+                  onChange={handleChange('matricule')}
+                />
+              </label>
               <DatePicker label="Date de naissance" value={form.date_naissance} onChange={handleDateChange('date_naissance')} />
               <CountrySelect
                 name="pays" label="Pays" value={form.pays_code || null}
                 onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '' }))}
               />
               <RegionSelect
-                name="ville" label="Ville" countryCode={form.pays_code || null} value={form.ville}
-                onChange={(v) => setForm((previous) => ({ ...previous, ville: v }))}
+                name="region" label="Région" countryCode={form.pays_code || null} value={form.region}
+                onChange={(v) => setForm((previous) => ({ ...previous, region: v }))}
               />
+              <label>Ville<input value={form.ville} onChange={handleChange('ville')} placeholder="Ex. Douala" /></label>
               <label>Photo de profil<input type="file" accept="image/*" onChange={handleFile('profile_photo')} /></label>
             </div>
           </fieldset>
@@ -1025,7 +1077,12 @@ function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: 
   )
 }
 
-function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => void }) {
+function DetailEmploye({ employe, session, onClose, onEmployeeUpdated }: {
+  employe: Employe
+  session: Session | null
+  onClose: () => void
+  onEmployeeUpdated: (employee: Employee) => void
+}) {
   const [tab, setTab] = useState<'infos' | 'affectations' | 'remuneration' | 'documents'>('affectations')
 
   return (
@@ -1058,13 +1115,19 @@ function DetailEmploye({ employe, onClose }: { employe: Employe; onClose: () => 
         {tab === 'infos' && <InfosGeneralesTab employe={employe} />}
         {tab === 'affectations' && <AffectationsTab employe={employe} />}
         {tab === 'remuneration' && <RemunerationEmployeTab employe={employe} />}
-        {tab === 'documents' && <DocumentsTab employe={employe} />}
+        {tab === 'documents' && (
+          <DocumentsTab
+            employe={employe}
+            canUploadContract={can(session, 'employes:contrat')}
+            onEmployeeUpdated={onEmployeeUpdated}
+          />
+        )}
       </div>
     </aside>
   )
 }
 
-export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function GestionEquipesPage({ navigateTo, session }: { navigateTo: (page: string) => void; session: Session | null }) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
@@ -1269,7 +1332,15 @@ export default function GestionEquipesPage({ navigateTo }: { navigateTo: (page: 
             </div>
           </div>
 
-          {selected && <DetailEmploye key={selected.id} employe={selected} onClose={() => setSelectedId(null)} />}
+          {selected && (
+            <DetailEmploye
+              key={selected.id}
+              employe={selected}
+              session={session}
+              onClose={() => setSelectedId(null)}
+              onEmployeeUpdated={handleEmployeeUpdated}
+            />
+          )}
         </div>
       )}
 

@@ -27,7 +27,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('email', 'first_name', 'last_name')
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Informations personnelles', {'fields': ('first_name', 'last_name', 'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'ville')}),
+        ('Informations personnelles', {'fields': ('first_name', 'last_name', 'phone', 'fonction', 'matricule', 'date_naissance', 'pays', 'region', 'ville')}),
         ('Organisation', {'fields': ('role', 'organisation', 'team', 'statut')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )

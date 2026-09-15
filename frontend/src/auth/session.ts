@@ -23,6 +23,7 @@ export type Session = {
   matricule: string
   dateNaissance: string | null
   pays: string
+  region: string
   ville: string
   team: TeamSummary | null
   /* Équipes dont l'utilisateur est le manager — pilote l'affichage du tableau de bord manager. */

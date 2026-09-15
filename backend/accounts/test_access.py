@@ -1,8 +1,13 @@
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from .access import (
-    can_access_config, can_access_new_staffing, can_manage_projects, can_manage_teams,
-    can_view_treasury, feature_permissions, is_org_supervisor,
+    can_access_config, can_access_new_staffing, can_manage_employee_documents,
+    can_manage_projects, can_manage_teams, can_view_treasury, feature_permissions,
+    is_org_supervisor,
 )
 from .models import Organisation, Team, User, create_default_teams
 
@@ -131,7 +136,7 @@ class ProjectAccessTests(APITestCase):
     def test_login_exposes_permissions(self):
         for email, expected in (
             ('pil@acc.test', ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:view']),
-            ('res@acc.test', ['equipes:manage', 'staffing:new', 'tresorerie:view']),
+            ('res@acc.test', ['employes:contrat', 'equipes:manage', 'staffing:new', 'tresorerie:view']),
             ('dg@acc.test', ['config:view', 'projets:create', 'staffing:new', 'tresorerie:view']),
             ('none@acc.test', []),
         ):
@@ -146,7 +151,7 @@ class ProjectAccessTests(APITestCase):
         )
         self.assertEqual(
             feature_permissions(self.ressources_member),
-            ['equipes:manage', 'staffing:new', 'tresorerie:view'],
+            ['employes:contrat', 'equipes:manage', 'staffing:new', 'tresorerie:view'],
         )
         self.assertEqual(
             feature_permissions(self.direction_member),
@@ -196,3 +201,86 @@ class ProjectAccessTests(APITestCase):
             403,
         )
         self.assertEqual(self.client.patch('/api/organisations/levels/', {'team_levels_count': 5}, format='json').status_code, 403)
+
+
+class EmployeeContractAccessTests(APITestCase):
+    """Page Profil › Documents : le contrat de travail est téléversé par les Ressources (ou le
+    directeur/admin), jamais par le salarié lui-même, qui peut seulement le consulter/télécharger."""
+
+    def setUp(self):
+        self.org = Organisation.objects.create(name='Contrat', org_type='company', currency_code='EUR')
+        self.director = User.objects.create_user(
+            email='dir@contrat.test', password='x', role='directeur', organisation=self.org,
+            first_name='D', last_name='I')
+        create_default_teams(self.org, self.director)
+        self.ressources = Team.objects.get(organisation=self.org, code='RES')
+        self.pilotage = Team.objects.get(organisation=self.org, code='PIL')
+
+        self.rh_member = User.objects.create_user(
+            email='rh@contrat.test', password='x', role='salarie', organisation=self.org,
+            first_name='R', last_name='H', team=self.ressources)
+        self.pilotage_member = User.objects.create_user(
+            email='pil@contrat.test', password='x', role='salarie', organisation=self.org,
+            first_name='P', last_name='M', team=self.pilotage)
+        self.employee = User.objects.create_user(
+            email='emp@contrat.test', password='x', role='salarie', organisation=self.org,
+            first_name='E', last_name='M')
+
+    def test_rule(self):
+        self.assertTrue(can_manage_employee_documents(self.director))
+        self.assertTrue(can_manage_employee_documents(self.rh_member))
+        self.assertFalse(can_manage_employee_documents(self.pilotage_member))
+        self.assertFalse(can_manage_employee_documents(self.employee))
+
+    def test_ressources_can_upload_contract(self):
+        self.client.force_authenticate(self.rh_member)
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            response = self.client.patch(
+                f'/api/employees/{self.employee.id}/contrat/',
+                {'contrat_document': SimpleUploadedFile('contrat.pdf', b'%PDF-1.4 test', content_type='application/pdf')},
+                format='multipart',
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+            self.employee.refresh_from_db()
+            self.assertTrue(bool(self.employee.contrat_document))
+
+    def test_pilotage_and_employee_cannot_upload_contract(self):
+        pdf = lambda: SimpleUploadedFile('contrat.pdf', b'%PDF-1.4 test', content_type='application/pdf')
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            self.client.force_authenticate(self.pilotage_member)
+            response = self.client.patch(
+                f'/api/employees/{self.employee.id}/contrat/', {'contrat_document': pdf()}, format='multipart',
+            )
+            self.assertEqual(response.status_code, 403)
+
+            self.client.force_authenticate(self.employee)
+            response = self.client.patch(
+                f'/api/employees/{self.employee.id}/contrat/', {'contrat_document': pdf()}, format='multipart',
+            )
+            self.assertEqual(response.status_code, 403)
+
+    def test_employee_cannot_set_own_contract_via_me_endpoint(self):
+        self.client.force_authenticate(self.employee)
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            response = self.client.patch(
+                '/api/employees/me/',
+                {'contrat_document': SimpleUploadedFile('contrat.pdf', b'%PDF-1.4 test', content_type='application/pdf')},
+                format='multipart',
+            )
+            # Champ en lecture seule : la requête réussit mais le fichier n'est pas pris en compte.
+            self.assertEqual(response.status_code, 200, response.data)
+            self.employee.refresh_from_db()
+            self.assertFalse(bool(self.employee.contrat_document))
+
+    def test_employee_can_read_and_download_contract_once_uploaded(self):
+        self.client.force_authenticate(self.rh_member)
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            self.client.patch(
+                f'/api/employees/{self.employee.id}/contrat/',
+                {'contrat_document': SimpleUploadedFile('contrat.pdf', b'%PDF-1.4 test', content_type='application/pdf')},
+                format='multipart',
+            )
+            self.client.force_authenticate(self.employee)
+            response = self.client.get('/api/employees/me/')
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertTrue(response.data['contrat_document'])

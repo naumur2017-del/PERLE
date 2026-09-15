@@ -34,9 +34,10 @@ export async function getCountryByCode(isoCode: string): Promise<CountryOption |
   return { isoCode: c.isoCode, name: c.name, phonecode: c.phonecode, flag: c.flag, currency: c.currency }
 }
 
-/* Régions/États du pays choisi — utilisées comme options du champ « Ville » (qui, dans PERLE,
-   représente en réalité la région, pas une ville précise : sélection automatique et fiable,
-   contrairement à une liste de villes qui serait trop volumineuse et incomplète). */
+/* Régions/États du pays choisi — utilisées comme options du champ « Région » (RegionSelect) :
+   sélection fiable dans une liste maîtrisée, contrairement à une liste de villes qui serait trop
+   volumineuse et incomplète. La ville, elle, reste saisie librement en texte (voir DOCUMENTS_META
+   / les formulaires « Ville »). */
 export async function getStatesOfCountry(isoCode: string): Promise<RegionOption[]> {
   const { State } = await load()
   const states = State.getStatesOfCountry(isoCode) ?? []

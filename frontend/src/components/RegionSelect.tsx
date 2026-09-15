@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { getStatesOfCountry, type RegionOption } from '../utils/geo'
 
 interface RegionSelectProps {
-  /** Nom du champ (ex. « city », « ville ») — rendu comme un <select> natif classique, donc
-   * compatible avec FormData sans champ caché supplémentaire. */
+  /** Nom du champ (ex. « city », « region ») — rendu comme un <select> natif classique, donc
+   * compatible avec FormData sans champ caché supplémentaire. Sélectionne une région/état, pas
+   * une ville précise (voir utils/geo.ts) : la ville, elle, reste un champ texte libre à part. */
   name: string
   countryCode: string | null
   value?: string

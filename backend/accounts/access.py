@@ -26,6 +26,7 @@ from .models import Team
 PROJECT_TEAM_NIVEAUX = (1, 2)      # Direction Générale + Pilotage
 TEAM_ADMIN_NIVEAUX = (2, 3)        # Pilotage + Ressources
 SUPERVISION_NIVEAUX = (1, 2, 3)    # Direction Générale + Pilotage + Ressources (« back-office »)
+RESOURCES_NIVEAUX = (3,)           # Ressources
 
 
 def _protected_team_ids(organisation, niveaux):
@@ -124,12 +125,26 @@ def can_access_new_staffing(user):
     return is_org_supervisor(user) or _manages_any_team(user)
 
 
+def can_manage_employee_documents(user):
+    """Téléverser le contrat de travail d'un salarié (page Profil › Documents).
+
+    Le salarié consulte et télécharge son propre contrat mais ne peut pas le modifier
+    (voir EmployeeMeSerializer). Seuls le directeur/admin et les Ressources (membre ou
+    manager) peuvent le téléverser ou le remplacer."""
+    if not _authenticated(user):
+        return False
+    if user.role in ('admin', 'directeur'):
+        return True
+    return _in_protected_team(user, RESOURCES_NIVEAUX)
+
+
 FEATURE_CHECKS = {
     'projets:create': can_manage_projects,
     'staffing:new': can_access_new_staffing,
     'equipes:manage': can_manage_teams,
     'tresorerie:view': can_view_treasury,
     'config:view': can_access_config,
+    'employes:contrat': can_manage_employee_documents,
 }
 
 

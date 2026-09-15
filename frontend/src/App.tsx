@@ -532,7 +532,7 @@ function App() {
           onFocusConsumed={() => { setExecuteFocusCode(null); setExecuteFocusTaskId(null) }}
         />
       )
-      case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} />
+      case 'gestion': return <GestionEquipesPage navigateTo={navigateTo} session={session} />
       case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} session={session} />
       case 'gestion-organigramme': return <OrganigrammePage navigateTo={navigateTo} session={session!} />
       case 'gestion-historique': return <HistoriqueEmployesPage navigateTo={navigateTo} />

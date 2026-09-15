@@ -284,6 +284,8 @@
 .ge-doc-list li strong { display: block; font-size: 11px; color: #14123a; }
 .ge-doc-list li small { display: block; margin-top: 2px; font-size: 9.5px; color: #8f8fa6; white-space: normal; }
 
+.ge-doc-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: 0 0 auto; }
+
 .ge-doc-view-btn {
   display: flex;
   align-items: center;
@@ -298,9 +300,30 @@
   font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .ge-doc-view-btn:hover { background: #f7f5ff; }
+
+/* Téléversement du contrat de travail (Ressources / directeur / admin uniquement). */
+.ge-doc-upload-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #6b46c1;
+  border-radius: 7px;
+  background: #6b46c1;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ge-doc-upload-btn:hover { background: #5b3aa8; }
+.ge-doc-upload-btn input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
 /* =============== LEGEND ROW =============== */
 .ge-legend-info { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 9px; background: #eef2ff; color: #4338ca; font-size: 10.5px; font-weight: 600; max-width: 480px; }
