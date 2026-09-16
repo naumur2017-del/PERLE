@@ -17,8 +17,9 @@
 .salarie-heading h2 { margin: 0 0 4px; color: #1a1a2e; font-size: 20px; }
 .salarie-heading p { margin: 0; color: #6b6f8f; font-size: 12px; }
 
-/* Cartes de synthèse */
-.salarie-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* Cartes de synthèse — les 3 KPI (congés, avances, cumul de congés) partagent la même rangée,
+   avec le sélecteur de mois compact (voir .salarie-period-badge) juste au-dessus. */
+.salarie-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .salarie-summary-card { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr); align-items: center; gap: 14px; padding: 18px; border: 1px solid #e6e3f7; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(55, 45, 125, .04); }
 .salarie-summary-main { display: flex; align-items: center; gap: 12px; padding-right: 14px; border-right: 1px solid #ececf4; }
 .salarie-summary-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 50%; }
@@ -49,12 +50,13 @@
 .salarie-filter svg { color: #8286a8; flex: 0 0 auto; }
 .salarie-filter-periode { cursor: pointer; }
 
-/* Carte de cumul des jours de congé */
-.salarie-solde-panel { padding: 0; }
+/* Carte « Congés (Acquis, Consommé, Reste) » — un salarie-summary-card étendu avec le détail par
+   type de congé sur une 3e rangée, sous l'icône/total et le triptyque Acquis/Consommé/Reste. */
+.salarie-solde-panel { align-items: start; row-gap: 12px; }
 .salarie-solde-total { display: flex; align-items: baseline; gap: 6px; }
 .salarie-solde-total strong { font-size: 22px; color: #1a1a2e; }
 .salarie-solde-total span { font-size: 11px; color: #8286a8; font-weight: 600; }
-.salarie-solde-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; padding: 18px; }
+.salarie-solde-grid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding-top: 12px; border-top: 1px solid #ececf4; }
 .salarie-solde-item { display: flex; flex-direction: column; gap: 6px; }
 .salarie-solde-item strong { font-size: 12px; color: #1a1a2e; }
 .salarie-solde-bar { height: 6px; border-radius: 999px; background: #ede9fe; overflow: hidden; }
@@ -64,6 +66,15 @@
 .salarie-filter-periode select { border: none; background: none; padding: 0; margin: 0; color: #1a1a2e; font: inherit; font-weight: 700; cursor: pointer; }
 .salarie-filter-periode select:focus { outline: none; }
 .salarie-tab-filter-row { display: flex; justify-content: flex-end; }
+
+/* Petit module « calendrier » (mois/année courts, ex. Sept/2026) au-dessus des 3 KPI. */
+.salarie-period-badge {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.salarie-period-badge .salarie-filter-periode { background: #f4f2fd; border-color: #e0d9fa; }
 .salarie-primary-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: #5b21b6; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
 .salarie-primary-btn:hover { background: #6d28d9; transform: translateY(-1px); }
 .salarie-danger-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid #fbdada; border-radius: 6px; background: #fff; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
@@ -87,6 +98,21 @@
 .salarie-actions button.danger { border-color: #fbdada; color: #dc2626; }
 .salarie-actions button:hover { background: #f5f3ff; }
 .salarie-actions button.danger:hover { background: #fef2f2; }
+.salarie-actions .salarie-dispo-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  height: 28px;
+  padding: 0 10px;
+  border-color: #bbf7d0;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.salarie-actions .salarie-dispo-btn:hover { background: #bbf7d0; }
 
 .salarie-table-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; color: #6b6f8f; font-size: 11px; }
 .salarie-pagination { display: flex; gap: 6px; }
@@ -103,6 +129,10 @@
 .salarie-info-technique { background: #fff4e6; color: #9a5b00; }
 .salarie-info-technique strong { color: #7a4600; }
 .salarie-info-technique ul { color: #8a5300; }
+
+@media (max-width: 1200px) {
+  .salarie-summary { grid-template-columns: 1fr 1fr; }
+}
 
 @media (max-width: 900px) {
   .salarie-summary { grid-template-columns: 1fr; }

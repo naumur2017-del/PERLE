@@ -1,10 +1,13 @@
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPostUpload } from './client'
+import { ApiError, apiDelete, apiGet, apiPostUpload, apiUpload } from './client'
 import { getSession } from '../auth/session'
 
 export interface Paiement {
   id: number
   numero: string
   paiement_numero: string
+  // Code de la demande d'origine (ex. une avance sur salaire) que cette demande de paiement
+  // règle — auto-rempli quand on l'ouvre depuis « Demandes des employés », modifiable sinon.
+  reference_demande: string
   projet: number | null
   projet_nom: string
   ligne_budgetaire: number | null
@@ -27,10 +30,25 @@ export interface Paiement {
   updated_at: string
 }
 
-export type PaiementForm = Pick<Paiement, 'projet' | 'ligne_budgetaire' | 'fournisseur' | 'type_depense' | 'montant' | 'date_depense' | 'objet' | 'commentaires'> & { statut: 'brouillon' | 'attente' }
+export type PaiementForm = Pick<Paiement, 'projet' | 'ligne_budgetaire' | 'fournisseur' | 'type_depense' | 'montant' | 'date_depense' | 'objet' | 'commentaires' | 'reference_demande'> & {
+  statut: 'brouillon' | 'attente'
+  // Justificatif déposé dès la création de la demande (image ou PDF) — voir PaiementSerializer.justificatif.
+  justificatif?: File | null
+}
+
+const paiementFormData = (data: PaiementForm) => {
+  const formData = new FormData()
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return
+    if (value instanceof File) { formData.append(key, value); return }
+    formData.append(key, String(value))
+  })
+  return formData
+}
+
 export const fetchPaiements = () => apiGet<Paiement[]>('/paiements/')
-export const createPaiement = (data: PaiementForm) => apiPost<Paiement>('/paiements/', data)
-export const updatePaiement = (id: number, data: PaiementForm) => apiPatch<Paiement>(`/paiements/${id}/`, data)
+export const createPaiement = (data: PaiementForm) => apiPostUpload<Paiement>('/paiements/', paiementFormData(data))
+export const updatePaiement = (id: number, data: PaiementForm) => apiUpload<Paiement>(`/paiements/${id}/`, paiementFormData(data))
 export const deletePaiement = (id: number) => apiDelete(`/paiements/${id}/`)
 export const decidePaiement = (id: number, decision: 'accepte' | 'refuse', commentaire: string, fichier: File | null, mode: string) => {
   const data = new FormData()

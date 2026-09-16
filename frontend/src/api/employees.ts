@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPostUpload, apiUpload } from './client'
 
 export type StatutEmploye = 'actif' | 'conge' | 'inactif'
+export type Sexe = 'M' | 'F' | ''
 
 export interface TeamSummary {
   id: number
@@ -33,6 +34,7 @@ export interface Employee {
   fonction: string
   role: string
   matricule: string
+  sexe: Sexe
   date_naissance: string | null
   pays: string
   pays_code: string
@@ -106,15 +108,47 @@ export const sendHeartbeat = () => apiPost<void>('/employees/heartbeat/', {})
 
 export const createEmployee = (data: FormData) => apiPostUpload<Employee>('/employees/', data)
 
-export const updateEmployee = (id: number, data: { grade?: number; is_active?: boolean; statut?: StatutEmploye }) =>
+/** Le grade ne se modifie plus ici : voir createGradeChangeRequest / reviewGradeChangeRequest.
+ * `motif` est obligatoire quand `statut` vaut 'inactif' (voir GestionEquipesPage StatutModal). */
+export const updateEmployee = (id: number, data: { is_active?: boolean; statut?: StatutEmploye; motif?: string }) =>
   apiPatch<Employee>(`/employees/${id}/`, data)
 
 export const editEmployee = (id: number, data: FormData) => apiUpload<Employee>(`/employees/${id}/edit/`, data)
 
+export type GradeDemandeStatut = 'attente' | 'approuvee' | 'refusee'
+
+/** Demande de changement de grade (Gestion des équipes) — le grade de l'employé n'est mis à
+ * jour qu'après validation par la Direction (admin/directeur), voir reviewGradeChangeRequest. */
+export interface GradeChangeRequest {
+  id: number
+  employee: number
+  employee_nom: string
+  ancien_grade: number
+  nouveau_grade: number
+  motif: string
+  statut: GradeDemandeStatut
+  requested_by_nom: string | null
+  reviewed_by_nom: string | null
+  reviewed_at: string | null
+  commentaire_revue: string
+  created_at: string
+}
+
+export const fetchGradeChangeRequests = (statut?: GradeDemandeStatut) =>
+  apiGet<GradeChangeRequest[]>(`/employees/grade-requests/${statut ? `?statut=${statut}` : ''}`)
+
+export const createGradeChangeRequest = (employeeId: number, nouveauGrade: number, motif: string) =>
+  apiPost<GradeChangeRequest>('/employees/grade-requests/', { employee: employeeId, nouveau_grade: nouveauGrade, motif })
+
+export const reviewGradeChangeRequest = (id: number, statut: 'approuvee' | 'refusee', commentaireRevue?: string) =>
+  apiPatch<GradeChangeRequest>(`/employees/grade-requests/${id}/review/`, { statut, commentaire_revue: commentaireRevue ?? '' })
+
 export const fetchTeams = () => apiGet<Team[]>('/teams/')
 
-export const createTeam = (code: string, name: string, managerId: number | null, parentId: number | null) =>
-  apiPost<Team>('/teams/', { code, name, manager_id: managerId, parent: parentId })
+// Le code (3 lettres) est généré automatiquement côté serveur à partir du nom — voir
+// next_team_code (backend/accounts/models.py) — jamais saisi par l'utilisateur.
+export const createTeam = (name: string, managerId: number | null, parentId: number | null) =>
+  apiPost<Team>('/teams/', { name, manager_id: managerId, parent: parentId })
 
 export const updateTeam = (id: number, data: { name?: string; manager_id?: number | null; niveau?: number; parent?: number | null }) =>
   apiPatch<Team>(`/teams/${id}/`, data)
@@ -163,6 +197,9 @@ export interface MeProfile {
   team: TeamSummary | null
   managed_teams: TeamSummary[]
   permissions: string[]
+  // Collègues de son équipe + son manager — options du menu « Pendant mon absence mes tâches
+  // seront déléguées à » (voir CongeForm / CongeDemande.delegue_a).
+  delegable_colleagues: { id: number; nom: string }[]
   profile_photo: string | null
   cni_document: string | null
   autre_piece_document: string | null

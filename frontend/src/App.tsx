@@ -163,6 +163,10 @@ function App() {
   const [pilotageFocus, setPilotageFocus] = useState<PilotageFocusTarget | null>(null)
   const [executeFocusCode, setExecuteFocusCode] = useState<string | null>(null)
   const [executeFocusTaskId, setExecuteFocusTaskId] = useState<number | null>(null)
+  // Code d'une demande d'avance à reporter dans « Nouvelle demande de paiement » — voir
+  // DemandesEmployesPage (clic sur une demande d'avance) et TresoreriePage (champ Code).
+  const [paiementPrefillCode, setPaiementPrefillCode] = useState<string | null>(null)
+  const openPaiementForAvance = (code: string) => { setPaiementPrefillCode(code); navigateTo('tresorerie') }
   const mainContentRef = useRef<HTMLElement>(null)
 
   const addNotification = (message: string) => {
@@ -536,7 +540,7 @@ function App() {
       case 'gestion-equipes': return <EquipesPage navigateTo={navigateTo} session={session} />
       case 'gestion-organigramme': return <OrganigrammePage navigateTo={navigateTo} session={session!} />
       case 'gestion-historique': return <HistoriqueEmployesPage navigateTo={navigateTo} />
-      case 'gestion-demandes': return <DemandesEmployesPage navigateTo={navigateTo} />
+      case 'gestion-demandes': return <DemandesEmployesPage navigateTo={navigateTo} onOpenPaiementForAvance={openPaiementForAvance} />
       case 'tresorerie':
       case 'tresorerie-paiements':
       case 'tresorerie-comptes':
@@ -547,7 +551,11 @@ function App() {
           message="Les pages de trésorerie sont réservées à la Direction, au Pilotage, aux Ressources et aux managers d’équipe."
           navigateTo={navigateTo}
         />
-        if (activeNav === 'tresorerie') return <TresoreriePage navigateTo={navigateTo} />
+        if (activeNav === 'tresorerie') return <TresoreriePage
+          navigateTo={navigateTo}
+          prefillCode={paiementPrefillCode}
+          onPrefillConsumed={() => setPaiementPrefillCode(null)}
+        />
         if (activeNav === 'tresorerie-paiements') return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
         if (activeNav === 'tresorerie-comptes') return <ComptesOperationsPage navigateTo={navigateTo} />
         if (activeNav === 'tresorerie-rapports') return <JournalTresoreriePage navigateTo={navigateTo} />
@@ -772,6 +780,8 @@ function App() {
                             if (notification.cible_type === 'task' && notification.cible_id != null) {
                               setExecuteFocusTaskId(notification.cible_id)
                               navigateTo('staffing-execute')
+                            } else if (notification.cible_type === 'grade_demande') {
+                              navigateTo('gestion-demandes')
                             } else {
                               navigateTo('salarie')
                             }

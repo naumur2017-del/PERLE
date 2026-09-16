@@ -1598,6 +1598,7 @@ body {
 .auto-summary dd { margin: 0; font-weight: 700; }
 .auto-summary .blue { color: #3936e7; }
 .auto-summary .orange { color: #ff5b19; }
+.auto-summary .cyan { color: #157293; }
 .execution-total { display: grid; grid-template-columns: 1fr auto; gap: 5px; padding: 10px 7px 0; font-size: 10px; }
 .execution-total strong { color: #3138c8; }
 .execution-total small { grid-column: 1 / -1; color: #757ba2; }
@@ -1980,6 +1981,69 @@ body {
 .task-crud button.delete {
   color: #dc2626;
 }
+
+/* Options d'une ligne budgétaire (Charges et planification) : bouton « ⋮ » ouvrant Modifier /
+   Supprimer, au lieu d'une colonne d'actions toujours visible. */
+.charge-options-cell { position: relative; }
+.charge-options-btn {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d8d8eb;
+  border-radius: 4px;
+  background: white;
+  color: #4931cf;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.charge-options-btn:hover { border-color: #6b46c1; background: #f3efff; }
+.charge-options-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 130px;
+  padding: 4px;
+  border: 1px solid #e3e5f5;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 12px 28px rgba(30, 20, 80, 0.14);
+  list-style: none;
+}
+.charge-options-menu button {
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #252a68;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.charge-options-menu button:hover { background: #f4f1ff; color: #6d28d9; }
+.charge-options-menu button.danger { color: #dc2626; }
+.charge-options-menu button.danger:hover { background: #fef2f2; }
+.charge-options-menu button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Ligne en édition inline (Modifier) */
+.charge-row-editing input[type="number"] {
+  width: 90px;
+  padding: 5px 6px;
+  border: 1px solid #d8d8eb;
+  border-radius: 4px;
+  font-size: 8px;
+}
+.charge-edit-dates { display: flex; gap: 6px; }
+.charge-edit-dates > * { flex: 1; min-width: 0; }
+.charge-edit-actions { display: flex; gap: 6px; white-space: nowrap; }
+.charge-edit-actions .secondary-action { padding: 6px 9px; font-size: 8px; }
+.charge-edit-actions .add-charge { margin-top: 0; padding: 6px 9px; }
 
 .wrike-link {
   display: grid;

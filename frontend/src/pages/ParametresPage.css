@@ -27,6 +27,18 @@
   font-size: 13px;
   font-weight: 600;
 }
+.param-field textarea {
+  padding: 10px 12px;
+  border: 1px solid #ddd8f2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #2b2b4a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  resize: vertical;
+}
 
 .param-form-row { display: flex; gap: 14px; }
 .param-form-row .param-field { flex: 1; }

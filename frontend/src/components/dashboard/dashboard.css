@@ -186,7 +186,9 @@
 
 /* --- Panneaux et grille --------------------------------------------------- */
 
-.dsh-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; margin-bottom: 16px; }
+/* `stretch` (au lieu de `start`) : deux panneaux d'une même rangée prennent la hauteur du plus
+   grand, plus aucun trou dans la grille sous le plus court — voir .dsh-panel-body ci-dessous. */
+.dsh-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: stretch; margin-bottom: 16px; }
 .dsh-col-4 { grid-column: span 4; }
 .dsh-col-5 { grid-column: span 5; }
 .dsh-col-7 { grid-column: span 7; }
@@ -212,13 +214,21 @@
 .dsh-panel-head h3 { margin: 0; font-size: 13px; font-weight: 700; }
 .dsh-panel-head p { margin-top: 2px; color: var(--dsh-muted); font-size: 11px; }
 .dsh-panel-actions { flex-shrink: 0; }
-.dsh-panel-body { padding: 14px 16px; }
+/* Le corps absorbe la hauteur gagnée en s'alignant sur son voisin ; son contenu principal
+   (graphique, jauge EHS, tableau, alertes) est ensuite étiré pour occuper cet espace. */
+.dsh-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px; }
+.dsh-panel-body > .dsh-chart-host,
+.dsh-panel-body > .dsh-ehs,
+.dsh-panel-body > .dsh-table-scroll,
+.dsh-panel-body > .dsh-alerts { flex: 1 1 auto; min-height: 0; }
+/* Un tableau plus court que le panneau voisin se centre au lieu de laisser un vide en bas. */
+.dsh-panel-body > .dsh-table-scroll { display: flex; flex-direction: column; justify-content: center; }
 .dsh-panel-foot { padding: 10px 16px 14px; border-top: 1px solid var(--dsh-border); background: var(--dsh-surface-2); }
 
-.dsh-skeleton { padding: 20px 16px; }
+.dsh-skeleton { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding: 20px 16px; }
 .dsh-skeleton i { height: 210px; border-radius: 9px; }
 
-.dsh-fallback { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 34px 20px; text-align: center; }
+.dsh-fallback { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 34px 20px; text-align: center; }
 .dsh-fallback i { font-size: 26px; font-style: normal; color: var(--dsh-muted); }
 .dsh-fallback p { font-size: 13px; font-weight: 600; }
 .dsh-fallback small { color: var(--dsh-muted); font-size: 11px; }
@@ -228,7 +238,9 @@
 
 /* --- Graphiques ----------------------------------------------------------- */
 
-.dsh-chart-host { position: relative; }
+/* Le graphique se centre verticalement dans la carte : l'espace gagné par l'alignement de
+   rangée se répartit symétriquement au lieu de laisser un vide sous le tracé. */
+.dsh-chart-host { position: relative; display: flex; flex-direction: column; justify-content: center; }
 .dsh-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .dsh-grid-line, .dsh-grid { stroke: #efecf7; stroke-width: 1; }
 .dsh-axis { fill: var(--dsh-muted); font-size: 10px; }
@@ -328,7 +340,7 @@
   color: #fff;
 }
 
-.dsh-ehs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.dsh-ehs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: center; }
 .dsh-gauge { text-align: center; }
 .dsh-gauge .dsh-svg { max-width: 280px; margin: 0 auto; }
 .dsh-gauge > .dsh-tag { margin-top: 4px; }
@@ -377,7 +389,7 @@
 
 /* --- Alertes -------------------------------------------------------------- */
 
-.dsh-alerts { display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.dsh-alerts { display: flex; flex-direction: column; gap: 9px; max-height: 520px; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
 .dsh-alert { padding: 10px 11px; border: 1px solid var(--dsh-border); border-left: 3px solid var(--dsh-primary); border-radius: 9px; }
 .dsh-alert-danger { border-left-color: var(--dsh-red); background: var(--dsh-red-soft); }
 .dsh-alert-warn { border-left-color: var(--dsh-orange); background: var(--dsh-orange-soft); }

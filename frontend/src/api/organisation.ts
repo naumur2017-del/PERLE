@@ -31,11 +31,14 @@ export const updateOrganisationGrade = (taux_grade_fcfa: number) =>
 
 /** Taux utilisés pour calculer la prime de performance (note moyenne × taux) et les déductions
  * (charges sociales, impôt sur le revenu) affichées dans Salarié > Rémunération — des taux que
- * l'organisation configure elle-même, pas un barème fiscal officiel. */
+ * l'organisation configure elle-même, pas un barème fiscal officiel. `taux_tva_pct` est pré-rempli
+ * automatiquement depuis le pays à l'inscription (voir backend vat_rate_for_country), corrigible
+ * ici — repris comme valeur initiale du champ TVA (%) de chaque nouveau projet. */
 export interface OrganisationRemuneration {
   taux_prime_performance_fcfa: number
   taux_charges_sociales_pct: number
   taux_impot_revenu_pct: number
+  taux_tva_pct: number
 }
 
 export const fetchOrganisationRemuneration = () => apiGet<OrganisationRemuneration>('/organisations/remuneration/')

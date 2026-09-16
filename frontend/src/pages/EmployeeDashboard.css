@@ -1,0 +1,11 @@
+/* Le tableau de bord employé partage la feuille de styles des composants de
+   dashboard (« dsh-* »). Ce fichier ajoute les quelques éléments propres à la
+   vue employé et respecte la convention « une page, sa feuille homonyme »
+   vérifiée par scripts/check-page-structure.mjs. */
+
+@import '../components/dashboard/dashboard.css';
+
+/* Congés / rémunération : le triptyque dsh-facts (3 colonnes) reste lisible même
+   réduit à 2 valeurs pour la carte « Ma rémunération ». */
+.emp-facts { margin-top: 0; }
+.emp-facts-two { grid-template-columns: repeat(2, 1fr); }

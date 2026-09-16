@@ -19,10 +19,10 @@ from .access import (
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
     AvanceDemande, CongeDemande, CongeType, Conversation, ConversationRead, DirectMessage,
-    FermetureTechnique, LigneBudgetaire, Notification, Organisation, PrimeAjustement, Project,
+    FermetureTechnique, GradeChangeRequest, LigneBudgetaire, Notification, Organisation, PrimeAjustement, Project,
     ProjectLigne, PublicHoliday, Sanction, Task, TaskAssignment, TaskMessage, TaskMessageRead,
     TaskTemplate, Team, TypingStatus, User, compute_conge_solde, create_group_conversation,
-    get_or_create_conversation,
+    get_or_create_conversation, next_avance_code, next_conge_code,
 )
 from .serializers import (
     AvanceDemandeReviewSerializer,
@@ -39,6 +39,9 @@ from .serializers import (
     EmployeeCreateSerializer,
     EmployeeMeSerializer,
     EmployeeSerializer,
+    GradeChangeRequestCreateSerializer,
+    GradeChangeRequestReviewSerializer,
+    GradeChangeRequestSerializer,
     LigneBudgetaireCreateSerializer,
     LigneBudgetaireSerializer,
     LoginSerializer,
@@ -113,6 +116,50 @@ def apply_fermetures_techniques(organisation):
         if equipes_exceptees:
             candidats = candidats.exclude(team_id__in=equipes_exceptees)
         candidats.update(statut='conge', conge_technique_source=fermeture)
+
+
+def notify_pilotage_of_unavailable_managers(organisation):
+    """Un manager de retour de congé (date de fin atteinte) qui n'a pas confirmé sa disponibilité
+    (voir CongeDemandeConfirmDisponibiliteView) après 10 h heure locale déclenche une alerte —
+    une seule fois (`pilotage_alerte_envoyee`) — à destination du Pilotage, qui doit revoir sa
+    capacité à staffer l'équipe concernée. Lazy comme auto_approve_stale_demandes : appelé à
+    chaque lecture pertinente, faute de tâche planifiée dans ce projet."""
+    if not organisation:
+        return
+    now_local = timezone.localtime(timezone.now())
+    if now_local.hour < 10:
+        return
+    a_notifier = CongeDemande.objects.filter(
+        employee__organisation=organisation, statut='approuvee', date_fin__lte=now_local.date(),
+        disponibilite_confirmee=False, pilotage_alerte_envoyee=False,
+    ).exclude(employee__teams_managed__isnull=True).select_related('employee').distinct()
+    if not a_notifier.exists():
+        return
+    pilotage_team_ids = list(
+        Team.objects.filter(organisation=organisation, niveau=2, is_protected=True).values_list('id', flat=True)
+    )
+    if not pilotage_team_ids:
+        return
+    pilotage_users = list(User.objects.filter(
+        Q(team_id__in=pilotage_team_ids) | Q(teams_managed__id__in=pilotage_team_ids)
+    ).distinct())
+    if not pilotage_users:
+        return
+    for demande in a_notifier:
+        manager = demande.employee
+        manager_nom = f'{manager.first_name} {manager.last_name}'.strip()
+        for team in manager.teams_managed.all():
+            for pilote in pilotage_users:
+                _notify(
+                    pilote,
+                    (
+                        f'{manager_nom} (manager de {team.name}) n’a pas confirmé sa disponibilité '
+                        'après son retour de congé : sa capacité à staffer l’équipe doit être revue.'
+                    ),
+                    cible_type='dispo_manager', cible_id=demande.id,
+                )
+        demande.pilotage_alerte_envoyee = True
+        demande.save(update_fields=['pilotage_alerte_envoyee'])
 
 
 class OrganisationSearchView(generics.ListAPIView):
@@ -283,6 +330,25 @@ class EmployeeMeView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+def _notify_statut_change(employee, old_statut, new_statut):
+    """Notifie l'employé en temps réel (voir useSystemNotifications, sondage 20 s) d'un
+    changement de son propre statut — en particulier son passage à Inactif (plus staffable tant
+    qu'il n'est pas remis en activité) ou son retour."""
+    if old_statut == new_statut:
+        return
+    label = employee.get_statut_display()
+    if new_statut == 'inactif':
+        message = (
+            f'Votre statut a été mis à jour : {label}. Vous ne pouvez plus être affecté à de '
+            'nouvelles tâches jusqu’à votre remise en activité.'
+        )
+    elif old_statut == 'inactif':
+        message = f'Votre statut a été mis à jour : {label}. Vous pouvez de nouveau être affecté à des tâches.'
+    else:
+        message = f'Votre statut a été mis à jour : {label}.'
+    _notify(employee, message)
+
+
 class EmployeeDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = EmployeeAdminUpdateSerializer
     permission_classes = [IsAuthenticated]
@@ -294,12 +360,19 @@ class EmployeeDetailView(generics.RetrieveUpdateAPIView):
         apply_fermetures_techniques(organisation)
         return User.objects.filter(organisation=organisation)
 
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à modifier cet employé.')
+        serializer.save()
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        old_statut = instance.statut
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        self.perform_update(serializer)
+        _notify_statut_change(serializer.instance, old_statut, serializer.instance.statut)
         employee = EmployeeSerializer(serializer.instance, context=self.get_serializer_context())
         return Response(employee.data)
 
@@ -323,11 +396,99 @@ class EmployeeAdminEditView(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        old_statut = instance.statut
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        _notify_statut_change(serializer.instance, old_statut, serializer.instance.statut)
         employee = EmployeeSerializer(serializer.instance, context=self.get_serializer_context())
         return Response(employee.data)
+
+
+class GradeChangeRequestListCreateView(generics.ListCreateAPIView):
+    """Demandes de changement de grade (Gestion des équipes) : soumises par un manager ou les
+    Ressources (voir accounts.access.can_manage_teams), elles ne modifient le grade de l'employé
+    (et donc son salaire de base, recalculé à la volée depuis le grade) qu'après validation par
+    la Direction générale (admin/directeur) — voir GradeChangeRequestReviewView."""
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        return GradeChangeRequestCreateSerializer if self.request.method == 'POST' else GradeChangeRequestSerializer
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return GradeChangeRequest.objects.none()
+        qs = GradeChangeRequest.objects.filter(
+            employee__organisation=organisation
+        ).select_related('employee', 'requested_by', 'reviewed_by')
+        statut = self.request.query_params.get('statut')
+        if statut:
+            qs = qs.filter(statut=statut)
+        return qs
+
+    def perform_create(self, serializer):
+        if not can_manage_teams(self.request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à demander un changement de grade.')
+        instance = serializer.save()
+        requester_nom = f'{self.request.user.first_name} {self.request.user.last_name}'.strip()
+        employee_nom = f'{instance.employee.first_name} {instance.employee.last_name}'.strip()
+        direction = User.objects.filter(
+            organisation=self.request.user.organisation, role__in=('admin', 'directeur'),
+        ).exclude(pk=self.request.user.pk)
+        for member in direction:
+            _notify(
+                member,
+                (
+                    f'{requester_nom} demande de changer le grade de {employee_nom} : '
+                    f'G{instance.ancien_grade} → G{instance.nouveau_grade}. Motif : {instance.motif}'
+                ),
+                cible_type='grade_demande', cible_id=instance.id,
+            )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(GradeChangeRequestSerializer(serializer.instance, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
+
+class GradeChangeRequestReviewView(generics.UpdateAPIView):
+    """Validation ou rejet d'une demande de changement de grade — réservé à la Direction générale
+    (admin/directeur). La validation met immédiatement à jour le grade de l'employé via
+    User.change_grade (son salaire de base, calculé à la volée, se met donc à jour aussitôt) ;
+    le rejet ne change rien au profil de l'employé."""
+    serializer_class = GradeChangeRequestReviewSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return GradeChangeRequest.objects.none()
+        return GradeChangeRequest.objects.filter(employee__organisation=organisation, statut='attente')
+
+    def perform_update(self, serializer):
+        if self.request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à valider les demandes de changement de grade.')
+        serializer.save(reviewed_by=self.request.user, reviewed_at=timezone.now())
+        instance = serializer.instance
+        employee = instance.employee
+        if instance.statut == 'approuvee':
+            employee.change_grade(instance.nouveau_grade, changed_by=self.request.user)
+            _notify(employee, f'Votre changement de grade vers G{instance.nouveau_grade} a été validé par la Direction.')
+        else:
+            message = f'Votre demande de changement de grade vers G{instance.nouveau_grade} a été refusée par la Direction.'
+            if instance.commentaire_revue:
+                message += f' Motif : {instance.commentaire_revue}'
+            _notify(employee, message)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(GradeChangeRequestSerializer(serializer.instance, context=self.get_serializer_context()).data)
 
 
 class EmployeeContractView(generics.UpdateAPIView):
@@ -562,12 +723,13 @@ class CongeDemandeListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         apply_fermetures_techniques(self.request.user.organisation)
+        notify_pilotage_of_unavailable_managers(self.request.user.organisation)
         qs = CongeDemande.objects.filter(employee=self.request.user)
         auto_approve_stale_demandes(qs)
         return qs
 
     def perform_create(self, serializer):
-        instance = serializer.save(employee=self.request.user)
+        instance = serializer.save(employee=self.request.user, code=next_conge_code(self.request.user.organisation))
         # Un congé maladie met en Congé dès sa déclaration, sans attendre l'approbation de l'admin.
         if instance.type_conge.categorie == 'maladie' and self.request.user.statut == 'actif':
             self.request.user.statut = 'conge'
@@ -610,6 +772,7 @@ class OrganisationCongeDemandeListView(generics.ListAPIView):
         if not organisation:
             return CongeDemande.objects.none()
         apply_fermetures_techniques(organisation)
+        notify_pilotage_of_unavailable_managers(organisation)
         qs = CongeDemande.objects.filter(employee__organisation=organisation)
         auto_approve_stale_demandes(qs)
         return qs.select_related('employee', 'reviewed_by')
@@ -645,6 +808,15 @@ class CongeDemandeReviewView(generics.UpdateAPIView):
             fin = instance.date_fin.strftime('%d/%m/%Y') if instance.date_fin else None
             periode = f' du {debut} au {fin}' if debut and fin else (f' à partir du {debut}' if debut else '')
             _notify(employee, f'Votre demande de congé « {instance.type_conge.nom} »{periode} a été approuvée.')
+            # Gestion de responsabilité : la personne désignée par l'employé est notifiée qu'elle
+            # devient responsable de ses tâches pendant son absence.
+            if instance.delegue_a_id and instance.delegue_a_id != employee.id:
+                employee_nom = f'{employee.first_name} {employee.last_name}'.strip()
+                _notify(
+                    instance.delegue_a,
+                    f'{employee_nom} part en congé{periode} : vous êtes responsable de ses tâches pendant son absence.',
+                    cible_type='conge_delegation', cible_id=instance.id,
+                )
         else:
             if instance.type_conge.categorie == 'maladie':
                 # Le congé maladie avait déjà mis l'employé en Congé dès sa déclaration : un refus le remet actif.
@@ -690,6 +862,34 @@ class CongeDemandeEndView(generics.GenericAPIView):
         return Response(CongeDemandeSerializer(demande, context=self.get_serializer_context()).data)
 
 
+class CongeDemandeConfirmDisponibiliteView(generics.GenericAPIView):
+    """Un salarié (typiquement un manager) confirme sa disponibilité au retour de son congé
+    approuvé, une fois sa date de fin atteinte — voir notify_pilotage_of_unavailable_managers :
+    tant qu'il ne confirme pas après 10 h heure locale, le Pilotage est alerté de sa capacité de
+    staffing réduite sur l'équipe qu'il manage."""
+    serializer_class = CongeDemandeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        today = timezone.localdate()
+        return CongeDemande.objects.filter(
+            employee=self.request.user, statut='approuvee', date_fin__lte=today, disponibilite_confirmee=False,
+        )
+
+    def post(self, request, pk):
+        demande = get_object_or_404(self.get_queryset(), pk=pk)
+        demande.disponibilite_confirmee = True
+        demande.disponibilite_confirmee_le = timezone.now()
+        demande.save(update_fields=['disponibilite_confirmee', 'disponibilite_confirmee_le'])
+
+        employee = request.user
+        if employee.statut == 'conge':
+            employee.statut = 'actif'
+            employee.save(update_fields=['statut'])
+
+        return Response(CongeDemandeSerializer(demande, context=self.get_serializer_context()).data)
+
+
 class CongeSoldeView(generics.GenericAPIView):
     """Cumul des jours de congé (acquis / pris / restants) du salarié connecté, par type de congé
     « standard » (maladie/technique n'ont pas de quota et ne sont pas comptés ici) — voir
@@ -724,7 +924,7 @@ class AvanceDemandeListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(employee=self.request.user)
+        serializer.save(employee=self.request.user, code=next_avance_code(self.request.user.organisation))
 
 
 class AvanceDemandeDetailView(generics.RetrieveDestroyAPIView):

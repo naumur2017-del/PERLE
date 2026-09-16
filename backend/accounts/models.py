@@ -1,4 +1,8 @@
 import calendar
+import itertools
+import re
+import string
+import unicodedata
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
@@ -62,11 +66,76 @@ class Organisation(models.Model):
     # pas un barème fiscal officiel calculé par PERLE.
     taux_charges_sociales_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('10.5'))
     taux_impot_revenu_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    # Taux de TVA standard du pays de l'organisation — pré-rempli automatiquement à l'inscription
+    # depuis country_code (voir vat_rate_for_country) à titre de valeur par défaut réaliste,
+    # reste modifiable ensuite (Paramètres) : la loi fiscale peut changer, ou l'organisation peut
+    # relever d'un régime particulier. Repris comme valeur initiale du champ TVA (%) de chaque
+    # nouveau projet (Création de projet), toujours ajustable projet par projet.
+    taux_tva_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
+
+
+# Taux de TVA standard (%) par pays (code ISO 3166-1 alpha-2), utilisés uniquement pour
+# pré-remplir Organisation.taux_tva_pct à l'inscription — voir vat_rate_for_country. Ce sont des
+# taux standards indicatifs (hors taux réduits/exonérations propres à certains secteurs) : un pays
+# absent de cette liste, ou dont le taux légal a changé depuis, doit être saisi/corrigé à la main
+# depuis Paramètres, ce champ restant toujours modifiable après l'inscription.
+VAT_RATES_BY_COUNTRY = {
+    # CEMAC / UEMOA (Afrique centrale et de l'Ouest francophone)
+    'CM': Decimal('19.25'),  # Cameroun
+    'TD': Decimal('18'),     # Tchad
+    'CF': Decimal('19'),     # République centrafricaine
+    'CG': Decimal('18.9'),   # Congo-Brazzaville
+    'GA': Decimal('18'),     # Gabon
+    'GQ': Decimal('15'),     # Guinée équatoriale
+    'BJ': Decimal('18'),     # Bénin
+    'BF': Decimal('18'),     # Burkina Faso
+    'CI': Decimal('18'),     # Côte d'Ivoire
+    'ML': Decimal('18'),     # Mali
+    'NE': Decimal('19'),     # Niger
+    'SN': Decimal('18'),     # Sénégal
+    'TG': Decimal('18'),     # Togo
+    # Autres pays d'Afrique
+    'MA': Decimal('20'),     # Maroc
+    'DZ': Decimal('19'),     # Algérie
+    'TN': Decimal('19'),     # Tunisie
+    'EG': Decimal('14'),     # Égypte
+    'NG': Decimal('7.5'),    # Nigéria
+    'GH': Decimal('15'),     # Ghana
+    'KE': Decimal('16'),     # Kenya
+    'ZA': Decimal('15'),     # Afrique du Sud
+    'RW': Decimal('18'),     # Rwanda
+    'CD': Decimal('16'),     # RD Congo
+    # Europe
+    'FR': Decimal('20'),     # France
+    'BE': Decimal('21'),     # Belgique
+    'DE': Decimal('19'),     # Allemagne
+    'GB': Decimal('20'),     # Royaume-Uni
+    'ES': Decimal('21'),     # Espagne
+    'IT': Decimal('22'),     # Italie
+    'PT': Decimal('23'),     # Portugal
+    'NL': Decimal('21'),     # Pays-Bas
+    'CH': Decimal('8.1'),    # Suisse
+    'LU': Decimal('17'),     # Luxembourg
+    # Amériques
+    'CA': Decimal('5'),      # Canada (TPS fédérale ; les taxes provinciales s'ajoutent)
+    # Moyen-Orient / Asie
+    'AE': Decimal('5'),      # Émirats arabes unis
+    'SA': Decimal('15'),     # Arabie saoudite
+    'TR': Decimal('20'),     # Turquie
+    'CN': Decimal('13'),     # Chine
+    'IN': Decimal('18'),     # Inde
+}
+
+
+def vat_rate_for_country(country_code):
+    """Taux de TVA standard du pays (voir VAT_RATES_BY_COUNTRY) — 0 si le pays est inconnu ou non
+    renseigné, à corriger alors manuellement depuis Paramètres."""
+    return VAT_RATES_BY_COUNTRY.get((country_code or '').upper(), Decimal('0'))
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -95,6 +164,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('temps_plein', 'Temps plein'),
         ('temps_partiel', 'Temps partiel'),
     ]
+    SEXE_CHOICES = [
+        ('M', 'Homme'),
+        ('F', 'Femme'),
+    ]
 
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
@@ -117,6 +190,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     grade = models.PositiveIntegerField(default=0)
     matricule = models.CharField(max_length=50, blank=True)
+    sexe = models.CharField(max_length=1, choices=SEXE_CHOICES, blank=True)
     date_naissance = models.DateField(null=True, blank=True)
     pays = models.CharField(max_length=100, blank=True)
     pays_code = models.CharField(max_length=2, blank=True)
@@ -213,7 +287,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         )
 
     def change_grade(self, new_grade, changed_by=None):
-        """Update this user's grade and log the change."""
+        """Update this user's grade and log the change. N'est appelé qu'après validation d'une
+        GradeChangeRequest par la Direction (admin/directeur) — voir GradeChangeRequestReviewView.
+        Le salaire de base (grade × Organisation.taux_grade_fcfa) est recalculé à la volée à
+        chaque affichage, donc automatiquement à jour dès que le grade change ici."""
         if self.grade == new_grade:
             return
         ancien_grade = self.grade
@@ -221,6 +298,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.save(update_fields=['grade'])
         GradeHistory.objects.create(
             employee=self, ancien_grade=ancien_grade, nouveau_grade=new_grade, changed_by=changed_by,
+        )
+
+    def change_statut(self, new_statut, motif='', changed_by=None):
+        """Update this user's statut and log the change (voir StatutHistory) — le motif est
+        obligatoire côté serializer lors du passage à « inactif » (voir EmployeeAdminUpdateSerializer
+        / EmployeeAdminEditSerializer)."""
+        if self.statut == new_statut:
+            return
+        ancien_statut = self.statut
+        self.statut = new_statut
+        self.save(update_fields=['statut'])
+        StatutHistory.objects.create(
+            employee=self, ancien_statut=ancien_statut, nouveau_statut=new_statut,
+            motif=motif, changed_by=changed_by,
         )
 
 
@@ -260,6 +351,84 @@ class Team(models.Model):
 
     def __str__(self):
         return f'{self.code} — {self.name}'
+
+
+# Mots de liaison sans valeur identitaire pour une équipe : ignorés lors de la génération du
+# code tant qu'il reste au moins un mot « significatif » après filtrage (ex. « Direction
+# Générale » -> seul « Direction » compte -> DIR).
+_TEAM_CODE_STOPWORDS = {
+    'DE', 'DU', 'DES', 'LA', 'LE', 'LES', 'ET', 'A', 'AU', 'AUX', 'EN', 'UN', 'UNE',
+    'GENERAL', 'GENERALE', 'AND', 'OF', 'THE',
+}
+
+
+def _strip_accents(text):
+    normalized = unicodedata.normalize('NFKD', text)
+    return ''.join(char for char in normalized if not unicodedata.combining(char))
+
+
+def _team_name_words(name):
+    """Mots du nom d'équipe, normalisés (majuscules, sans accents) — tout caractère non
+    alphabétique (espaces, chiffres, ponctuation, symboles comme « & ») est traité comme un
+    séparateur de mots."""
+    cleaned = re.sub(r'[^A-Z]+', ' ', _strip_accents(name).upper())
+    return [word for word in cleaned.split() if word]
+
+
+def _team_code_candidates(name):
+    """Combinaisons de 3 lettres (ou moins si trop peu de lettres disponibles) représentatives
+    du nom d'équipe, de la plus pertinente à la moins pertinente — voir next_team_code.
+
+    - Un seul mot significatif : ses 3 premières lettres (ex. Ressources -> RES).
+    - Deux mots significatifs : le plus long des deux (le premier en cas d'égalité) est traité
+      comme le mot principal et fournit ses 2 premières lettres, l'autre sa seule initiale, dans
+      l'ordre d'origine des mots (ex. Back Office -> B + OF -> BOF ; Control & Gestion ->
+      CO + G -> COG, Control et Gestion ayant la même longueur).
+    - Trois mots significatifs ou plus : l'initiale des trois premiers (ex. Front Middle Back
+      Office -> FMB).
+    """
+    significant = [w for w in _team_name_words(name) if w not in _TEAM_CODE_STOPWORDS] or _team_name_words(name)
+    if not significant:
+        yield 'EQU'
+        return
+
+    if len(significant) == 1:
+        word = significant[0]
+        yield word[:3]
+        for start in range(1, len(word) - 1):
+            window = word[start:start + 3]
+            if len(window) >= 2:
+                yield window
+        return
+
+    if len(significant) == 2:
+        w1, w2 = significant
+        major_is_w1 = len(w1) >= len(w2)
+        yield (w1[:2] + w2[:1]) if major_is_w1 else (w1[:1] + w2[:2])
+        yield (w1[:1] + w2[:2]) if major_is_w1 else (w1[:2] + w2[:1])
+        yield (w1[:1] + w2[:1] + w1[1:2])[:3]
+        return
+
+    yield ''.join(word[:1] for word in significant[:3])
+    yield ''.join(word[:1] for word in significant[:2]) + significant[-1][:1]
+    yield significant[0][:2] + significant[1][:1]
+
+
+def next_team_code(organisation, name):
+    """Code de 3 lettres (majuscules) généré automatiquement à partir du nom de l'équipe — voir
+    _team_code_candidates — et garanti unique au sein de l'organisation (Team.unique_together).
+    En cas de collision, retente d'autres combinaisons pertinentes puis, en tout dernier
+    recours, balaie l'alphabet (AAA, AAB, …) pour ne jamais bloquer la création d'une équipe."""
+    existing = {code.upper() for code in Team.objects.filter(organisation=organisation).values_list('code', flat=True)}
+    for candidate in _team_code_candidates(name):
+        candidate = candidate.upper()
+        if candidate and candidate not in existing:
+            return candidate
+    for letters in itertools.product(string.ascii_uppercase, repeat=3):
+        candidate = ''.join(letters)
+        if candidate not in existing:
+            return candidate
+    raise RuntimeError('Impossible de générer un code d’équipe unique : toutes les combinaisons de 3 lettres sont utilisées.')
 
 
 DEFAULT_TEAMS = (
@@ -315,11 +484,54 @@ class AffectationHistory(models.Model):
         return f'{self.employee} : {self.ancienne_equipe} → {self.nouvelle_equipe}'
 
 
+class StatutHistory(models.Model):
+    """Historique des changements de statut (Actif / En congé / Inactif) d'un employé — le motif
+    est obligatoire lors du passage à Inactif (voir User.change_statut,
+    EmployeeAdminUpdateSerializer). Consulté aux côtés de GradeHistory/AffectationHistory."""
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='statut_history')
+    ancien_statut = models.CharField(max_length=20, choices=User.STATUT_CHOICES)
+    nouveau_statut = models.CharField(max_length=20, choices=User.STATUT_CHOICES)
+    motif = models.CharField(max_length=255, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['-changed_at']
+        verbose_name_plural = 'Statut histories'
+
+    def __str__(self):
+        return f'{self.employee} : {self.ancien_statut} → {self.nouveau_statut}'
+
+
 DEMANDE_STATUT_CHOICES = [
     ('attente', 'En attente'),
     ('approuvee', 'Approuvée'),
     ('refusee', 'Refusée'),
 ]
+
+
+class GradeChangeRequest(models.Model):
+    """Demande de changement de grade (Gestion des équipes › modifier le grade) : le grade de
+    l'employé n'est mis à jour (voir User.change_grade) qu'après validation par la Direction
+    générale (admin/directeur) — voir GradeChangeRequestReviewView. Le motif est obligatoire à la
+    soumission. Le salaire de base étant recalculé à la volée depuis le grade, il se met à jour
+    automatiquement dès la validation, sans traitement supplémentaire."""
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='grade_change_requests')
+    ancien_grade = models.PositiveIntegerField()
+    nouveau_grade = models.PositiveIntegerField()
+    motif = models.TextField()
+    statut = models.CharField(max_length=20, choices=DEMANDE_STATUT_CHOICES, default='attente')
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    commentaire_revue = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.employee} : G{self.ancien_grade} → G{self.nouveau_grade} ({self.statut})'
 
 
 class CongeType(models.Model):
@@ -434,12 +646,19 @@ def create_default_conge_types(organisation):
 
 class CongeDemande(models.Model):
     employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conge_demandes')
+    # Identifiant lisible attribué à la création (voir next_conge_code), affiché dans « Demandes
+    # des employés » — ex. CG-2026-001.
+    code = models.CharField(max_length=20, blank=True)
     type_conge = models.ForeignKey(CongeType, on_delete=models.PROTECT, related_name='demandes')
     # Non renseignées tant que le type est « défini par l'entreprise » : c'est alors l'admin
     # qui les saisit au moment de l'approbation.
     date_debut = models.DateField(null=True, blank=True)
     date_fin = models.DateField(null=True, blank=True)
     motif = models.TextField(blank=True)
+    # Gestion de responsabilité : la personne (collègue de son équipe ou son manager) à qui les
+    # tâches du demandeur sont déléguées pendant son absence — remplace le motif libre dans le
+    # formulaire de demande. Notifiée à l'approbation de la demande (voir CongeDemandeReviewView).
+    delegue_a = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='conge_delegations')
     statut = models.CharField(max_length=20, choices=DEMANDE_STATUT_CHOICES, default='attente')
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     reviewed_at = models.DateTimeField(null=True, blank=True)
@@ -449,6 +668,14 @@ class CongeDemande(models.Model):
     # Demi-journées : réservé aux types « standard » (ex. 2,5 jours au lieu de 3).
     demi_journee_debut = models.BooleanField(default=False)
     demi_journee_fin = models.BooleanField(default=False)
+    # Disponibilité confirmée au retour de congé — concerne surtout un manager (voir
+    # CongeDemandeConfirmDisponibiliteView) : tant qu'il ne confirme pas après 10 h le jour du
+    # retour, le Pilotage est alerté de sa capacité de staffing réduite sur l'équipe
+    # (notify_pilotage_of_unavailable_managers). `pilotage_alerte_envoyee` évite de renotifier en
+    # boucle à chaque nouvelle lecture des demandes.
+    disponibilite_confirmee = models.BooleanField(default=False)
+    disponibilite_confirmee_le = models.DateTimeField(null=True, blank=True)
+    pilotage_alerte_envoyee = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -491,6 +718,14 @@ class CongeDemande(models.Model):
         if self.date_fin and self.demi_journee_fin and self.date_fin.weekday() < 5 and self.date_fin != self.date_debut:
             deduction += 0.5
         return max(0, total - deduction)
+
+
+def next_conge_code(organisation):
+    """CG-<année>-<numéro séquentiel sur 3 chiffres, propre à l'organisation et à cette année>."""
+    year = timezone.localdate().year
+    prefix = f'CG-{year}-'
+    count = CongeDemande.objects.filter(employee__organisation=organisation, code__startswith=prefix).count()
+    return f'{prefix}{str(count + 1).zfill(3)}'
 
 
 def _add_months(base_date, months):
@@ -568,6 +803,10 @@ def compute_conge_solde(employee, conge_type):
 
 class AvanceDemande(models.Model):
     employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='avance_demandes')
+    # Identifiant lisible attribué à la création (voir next_avance_code), affiché dans « Demandes
+    # des employés » — ex. AV-2026-001. Reporté tel quel dans DemandePaiement.reference_demande
+    # quand la Trésorerie ouvre une « Nouvelle demande de paiement » depuis cette avance.
+    code = models.CharField(max_length=20, blank=True)
     montant = models.PositiveIntegerField()
     motif = models.TextField(blank=True)
     nombre_mois = models.PositiveIntegerField(default=1)
@@ -581,6 +820,14 @@ class AvanceDemande(models.Model):
 
     def __str__(self):
         return f'{self.employee} : {self.montant} FCFA'
+
+
+def next_avance_code(organisation):
+    """AV-<année>-<numéro séquentiel sur 3 chiffres, propre à l'organisation et à cette année>."""
+    year = timezone.localdate().year
+    prefix = f'AV-{year}-'
+    count = AvanceDemande.objects.filter(employee__organisation=organisation, code__startswith=prefix).count()
+    return f'{prefix}{str(count + 1).zfill(3)}'
 
 
 class FermetureTechnique(models.Model):
@@ -694,7 +941,10 @@ class Project(models.Model):
 
     @property
     def budget_execution(self):
-        return self.montant - self.montant_marge - self.montant_charges
+        # TTC : montant − TVA − marge − charges transversales. HT : montant − IR − marge − charges
+        # transversales — les deux taxes ne se soustraient jamais ensemble, selon type_montant.
+        taxe_deductible = self.montant_tva if self.type_montant == 'TTC' else self.montant_ir
+        return self.montant - taxe_deductible - self.montant_marge - self.montant_charges
 
 
 def next_project_code(organisation):
@@ -707,6 +957,10 @@ def next_project_code(organisation):
 
 class DemandePaiement(models.Model):
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE)
+    # Code de la demande d'origine (ex. une AvanceDemande.code) que cette demande de paiement
+    # règle — auto-rempli quand la Trésorerie ouvre « Nouvelle demande de paiement » depuis
+    # « Demandes des employés », mais reste un champ texte libre modifiable pour toute autre dépense.
+    reference_demande = models.CharField(max_length=30, blank=True)
     projet = models.ForeignKey(Project, on_delete=models.PROTECT, null=True, blank=True)
     ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, null=True, blank=True)
     fournisseur = models.CharField(max_length=255, blank=True)

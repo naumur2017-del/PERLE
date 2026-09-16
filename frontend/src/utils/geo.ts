@@ -51,4 +51,15 @@ export async function getCitiesOfCountry(isoCode: string): Promise<string[]> {
   return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
 }
 
+/* Villes de la région choisie (voir RegionSelect, qui stocke le nom de la région, pas son code
+   ISO) — utilisées comme options du champ « Ville » (CitySelect), dépendant de la région comme
+   la région dépend du pays. Lieu de résidence = Ville, Région, Pays. */
+export async function getCitiesOfRegion(countryCode: string, regionName: string): Promise<string[]> {
+  const { State, City } = await load()
+  const region = (State.getStatesOfCountry(countryCode) ?? []).find((s) => s.name === regionName)
+  if (!region) return []
+  const names = City.getCitiesOfState(countryCode, region.isoCode).map((c) => c.name)
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
+}
+
 export const formatPhonecode = (phonecode: string) => (phonecode.startsWith('+') ? phonecode : `+${phonecode}`)

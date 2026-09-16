@@ -22,6 +22,7 @@ export interface CongeType {
 
 export interface CongeDemande {
   id: number
+  code: string
   employee: number
   employee_nom: string
   employee_fonction: string
@@ -33,6 +34,10 @@ export interface CongeDemande {
   demi_journee_debut: boolean
   demi_journee_fin: boolean
   motif: string
+  // Gestion de responsabilité : qui reprend les tâches du demandeur pendant son absence.
+  delegue_a: number | null
+  delegue_a_nom: string | null
+  disponibilite_confirmee: boolean
   statut: DemandeStatut
   cloture: boolean
   reviewed_by_nom: string | null
@@ -43,6 +48,7 @@ export interface CongeDemande {
 
 export interface AvanceDemande {
   id: number
+  code: string
   employee: number
   employee_nom: string
   employee_fonction: string
@@ -93,7 +99,7 @@ export const createCongeDemande = (data: {
   type_conge: number
   date_debut?: string
   date_fin?: string
-  motif: string
+  delegue_a: number
   demi_journee_debut?: boolean
   demi_journee_fin?: boolean
 }) => apiPost<CongeDemande>('/demandes/conges/', data)
@@ -101,6 +107,11 @@ export const createCongeDemande = (data: {
 export const deleteCongeDemande = (id: number) => apiDelete(`/demandes/conges/${id}/`)
 
 export const endCongeDemande = (id: number) => apiPost<CongeDemande>(`/demandes/conges/${id}/end/`, {})
+
+/** Le salarié (typiquement un manager) confirme sa disponibilité au retour de son congé —
+ * voir notify_pilotage_of_unavailable_managers côté backend. */
+export const confirmerDisponibiliteConge = (id: number) =>
+  apiPost<CongeDemande>(`/demandes/conges/${id}/confirmer-disponibilite/`, {})
 
 export const fetchCongeSolde = () => apiGet<CongeSolde[]>('/demandes/conges/solde/')
 
@@ -113,7 +124,7 @@ export const reviewCongeDemande = (id: number, statut: 'approuvee' | 'refusee', 
 
 export const fetchMyAvanceDemandes = () => apiGet<AvanceDemande[]>('/demandes/avances/')
 
-export const createAvanceDemande = (data: { montant: number; motif: string; nombre_mois: number }) =>
+export const createAvanceDemande = (data: { montant: number; nombre_mois: number }) =>
   apiPost<AvanceDemande>('/demandes/avances/', data)
 
 export const deleteAvanceDemande = (id: number) => apiDelete(`/demandes/avances/${id}/`)

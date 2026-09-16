@@ -97,8 +97,32 @@ export interface ManagerDashboard {
   alerts: DashAlert[]
 }
 
+/** Tableau de bord personnel de l'accueil, pour tout salarié — ses propres tâches, EHS, congés
+ * et rémunération (voir backend EmployeeDashboardView). Un manager voit celui-ci en plus de son
+ * propre ManagerDashboard (onglets séparés sur l'accueil, voir HomePage.tsx). */
+export interface EmployeeDashboard {
+  period: DashPeriod
+  currency_code: string
+  generated_at: string
+  kpi: {
+    active_tasks: number; late_tasks: number
+    tasks_done_30d: number; avg_note: number | null
+    hours_in_progress: number; projects_active: number
+    ehs_consumed: number
+    conge_acquis: number; conge_pris: number; conge_solde: number
+    salaire_de_base: number; prime_performance: number
+  }
+  task_status: LabelValue[]
+  tasks_trend: { label: string; done: number; created: number }[]
+  ehs_by_month: LabelValue[]
+  alerts: DashAlert[]
+}
+
 export const fetchDirectionDashboard = (period: DashPeriod): Promise<DirectionDashboard> =>
   apiGet<DirectionDashboard>(`/dashboard/direction/?period=${period}`)
 
 export const fetchManagerDashboard = (period: DashPeriod, teamId?: number): Promise<ManagerDashboard> =>
   apiGet<ManagerDashboard>(`/dashboard/manager/?period=${period}${teamId ? `&team=${teamId}` : ''}`)
+
+export const fetchEmployeeDashboard = (period: DashPeriod): Promise<EmployeeDashboard> =>
+  apiGet<EmployeeDashboard>(`/dashboard/employee/?period=${period}`)

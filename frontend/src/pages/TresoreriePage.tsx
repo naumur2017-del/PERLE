@@ -37,7 +37,10 @@ const statutClass = (statut: string) => {
   return 'attente'
 }
 
-const emptyForm = { projet: '', ligneBudgetaire: '', fournisseur: '', typeDepense: '', montant: '', dateDepense: '', objet: '', commentaires: '' }
+const emptyForm = {
+  projet: '', ligneBudgetaire: '', fournisseur: '', typeDepense: '', montant: '', dateDepense: '',
+  objet: '', commentaires: '', code: '', justificatif: null as File | null,
+}
 type FormState = typeof emptyForm
 
 type BrouillonColumnId = 'numero' | 'dateCreation' | 'projet' | 'ligneBudgetaire' | 'fournisseur' | 'mercurial' | 'montant' | 'devise' | 'statut' | 'dateMaj'
@@ -68,7 +71,13 @@ const BROUILLON_CELL_DEFS: Record<BrouillonColumnId, { className?: string; rende
   dateMaj: { render: (b) => b.dateMaj },
 }
 
-export default function TresoreriePage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsumed }: {
+  navigateTo: (page: string) => void
+  // Code d'une demande d'avance à reporter automatiquement dans le champ Code (voir
+  // DemandesEmployesPage, clic sur une demande d'avance approuvée).
+  prefillCode?: string | null
+  onPrefillConsumed?: () => void
+}) {
   const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>('nouveau')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [search, setSearch] = useState('')
@@ -91,6 +100,16 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    if (!prefillCode) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (prefillCode), pas dérivé du rendu
+    setInnerTab('nouveau')
+    setForm((current) => ({ ...current, code: prefillCode }))
+    onPrefillConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à prefillCode
+  }, [prefillCode])
+
   const lignes = projects.find((project) => String(project.id) === form.projet)?.lignes ?? []
   const drafts: Brouillon[] = records.filter((record) => record.statut === 'brouillon')
     .filter((record) => (!projectFilter || String(record.projet) === projectFilter)
@@ -119,6 +138,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
     // une sélection déjà faite plutôt que de la laisser incohérente avec le nouveau type choisi.
     ...(field === 'typeDepense' && value === 'Transversal' ? { projet: '', ligneBudgetaire: '' } : {}),
   }))
+  const updateFile = (file: File | null) => setForm((current) => ({ ...current, justificatif: file }))
   const isTransversal = form.typeDepense === 'Transversal'
   const resetForm = () => { setForm(emptyForm); setEditingId(null) }
 
@@ -132,6 +152,7 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
         fournisseur: form.fournisseur.trim(), type_depense: form.typeDepense,
         montant: Number(form.montant) || 0, date_depense: form.dateDepense || null,
         objet: form.objet.trim(), commentaires: form.commentaires, statut,
+        reference_demande: form.code.trim(), justificatif: form.justificatif,
       }
       const saved = editingId === null ? await createPaiement(data) : await updatePaiement(editingId, data)
       setRecords((current) => [saved, ...current.filter((record) => record.id !== saved.id)])
@@ -146,7 +167,8 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
     setEditingId(id)
     setForm({ projet: record.projet ? String(record.projet) : '', ligneBudgetaire: record.ligne_budgetaire ? String(record.ligne_budgetaire) : '',
       fournisseur: record.fournisseur, typeDepense: record.type_depense, montant: String(record.montant),
-      dateDepense: record.date_depense ?? '', objet: record.objet, commentaires: record.commentaires })
+      dateDepense: record.date_depense ?? '', objet: record.objet, commentaires: record.commentaires,
+      code: record.reference_demande, justificatif: null })
     setMessage(''); setError('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -241,6 +263,26 @@ export default function TresoreriePage({ navigateTo }: { navigateTo: (page: stri
               </label>
               <DatePicker label={<>Date de la dépense <em>*</em></>} value={form.dateDepense} onChange={(v) => updateField('dateDepense', v)} />
             </div>
+
+            <div className="tr-request-grid two">
+              <label>Code
+                <input
+                  value={form.code} maxLength={30} placeholder="Ex. AV-2026-001"
+                  onChange={(event) => updateField('code', event.target.value)}
+                />
+              </label>
+              <label>Justificatif (image ou PDF)
+                <input
+                  type="file" accept="image/*,.pdf"
+                  onChange={(event) => updateFile(event.target.files?.[0] ?? null)}
+                />
+                {form.justificatif && <small className="tr-file-name">{form.justificatif.name}</small>}
+              </label>
+            </div>
+            <p className="tr-hint">
+              Le code se remplit automatiquement lorsque cette demande provient d'une avance sur salaire approuvée
+              (voir Gestion des équipes › Demandes des employés).
+            </p>
 
             <div className="tr-request-grid two">
               <label>Objet / Description de la demande <em>*</em>

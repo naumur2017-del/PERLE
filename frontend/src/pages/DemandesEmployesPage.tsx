@@ -1,17 +1,20 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Building2, Calendar, Check, Plus, Search, Trash2, Wallet, X } from 'lucide-react'
+import { Award, Building2, Calendar, Check, Plus, Search, Trash2, Wallet, X } from 'lucide-react'
 import {
   createFermetureTechnique, deleteFermetureTechnique, fetchFermeturesTechniques,
   fetchOrganisationAvanceDemandes, fetchOrganisationCongeDemandes, reviewAvanceDemande, reviewCongeDemande,
   type AvanceDemande, type CongeDemande, type DemandeStatut, type FermetureTechnique,
 } from '../api/demandes'
-import { fetchEmployees, fetchTeams, type Employee, type Team } from '../api/employees'
+import {
+  fetchEmployees, fetchGradeChangeRequests, fetchTeams, reviewGradeChangeRequest,
+  type Employee, type GradeChangeRequest, type Team,
+} from '../api/employees'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
 import DatePicker from '../components/DatePicker'
 import './DemandesEmployesPage.css'
 
-type Tab = 'conges' | 'avances' | 'technique'
+type Tab = 'conges' | 'avances' | 'grades' | 'technique'
 type Section = 'nouvelle' | 'historique'
 
 const STATUT_LABELS: Record<DemandeStatut, string> = { attente: 'En attente', approuvee: 'Approuvée', refusee: 'Refusée' }
@@ -115,12 +118,13 @@ function CongeRow({ demande, busy, onApprove, onRefuse }: {
 }) {
   return (
     <tr>
+      <td className="de-code">{demande.code || '—'}</td>
       <td><strong>{demande.employee_nom}</strong><br /><small>{demande.employee_fonction || 'Sans fonction'}</small></td>
       <td>{demande.type_conge_detail.nom}</td>
       <td>{formatDate(demande.date_debut)}</td>
       <td>{demande.date_fin ? formatDate(demande.date_fin) : (demande.type_conge_detail.categorie === 'maladie' ? (demande.cloture ? '—' : 'En cours') : 'À définir')}</td>
       <td>{formatDuree(demande.duree)} j</td>
-      <td className="de-motif">{demande.motif || 'Aucun motif renseigné'}</td>
+      <td className="de-motif">{demande.delegue_a_nom ? `Délégué à : ${demande.delegue_a_nom}` : '—'}</td>
       <td><span className={`ge-pill ${STATUT_CLASS[demande.statut]}`}>{STATUT_LABELS[demande.statut]}</span></td>
       <td>{traitePar(demande)}</td>
       <td className="de-actions">
@@ -135,12 +139,23 @@ function CongeRow({ demande, busy, onApprove, onRefuse }: {
   )
 }
 
-function AvanceRow({ demande, busy, onReview }: { demande: AvanceDemande; busy: boolean; onReview: (id: number, statut: 'approuvee' | 'refusee') => void }) {
+function AvanceRow({ demande, busy, onReview, onOpenPaiement }: {
+  demande: AvanceDemande
+  busy: boolean
+  onReview: (id: number, statut: 'approuvee' | 'refusee') => void
+  onOpenPaiement?: (code: string) => void
+}) {
+  // Seule une avance approuvée peut donner lieu à un paiement — voir la Trésorerie.
+  const openable = demande.statut === 'approuvee' && Boolean(onOpenPaiement)
   return (
-    <tr>
+    <tr
+      className={openable ? 'de-row-clickable' : ''}
+      title={openable ? 'Ouvrir une nouvelle demande de paiement pour cette avance' : undefined}
+      onClick={openable ? () => onOpenPaiement?.(demande.code) : undefined}
+    >
+      <td className="de-code">{demande.code || '—'}</td>
       <td><strong>{demande.employee_nom}</strong><br /><small>{demande.employee_fonction || 'Sans fonction'}</small></td>
       <td><strong>{formatMontant(demande.montant)}</strong></td>
-      <td className="de-motif">{demande.motif || 'Aucun motif renseigné'}</td>
       <td>
         {demande.nombre_mois} salaire{demande.nombre_mois > 1 ? 's' : ''}
         <br /><small>({formatMontant(Math.round(demande.montant / demande.nombre_mois))}/mois)</small>
@@ -150,7 +165,32 @@ function AvanceRow({ demande, busy, onReview }: { demande: AvanceDemande; busy: 
       <td className="de-actions">
         {demande.statut === 'attente' ? (
           <>
-            <button type="button" aria-label="Approuver" className="de-approve" disabled={busy} onClick={() => onReview(demande.id, 'approuvee')}><Check size={14} /></button>
+            <button type="button" aria-label="Approuver" className="de-approve" disabled={busy} onClick={(event) => { event.stopPropagation(); onReview(demande.id, 'approuvee') }}><Check size={14} /></button>
+            <button type="button" aria-label="Refuser" className="de-refuse" disabled={busy} onClick={(event) => { event.stopPropagation(); onReview(demande.id, 'refusee') }}><X size={14} /></button>
+          </>
+        ) : openable ? <span className="de-open-hint">→ Nouvelle demande de paiement</span> : '—'}
+      </td>
+    </tr>
+  )
+}
+
+function GradeRow({ demande, busy, onReview }: {
+  demande: GradeChangeRequest
+  busy: boolean
+  onReview: (id: number, statut: 'approuvee' | 'refusee') => void
+}) {
+  return (
+    <tr>
+      <td><strong>{demande.employee_nom}</strong></td>
+      <td><span className="de-grade-change">G{demande.ancien_grade} → G{demande.nouveau_grade}</span></td>
+      <td className="de-motif">{demande.motif || 'Aucun motif renseigné'}</td>
+      <td>{demande.requested_by_nom ?? '—'}</td>
+      <td><span className={`ge-pill ${STATUT_CLASS[demande.statut]}`}>{STATUT_LABELS[demande.statut]}</span></td>
+      <td>{demande.reviewed_by_nom ?? '—'}</td>
+      <td className="de-actions">
+        {demande.statut === 'attente' ? (
+          <>
+            <button type="button" aria-label="Valider" className="de-approve" disabled={busy} onClick={() => onReview(demande.id, 'approuvee')}><Check size={14} /></button>
             <button type="button" aria-label="Refuser" className="de-refuse" disabled={busy} onClick={() => onReview(demande.id, 'refusee')}><X size={14} /></button>
           </>
         ) : '—'}
@@ -326,11 +366,16 @@ function FermetureTechniqueTab() {
   )
 }
 
-export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function DemandesEmployesPage({ navigateTo, onOpenPaiementForAvance }: {
+  navigateTo: (page: string) => void
+  // Ouvre la Trésorerie > Nouvelle demande de paiement avec le code de l'avance pré-rempli.
+  onOpenPaiementForAvance?: (code: string) => void
+}) {
   const [tab, setTab] = useState<Tab>('conges')
   const [section, setSection] = useState<Section>('nouvelle')
   const [conges, setConges] = useState<CongeDemande[]>([])
   const [avances, setAvances] = useState<AvanceDemande[]>([])
+  const [gradeRequests, setGradeRequests] = useState<GradeChangeRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -340,11 +385,12 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([fetchOrganisationCongeDemandes(), fetchOrganisationAvanceDemandes()])
-      .then(([congesData, avancesData]) => {
+    Promise.all([fetchOrganisationCongeDemandes(), fetchOrganisationAvanceDemandes(), fetchGradeChangeRequests()])
+      .then(([congesData, avancesData, gradeData]) => {
         if (cancelled) return
         setConges(congesData)
         setAvances(avancesData)
+        setGradeRequests(gradeData)
       })
       .catch(() => { if (!cancelled) setLoadError('Impossible de charger les demandes.') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -390,23 +436,44 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
     }
   }
 
+  const handleReviewGrade = async (id: number, statut: 'approuvee' | 'refusee') => {
+    setBusyId(id)
+    setActionError(null)
+    try {
+      const updated = await reviewGradeChangeRequest(id, statut)
+      setGradeRequests((prev) => prev.map((item) => item.id === id ? updated : item))
+    } catch (err) {
+      setActionError(errorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const query = search.trim().toLowerCase()
   const filteredConges = conges.filter((c) => !query || c.employee_nom.toLowerCase().includes(query))
   const filteredAvances = avances.filter((a) => !query || a.employee_nom.toLowerCase().includes(query))
+  const filteredGrades = gradeRequests.filter((g) => !query || g.employee_nom.toLowerCase().includes(query))
 
   const nouvellesConges = filteredConges.filter((c) => c.statut === 'attente')
   const historiqueConges = filteredConges.filter((c) => c.statut !== 'attente')
   const nouvellesAvances = filteredAvances.filter((a) => a.statut === 'attente')
   const historiqueAvances = filteredAvances.filter((a) => a.statut !== 'attente')
+  const nouvellesGrades = filteredGrades.filter((g) => g.statut === 'attente')
+  const historiqueGrades = filteredGrades.filter((g) => g.statut !== 'attente')
 
   const congeTableHead = (
     <thead>
-      <tr><th>Employé</th><th>Type</th><th>Du</th><th>Au</th><th>Durée</th><th>Motif</th><th>Statut</th><th>Traité par</th><th>Action</th></tr>
+      <tr><th>Code</th><th>Employé</th><th>Type</th><th>Du</th><th>Au</th><th>Durée</th><th>Gestion de responsabilité</th><th>Statut</th><th>Traité par</th><th>Action</th></tr>
     </thead>
   )
   const avanceTableHead = (
     <thead>
-      <tr><th>Employé</th><th>Montant</th><th>Motif</th><th>Remboursement</th><th>Statut</th><th>Traité par</th><th>Action</th></tr>
+      <tr><th>Code</th><th>Employé</th><th>Montant</th><th>Remboursement</th><th>Statut</th><th>Traité par</th><th>Action</th></tr>
+    </thead>
+  )
+  const gradeTableHead = (
+    <thead>
+      <tr><th>Employé</th><th>Changement</th><th>Motif</th><th>Demandé par</th><th>Statut</th><th>Traité par</th><th>Action</th></tr>
     </thead>
   )
 
@@ -415,8 +482,8 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
     setSection('nouvelle')
   }
 
-  const nouvelleCount = tab === 'conges' ? nouvellesConges.length : nouvellesAvances.length
-  const historiqueCount = tab === 'conges' ? historiqueConges.length : historiqueAvances.length
+  const nouvelleCount = tab === 'conges' ? nouvellesConges.length : tab === 'avances' ? nouvellesAvances.length : nouvellesGrades.length
+  const historiqueCount = tab === 'conges' ? historiqueConges.length : tab === 'avances' ? historiqueAvances.length : historiqueGrades.length
 
   return (
     <section className="ge-page">
@@ -427,6 +494,9 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
           </button>
           <button className={tab === 'avances' ? 'active' : ''} onClick={() => changeTab('avances')}>
             <Wallet size={14} />Demandes d'avance{nouvellesAvances.length > 0 && <span className="de-badge">{nouvellesAvances.length}</span>}
+          </button>
+          <button className={tab === 'grades' ? 'active' : ''} onClick={() => changeTab('grades')}>
+            <Award size={14} />Demandes de grade{nouvellesGrades.length > 0 && <span className="de-badge">{nouvellesGrades.length}</span>}
           </button>
           <button className={tab === 'technique' ? 'active' : ''} onClick={() => changeTab('technique')}>
             <Building2 size={14} />Congé Technique
@@ -488,7 +558,7 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
           {avanceTableHead}
           <tbody>
             {nouvellesAvances.map((demande) => (
-              <AvanceRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewAvance} />
+              <AvanceRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewAvance} onOpenPaiement={onOpenPaiementForAvance} />
             ))}
           </tbody>
         </DemandeSection>
@@ -499,7 +569,29 @@ export default function DemandesEmployesPage({ navigateTo }: { navigateTo: (page
           {avanceTableHead}
           <tbody>
             {historiqueAvances.map((demande) => (
-              <AvanceRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewAvance} />
+              <AvanceRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewAvance} onOpenPaiement={onOpenPaiementForAvance} />
+            ))}
+          </tbody>
+        </DemandeSection>
+      )}
+
+      {!loading && !loadError && tab === 'grades' && section === 'nouvelle' && (
+        <DemandeSection count={nouvellesGrades.length} emptyLabel="Aucune nouvelle demande de changement de grade.">
+          {gradeTableHead}
+          <tbody>
+            {nouvellesGrades.map((demande) => (
+              <GradeRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewGrade} />
+            ))}
+          </tbody>
+        </DemandeSection>
+      )}
+
+      {!loading && !loadError && tab === 'grades' && section === 'historique' && (
+        <DemandeSection count={historiqueGrades.length} emptyLabel="Aucune demande de changement de grade traitée pour le moment.">
+          {gradeTableHead}
+          <tbody>
+            {historiqueGrades.map((demande) => (
+              <GradeRow key={demande.id} demande={demande} busy={busyId === demande.id} onReview={handleReviewGrade} />
             ))}
           </tbody>
         </DemandeSection>

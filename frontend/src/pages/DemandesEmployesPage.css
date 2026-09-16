@@ -80,6 +80,12 @@
 .de-refuse:hover:not(:disabled) { background: #fecaca; }
 .de-approve:disabled, .de-refuse:disabled { opacity: .5; cursor: not-allowed; }
 
+.de-code { color: #6c6c85; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.de-grade-change { padding: 2px 8px; border-radius: 20px; background: #efe9fd; color: #6b46c1; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
+.de-row-clickable { cursor: pointer; }
+.de-row-clickable:hover { background: #faf9fe; }
+.de-open-hint { color: #6b46c1; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+
 .de-technique-form { padding: 16px; border: 1px solid #eae7f6; border-radius: 10px; background: #faf9fe; }
 .de-technique-exceptions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .de-technique-exceptions > div { display: flex; flex-direction: column; gap: 6px; }

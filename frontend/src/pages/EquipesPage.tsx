@@ -69,9 +69,10 @@ function CreateEquipeModal({ employees, teams, onClose, onCreate }: {
   employees: Employee[]
   teams: Team[]
   onClose: () => void
-  onCreate: (code: string, nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => Promise<void>
+  // Le code (3 lettres) est généré automatiquement à partir du nom côté serveur — voir
+  // next_team_code (backend/accounts/models.py) — jamais saisi ici.
+  onCreate: (nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => Promise<void>
 }) {
-  const [code, setCode] = useState('')
   const [nom, setNom] = useState('')
   const [managerId, setManagerId] = useState<number | null>(null)
   const [parentId, setParentId] = useState<number | null>(null)
@@ -96,14 +97,14 @@ function CreateEquipeModal({ employees, teams, onClose, onCreate }: {
     if (id !== null && !memberIds.includes(id)) addMembre(id)
   }
 
-  const canCreate = code.trim() !== '' && nom.trim() !== '' && !submitting
+  const canCreate = nom.trim() !== '' && !submitting
 
   const handleSubmit = async () => {
     if (!canCreate) return
     setSubmitting(true)
     setError(null)
     try {
-      await onCreate(code.trim(), nom.trim(), managerId, parentId, memberIds.filter((id) => id !== managerId))
+      await onCreate(nom.trim(), managerId, parentId, memberIds.filter((id) => id !== managerId))
     } catch (err) {
       setError(errorMessage(err))
       setSubmitting(false)
@@ -116,19 +117,15 @@ function CreateEquipeModal({ employees, teams, onClose, onCreate }: {
         <div className="eq-modal-head">
           <div>
             <h3>Créer une équipe</h3>
-            <p>Définissez son code, son nom, son manager et ses membres.</p>
+            <p>Définissez son nom, son manager et ses membres — son code (3 lettres) est généré automatiquement.</p>
           </div>
           <button type="button" className="eq-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
 
         {error && <p className="form-error">{error}</p>}
 
-        <label className="eq-modal-field">Code de l'équipe *
-          <input autoFocus placeholder="Ex. EQ-COM" value={code} onChange={(event) => setCode(event.target.value)} />
-        </label>
-
         <label className="eq-modal-field">Nom de l'équipe *
-          <input placeholder="Ex. Support Client" value={nom} onChange={(event) => setNom(event.target.value)} />
+          <input autoFocus placeholder="Ex. Support Client" value={nom} onChange={(event) => setNom(event.target.value)} />
         </label>
 
         <label className="eq-modal-field">Équipe de direction (facultatif)
@@ -385,8 +382,8 @@ export default function EquipesPage({ navigateTo, session }: { navigateTo: (page
     })
   }
 
-  const handleCreateEquipe = async (code: string, nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => {
-    const team = await createTeam(code, nom, managerId, parentId)
+  const handleCreateEquipe = async (nom: string, managerId: number | null, parentId: number | null, memberIds: number[]) => {
+    const team = await createTeam(nom, managerId, parentId)
     for (const memberId of memberIds) {
       await addTeamMember(team.id, memberId)
     }

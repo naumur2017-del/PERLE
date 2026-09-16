@@ -656,6 +656,7 @@ function RemunerationParamsTab() {
   const [primeInput, setPrimeInput] = useState('')
   const [chargesInput, setChargesInput] = useState('')
   const [impotInput, setImpotInput] = useState('')
+  const [tvaInput, setTvaInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -670,6 +671,7 @@ function RemunerationParamsTab() {
         setPrimeInput(String(data.taux_prime_performance_fcfa))
         setChargesInput(String(data.taux_charges_sociales_pct))
         setImpotInput(String(data.taux_impot_revenu_pct))
+        setTvaInput(String(data.taux_tva_pct))
       })
       .catch(() => { if (!cancelled) setLoadError('Impossible de charger ce paramètre.') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -679,8 +681,10 @@ function RemunerationParamsTab() {
   const primeNumber = Number(primeInput)
   const chargesNumber = Number(chargesInput)
   const impotNumber = Number(impotInput)
-  const canSave = primeInput.trim() !== '' && chargesInput.trim() !== '' && impotInput.trim() !== ''
-    && primeNumber >= 0 && chargesNumber >= 0 && chargesNumber <= 100 && impotNumber >= 0 && impotNumber <= 100 && !saving
+  const tvaNumber = Number(tvaInput)
+  const canSave = primeInput.trim() !== '' && chargesInput.trim() !== '' && impotInput.trim() !== '' && tvaInput.trim() !== ''
+    && primeNumber >= 0 && chargesNumber >= 0 && chargesNumber <= 100 && impotNumber >= 0 && impotNumber <= 100
+    && tvaNumber >= 0 && tvaNumber <= 100 && !saving
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -690,7 +694,8 @@ function RemunerationParamsTab() {
     setSaved(false)
     try {
       await updateOrganisationRemuneration({
-        taux_prime_performance_fcfa: primeNumber, taux_charges_sociales_pct: chargesNumber, taux_impot_revenu_pct: impotNumber,
+        taux_prime_performance_fcfa: primeNumber, taux_charges_sociales_pct: chargesNumber,
+        taux_impot_revenu_pct: impotNumber, taux_tva_pct: tvaNumber,
       })
       setSaved(true)
     } catch (err) {
@@ -735,6 +740,14 @@ function RemunerationParamsTab() {
             </div>
             <p className="param-hint">
               Ces deux taux sont appliqués au brut du mois (salaire de base + primes) de chaque salarié pour calculer ses déductions.
+            </p>
+
+            <label className="param-field">Taux de TVA standard (%)
+              <input required type="number" min={0} max={100} step="0.01" value={tvaInput} onChange={(event) => { setTvaInput(event.target.value); setSaved(false) }} />
+            </label>
+            <p className="param-hint">
+              Pré-rempli automatiquement selon le pays de l'organisation à l'inscription — corrigez-le ici si la loi fiscale a changé, ou si votre pays n'était pas couvert.
+              {' '}Repris comme valeur de départ du champ TVA (%) de chaque nouveau projet (Création de projet), toujours modifiable projet par projet.
             </p>
 
             <div className="ge-modal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>

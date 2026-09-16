@@ -94,5 +94,8 @@ export interface ProjectLigneFormValues {
 export const createProjectLigne = (projectId: number, data: ProjectLigneFormValues) =>
   apiPost<ProjectLigne>(`/projects/${projectId}/lignes/`, data)
 
+export const updateProjectLigne = (projectId: number, ligneId: number, data: Partial<ProjectLigneFormValues>) =>
+  apiPatch<ProjectLigne>(`/projects/${projectId}/lignes/${ligneId}/`, data)
+
 export const deleteProjectLigne = (projectId: number, ligneId: number) =>
   apiDelete(`/projects/${projectId}/lignes/${ligneId}/`)

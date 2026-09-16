@@ -46,8 +46,9 @@ import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/
 import DatePicker from '../components/DatePicker'
 import { fetchMe, updateMe, uploadMyDocument, type MeProfile, type MeProfileEditableFields } from '../api/employees'
 import {
-  createAvanceDemande, createCongeDemande, deleteAvanceDemande, deleteCongeDemande, endCongeDemande,
-  fetchCongeSolde, fetchCongeTypes, fetchFermeturesTechniques, fetchMyAvanceDemandes, fetchMyCongeDemandes,
+  confirmerDisponibiliteConge, createAvanceDemande, createCongeDemande, deleteAvanceDemande, deleteCongeDemande,
+  endCongeDemande, fetchCongeSolde, fetchCongeTypes, fetchFermeturesTechniques, fetchMyAvanceDemandes,
+  fetchMyCongeDemandes,
   type AvanceDemande as ApiAvanceDemande, type CongeDemande as ApiCongeDemande, type CongeSolde, type CongeType,
   type FermetureTechnique,
 } from '../api/demandes'
@@ -84,13 +85,17 @@ interface CongeDemande {
   dateDebut: string
   dateFin: string
   duree: number
-  motif: string
+  // Gestion de responsabilité : qui reprend les tâches pendant l'absence (remplace le motif).
+  delegueANom: string | null
   statut: Statut
   approuvePar: string
   approuveRole: string
   dateReponse: string
   peutEtreTerminee: boolean
   peutEtreAnnulee: boolean
+  peutConfirmerDisponibilite: boolean
+  disponibiliteConfirmee: boolean
+  createdAtIso: string
 }
 
 interface AvanceDemande {
@@ -98,13 +103,13 @@ interface AvanceDemande {
   rawId: number
   dateDemande: string
   montant: number
-  motif: string
   remboursement: string
   remboursementDetail: string
   statut: Statut
   approuvePar: string
   approuveRole: string
   dateReponse: string
+  createdAtIso: string
 }
 
 const STATUT_FROM_API: Record<ApiCongeDemande['statut'], Statut> = {
@@ -138,14 +143,14 @@ const formatDuree = (value: number) => Number.isInteger(value) ? String(value) :
 const todayIso = () => new Date().toLocaleDateString('sv-SE')
 
 const toDisplayConge = (item: ApiCongeDemande): CongeDemande => ({
-  id: `CONG-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
+  id: item.code || `CONG-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
   rawId: item.id,
   dateDemande: formatDateFr(item.created_at),
   type: item.type_conge_detail.nom,
   dateDebut: formatOptionalDate(item.date_debut),
   dateFin: formatDateFin(item),
   duree: item.duree,
-  motif: item.motif || 'Aucun motif renseigné',
+  delegueANom: item.delegue_a_nom,
   statut: STATUT_FROM_API[item.statut],
   approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
   approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
@@ -154,17 +159,22 @@ const toDisplayConge = (item: ApiCongeDemande): CongeDemande => ({
   // Une demande en attente peut toujours être retirée ; une demande déjà approuvée peut encore
   // être annulée tant qu'elle n'a pas commencé (voir CongeDemandeDetailView côté backend).
   peutEtreAnnulee: item.statut === 'attente' || (item.statut === 'approuvee' && !!item.date_debut && item.date_debut > todayIso()),
+  // Retour de congé : bouton visible dès la date de fin atteinte tant que la disponibilité
+  // n'a pas été confirmée (voir notify_pilotage_of_unavailable_managers côté backend).
+  peutConfirmerDisponibilite: item.statut === 'approuvee' && !item.disponibilite_confirmee && !!item.date_fin && item.date_fin <= todayIso(),
+  disponibiliteConfirmee: item.disponibilite_confirmee,
+  createdAtIso: item.created_at,
 })
 
 const toDisplayAvance = (item: ApiAvanceDemande): AvanceDemande => ({
-  id: `AVC-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
+  id: item.code || `AVC-${new Date(item.created_at).getFullYear()}-${String(item.id).padStart(3, '0')}`,
   rawId: item.id,
   dateDemande: formatDateFr(item.created_at),
   montant: item.montant,
-  motif: item.motif || 'Aucun motif renseigné',
   remboursement: `Prélèvement sur ${item.nombre_mois} salaire${item.nombre_mois > 1 ? 's' : ''}`,
   remboursementDetail: `(${formatMontant(Math.round(item.montant / item.nombre_mois))} / mois)`,
   statut: STATUT_FROM_API[item.statut],
+  createdAtIso: item.created_at,
   approuvePar: item.reviewed_by_nom ?? (item.statut === 'attente' ? '-' : 'Approbation automatique'),
   approuveRole: item.reviewed_by_role ?? (item.statut === 'attente' ? '' : 'Délai de 3 jours dépassé'),
   dateReponse: item.reviewed_at ? formatDateFr(item.reviewed_at) : '-',
@@ -205,6 +215,28 @@ function PeriodeFilter({ value, onChange, label = 'Période' }: { value: string;
       {label} :
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {PERIODES.map((periode) => <option key={periode} value={periode}>{periode}</option>)}
+      </select>
+    </label>
+  )
+}
+
+/** Sept/2026, Oct/2026… — le petit module « calendrier » au-dessus des KPI de la section
+ * Demandes, un seul filtre mois/année qui pilote les deux tableaux (congés et avances). */
+const PERIODE_COURTE_LABELS: Record<string, string> = Object.fromEntries(
+  PERIODES.map((periode, index) => {
+    const now = new Date()
+    const d = new Date(now.getFullYear(), now.getMonth() - index, 1)
+    const [mois, annee] = d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }).replace('.', '').split(' ')
+    return [periode, `${mois.charAt(0).toUpperCase()}${mois.slice(1)}/${annee}`]
+  }),
+)
+
+function PeriodeBadge({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="salarie-filter salarie-filter-periode">
+      <Calendar size={13} strokeWidth={2} />
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {PERIODES.map((periode) => <option key={periode} value={periode}>{PERIODE_COURTE_LABELS[periode]}</option>)}
       </select>
     </label>
   )
@@ -329,19 +361,24 @@ function SummaryCard({ icon, iconClass, title, total, totalLabel, attente, appro
 
 function CongeSoldeCard({ solde }: { solde: CongeSolde[] }) {
   if (solde.length === 0) return null
+  const totalAcquis = solde.reduce((sum, item) => sum + item.jours_acquis, 0)
+  const totalPris = solde.reduce((sum, item) => sum + item.jours_pris, 0)
   const totalSolde = solde.reduce((sum, item) => sum + item.solde, 0)
 
   return (
-    <section className="salarie-panel salarie-solde-panel">
-      <div className="salarie-panel-heading">
-        <div className="salarie-panel-title">
-          <span className="salarie-panel-icon conge"><Wallet2 size={15} strokeWidth={2} /></span>
-          <h3>Cumul de vos jours de congé</h3>
-        </div>
-        <div className="salarie-solde-total">
+    <article className="salarie-summary-card salarie-solde-panel">
+      <div className="salarie-summary-main">
+        <span className="salarie-summary-icon conge"><Wallet2 size={19} strokeWidth={2} /></span>
+        <div>
+          <h4>Congés</h4>
           <strong>{formatDuree(totalSolde)}</strong>
-          <span>jour{totalSolde !== 1 ? 's' : ''} restant{totalSolde !== 1 ? 's' : ''} au total</span>
+          <small>jour{totalSolde !== 1 ? 's' : ''} restant{totalSolde !== 1 ? 's' : ''} au total</small>
         </div>
+      </div>
+      <div className="salarie-summary-breakdown">
+        <div><strong>{formatDuree(totalAcquis)}</strong><small className="approuvee">Acquis</small></div>
+        <div><strong>{formatDuree(totalPris)}</strong><small className="attente">Consommé</small></div>
+        <div><strong>{formatDuree(totalSolde)}</strong><small className="refusee">Reste</small></div>
       </div>
       <div className="salarie-solde-grid">
         {solde.map((item) => {
@@ -355,7 +392,7 @@ function CongeSoldeCard({ solde }: { solde: CongeSolde[] }) {
           )
         })}
       </div>
-    </section>
+    </article>
   )
 }
 
@@ -363,18 +400,23 @@ interface CongeFormValues {
   type_conge: number
   dateDebut: string
   dateFin: string
-  motif: string
+  delegueA: number
   demiJourneeDebut: boolean
   demiJourneeFin: boolean
 }
 
-function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel: () => void; onCreate: (values: CongeFormValues) => void }) {
+function CongeForm({ types, delegableColleagues, onCancel, onCreate }: {
+  types: CongeType[]
+  delegableColleagues: { id: number; nom: string }[]
+  onCancel: () => void
+  onCreate: (values: CongeFormValues) => void
+}) {
   const [typeId, setTypeId] = useState(() => types[0]?.id ?? 0)
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
   const [demiJourneeDebut, setDemiJourneeDebut] = useState(false)
   const [demiJourneeFin, setDemiJourneeFin] = useState(false)
-  const [motif, setMotif] = useState('')
+  const [delegueA, setDelegueA] = useState(0)
 
   const selectedType = types.find((type) => type.id === typeId)
   const estMaladie = selectedType?.categorie === 'maladie'
@@ -383,11 +425,11 @@ function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!typeId) return
+    if (!typeId || !delegueA) return
     if (estMaladie && !dateDebut) return
     if (!estMaladie && !definiParEntreprise && (!dateDebut || !dateFin)) return
     onCreate({
-      type_conge: typeId, dateDebut, dateFin: estMaladie ? '' : dateFin, motif: motif.trim(),
+      type_conge: typeId, dateDebut, dateFin: estMaladie ? '' : dateFin, delegueA,
       demiJourneeDebut: demiJourneesPossibles && demiJourneeDebut,
       demiJourneeFin: demiJourneesPossibles && demiJourneeFin,
     })
@@ -431,10 +473,18 @@ function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel
           )}
         </>
       )}
-      <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
+      <label>Pendant mon absence, mes tâches seront déléguées à :
+        <select value={delegueA} onChange={(event) => setDelegueA(Number(event.target.value))}>
+          <option value={0}>Sélectionner un membre de mon équipe ou mon manager…</option>
+          {delegableColleagues.map((personne) => <option key={personne.id} value={personne.id}>{personne.nom}</option>)}
+        </select>
+      </label>
+      {delegableColleagues.length === 0 && (
+        <p className="salarie-note-inline">Vous n’appartenez à aucune équipe : contactez votre administrateur pour désigner un responsable.</p>
+      )}
       <div className="salarie-form-actions">
         <button type="button" className="salarie-ghost-btn" onClick={onCancel}>Annuler</button>
-        <button type="submit" className="salarie-primary-btn" disabled={!typeId}><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
+        <button type="submit" className="salarie-primary-btn" disabled={!typeId || !delegueA}><Plus size={14} strokeWidth={2.4} />Envoyer la demande</button>
       </div>
     </form>
   )
@@ -442,26 +492,23 @@ function CongeForm({ types, onCancel, onCreate }: { types: CongeType[]; onCancel
 
 interface AvanceFormValues {
   montant: number
-  motif: string
   mois: number
 }
 
 function AvanceForm({ onCancel, onCreate }: { onCancel: () => void; onCreate: (values: AvanceFormValues) => void }) {
   const [montant, setMontant] = useState('')
-  const [motif, setMotif] = useState('')
   const [mois, setMois] = useState('3')
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     const montantValue = Number(montant)
     if (!montantValue || montantValue <= 0) return
-    onCreate({ montant: montantValue, motif: motif.trim(), mois: Number(mois) })
+    onCreate({ montant: montantValue, mois: Number(mois) })
   }
 
   return (
     <form className="salarie-form" onSubmit={handleSubmit}>
       <label>{`Montant demandé (${currencySuffix()})`}<input type="number" required min={1000} step={1000} value={montant} placeholder="Ex. 150000" onChange={(event) => setMontant(event.target.value)} /></label>
-      <label>Motif (facultatif)<textarea rows={3} value={motif} placeholder="Décrivez le motif de votre demande" onChange={(event) => setMotif(event.target.value)} /></label>
       <label>Remboursement proposé
         <select value={mois} onChange={(event) => setMois(event.target.value)}>
           <option value="1">Prélèvement sur 1 salaire</option>
@@ -513,7 +560,7 @@ function DemandesTab({ session }: { session: Session }) {
   const [congeTypes, setCongeTypes] = useState<CongeType[]>([])
   const [congeSolde, setCongeSolde] = useState<CongeSolde[]>([])
   const [fermetures, setFermetures] = useState<FermetureTechnique[]>([])
-  const [meId, setMeId] = useState<number | null>(null)
+  const [me, setMe] = useState<MeProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [viewConge, setViewConge] = useState<CongeDemande | null>(null)
@@ -525,22 +572,29 @@ function DemandesTab({ session }: { session: Session }) {
   useEffect(() => {
     let cancelled = false
     Promise.all([fetchMyCongeDemandes(), fetchMyAvanceDemandes(), fetchCongeTypes(), fetchCongeSolde(), fetchFermeturesTechniques(), fetchMe()])
-      .then(([congesData, avancesData, typesData, soldeData, fermeturesData, me]) => {
+      .then(([congesData, avancesData, typesData, soldeData, fermeturesData, meData]) => {
         if (cancelled) return
         setCongeDemandesApi(congesData)
         setAvanceDemandesApi(avancesData)
         setCongeTypes(typesData.filter((type) => type.actif && type.categorie !== 'technique'))
         setCongeSolde(soldeData)
         setFermetures(fermeturesData)
-        setMeId(me.id)
+        setMe(meData)
       })
       .catch(() => { if (!cancelled) setLoadError('Impossible de charger vos demandes.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
 
-  const congeDemandes = congeDemandesApi.map(toDisplayConge)
-  const avanceDemandes = avanceDemandesApi.map(toDisplayAvance)
+  // Un seul filtre « Sept/2026 » pilote les deux tableaux — voir PERIODE_COURTE_FROM_LONGUE.
+  const { year: periodeYear, month: periodeMonth } = periodeToYearMonth(periode)
+  const congeDemandes = congeDemandesApi
+    .filter((item) => dateInPeriode(item.created_at, periodeYear, periodeMonth))
+    .map(toDisplayConge)
+  const avanceDemandes = avanceDemandesApi
+    .filter((item) => dateInPeriode(item.created_at, periodeYear, periodeMonth))
+    .map(toDisplayAvance)
+  const estManager = (me?.managed_teams.length ?? 0) > 0
 
   const handleCreateConge = async (values: CongeFormValues) => {
     setFormError(null)
@@ -549,7 +603,7 @@ function DemandesTab({ session }: { session: Session }) {
         type_conge: values.type_conge,
         date_debut: values.dateDebut || undefined,
         date_fin: values.dateFin || undefined,
-        motif: values.motif,
+        delegue_a: values.delegueA,
         demi_journee_debut: values.demiJourneeDebut,
         demi_journee_fin: values.demiJourneeFin,
       })
@@ -564,7 +618,7 @@ function DemandesTab({ session }: { session: Session }) {
   const handleCreateAvance = async (values: AvanceFormValues) => {
     setFormError(null)
     try {
-      const created = await createAvanceDemande({ montant: values.montant, motif: values.motif, nombre_mois: values.mois })
+      const created = await createAvanceDemande({ montant: values.montant, nombre_mois: values.mois })
       setAvanceDemandesApi((prev) => [created, ...prev])
       setShowAvanceForm(false)
     } catch (err) {
@@ -597,6 +651,16 @@ function DemandesTab({ session }: { session: Session }) {
     }
   }
 
+  const handleConfirmDisponibilite = async (rawId: number) => {
+    setFormError(null)
+    try {
+      const updated = await confirmerDisponibiliteConge(rawId)
+      setCongeDemandesApi((prev) => prev.map((item) => item.id === rawId ? updated : item))
+    } catch (err) {
+      setFormError(errorMessage(err))
+    }
+  }
+
   const congeAttente = countByStatut(congeDemandes, 'En attente')
   const congeApprouvee = countByStatut(congeDemandes, 'Approuvée')
   const congeRefusee = countByStatut(congeDemandes, 'Refusée')
@@ -617,10 +681,10 @@ function DemandesTab({ session }: { session: Session }) {
 
       {formError && <p className="form-error">{formError}</p>}
 
-      <FermetureTechniqueBanner fermetures={fermetures} teamId={session.team?.id ?? null} employeeId={meId} />
+      <FermetureTechniqueBanner fermetures={fermetures} teamId={session.team?.id ?? null} employeeId={me?.id ?? null} />
 
-      <div className="salarie-tab-filter-row">
-        <PeriodeFilter value={periode} onChange={setPeriode} />
+      <div className="salarie-period-badge">
+        <PeriodeBadge value={periode} onChange={setPeriode} />
       </div>
 
       <div className="salarie-summary">
@@ -634,15 +698,13 @@ function DemandesTab({ session }: { session: Session }) {
           total={avanceDemandes.length} totalLabel={avanceDemandes.length > 1 ? 'demandes au total' : 'demande au total'}
           attente={avanceAttente} approuvee={avanceApprouvee} refusee={avanceRefusee}
         />
+        <CongeSoldeCard solde={congeSolde} />
       </div>
-
-      <CongeSoldeCard solde={congeSolde} />
 
       <section className="salarie-panel">
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><span className="salarie-panel-icon conge"><Calendar size={15} strokeWidth={2} /></span><h3>Demandes de congé</h3></div>
           <div className="salarie-panel-actions">
-            <PeriodeFilter value={periode} onChange={setPeriode} label="Filtrer par mois" />
             <button className="salarie-primary-btn" onClick={() => setShowCongeForm(true)} disabled={congeTypes.length === 0} title={congeTypes.length === 0 ? 'Aucun type de congé disponible : contactez votre administrateur.' : undefined}>
               <Plus size={14} strokeWidth={2.4} />Nouvelle demande de congé
             </button>
@@ -651,7 +713,7 @@ function DemandesTab({ session }: { session: Session }) {
         <div className="salarie-table-wrap">
           <table>
             <thead>
-              <tr><th>N° Demande</th><th>Date de demande</th><th>Type de congé</th><th>Date de début</th><th>Date de fin</th><th>Durée (jours)</th><th>Motif</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
+              <tr><th>N° Demande</th><th>Date de demande</th><th>Type de congé</th><th>Date de début</th><th>Date de fin</th><th>Durée (jours)</th><th>Gestion de responsabilité</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
             </thead>
             <tbody>
               {congeDemandes.map((demande) => (
@@ -662,7 +724,7 @@ function DemandesTab({ session }: { session: Session }) {
                   <td>{demande.dateDebut}</td>
                   <td>{demande.dateFin}</td>
                   <td>{formatDuree(demande.duree)}</td>
-                  <td>{demande.motif}</td>
+                  <td>{demande.delegueANom ? `Délégué à : ${demande.delegueANom}` : '—'}</td>
                   <td><StatutPill statut={demande.statut} /></td>
                   <td><strong>{demande.approuvePar}</strong><small>{demande.approuveRole}</small></td>
                   <td>{demande.dateReponse}</td>
@@ -670,6 +732,11 @@ function DemandesTab({ session }: { session: Session }) {
                     <button aria-label="Voir la demande" onClick={() => setViewConge(demande)}><Eye size={14} strokeWidth={2} /></button>
                     {demande.peutEtreAnnulee && <button aria-label="Annuler la demande" title={demande.statut === 'En attente' ? 'Retirer la demande' : 'Annuler ce congé approuvé (pas encore commencé)'} className="danger" onClick={() => handleCancelConge(demande.rawId)}><XCircle size={14} strokeWidth={2} /></button>}
                     {demande.peutEtreTerminee && <button aria-label="Terminer le congé" title="Reprendre le service" onClick={() => handleEndConge(demande.rawId)}><Briefcase size={14} strokeWidth={2} /></button>}
+                    {estManager && demande.peutConfirmerDisponibilite && (
+                      <button aria-label="Confirmer ma disponibilité" title="Confirmer ma disponibilité au retour de congé" className="salarie-dispo-btn" onClick={() => handleConfirmDisponibilite(demande.rawId)}>
+                        <CheckCircle2 size={14} strokeWidth={2} />Je suis disponible
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -686,14 +753,13 @@ function DemandesTab({ session }: { session: Session }) {
         <div className="salarie-panel-heading">
           <div className="salarie-panel-title"><span className="salarie-panel-icon avance"><Wallet size={15} strokeWidth={2} /></span><h3>Demandes d’avance sur salaire</h3></div>
           <div className="salarie-panel-actions">
-            <PeriodeFilter value={periode} onChange={setPeriode} label="Filtrer par mois" />
             <button className="salarie-primary-btn" onClick={() => setShowAvanceForm(true)}><Download size={14} strokeWidth={2.4} />Nouvelle demande d’avance</button>
           </div>
         </div>
         <div className="salarie-table-wrap">
           <table>
             <thead>
-              <tr><th>N° Demande</th><th>Date de demande</th><th>{`Montant demandé (${currencySuffix()})`}</th><th>Motif</th><th>Remboursement proposé</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
+              <tr><th>N° Demande</th><th>Date de demande</th><th>{`Montant demandé (${currencySuffix()})`}</th><th>Remboursement proposé</th><th>Statut</th><th>Approuvé par</th><th>Date de réponse</th><th>Action</th></tr>
             </thead>
             <tbody>
               {avanceDemandes.map((demande) => (
@@ -701,7 +767,6 @@ function DemandesTab({ session }: { session: Session }) {
                   <td><strong>{demande.id}</strong></td>
                   <td>{demande.dateDemande}</td>
                   <td><strong>{demande.montant.toLocaleString('fr-FR')}</strong></td>
-                  <td>{demande.motif}</td>
                   <td>{demande.remboursement}<small>{demande.remboursementDetail}</small></td>
                   <td><StatutPill statut={demande.statut} /></td>
                   <td><strong>{demande.approuvePar}</strong><small>{demande.approuveRole}</small></td>
@@ -741,7 +806,7 @@ function DemandesTab({ session }: { session: Session }) {
             <InfoRow label="Date de début" value={viewConge.dateDebut} />
             <InfoRow label="Date de fin" value={viewConge.dateFin} />
             <InfoRow label="Durée" value={`${formatDuree(viewConge.duree)} jour${viewConge.duree > 1 ? 's' : ''}`} />
-            <InfoRow label="Motif" value={viewConge.motif} />
+            <InfoRow label="Gestion de responsabilité" value={viewConge.delegueANom ? `Délégué à : ${viewConge.delegueANom}` : '—'} />
             <InfoRow label="Statut" value={<StatutPill statut={viewConge.statut} />} />
             <InfoRow label="Approuvé par" value={viewConge.approuveRole ? `${viewConge.approuvePar} (${viewConge.approuveRole})` : viewConge.approuvePar} />
             <InfoRow label="Date de réponse" value={viewConge.dateReponse} />
@@ -768,7 +833,6 @@ function DemandesTab({ session }: { session: Session }) {
           <div className="salarie-info-col">
             <InfoRow label="Date de demande" value={viewAvance.dateDemande} />
             <InfoRow label="Montant demandé" value={formatMontant(viewAvance.montant)} />
-            <InfoRow label="Motif" value={viewAvance.motif} />
             <InfoRow label="Remboursement proposé" value={`${viewAvance.remboursement} ${viewAvance.remboursementDetail}`} />
             <InfoRow label="Statut" value={<StatutPill statut={viewAvance.statut} />} />
             <InfoRow label="Approuvé par" value={viewAvance.approuveRole ? `${viewAvance.approuvePar} (${viewAvance.approuveRole})` : viewAvance.approuvePar} />
@@ -779,7 +843,7 @@ function DemandesTab({ session }: { session: Session }) {
 
       {showCongeForm && (
         <Lightbox title="Nouvelle demande de congé" onClose={() => setShowCongeForm(false)}>
-          <CongeForm types={congeTypes} onCancel={() => setShowCongeForm(false)} onCreate={handleCreateConge} />
+          <CongeForm types={congeTypes} delegableColleagues={me?.delegable_colleagues ?? []} onCancel={() => setShowCongeForm(false)} onCreate={handleCreateConge} />
         </Lightbox>
       )}
 

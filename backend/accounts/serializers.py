@@ -13,6 +13,7 @@ from .models import (
     Conversation,
     DirectMessage,
     FermetureTechnique,
+    GradeChangeRequest,
     GradeHistory,
     LigneBudgetaire,
     Notification,
@@ -22,6 +23,7 @@ from .models import (
     ProjectLigne,
     PublicHoliday,
     Sanction,
+    StatutHistory,
     Task,
     TaskAssignment,
     TaskMessage,
@@ -36,6 +38,8 @@ from .models import (
     next_project_code,
     next_project_ligne_code,
     next_task_code,
+    next_team_code,
+    vat_rate_for_country,
 )
 from .access import feature_permissions
 from .holidays_utils import sync_public_holidays
@@ -103,10 +107,13 @@ class OrganisationGradeSerializer(serializers.ModelSerializer):
 class OrganisationRemunerationSerializer(serializers.ModelSerializer):
     """Taux utilisés pour calculer la prime de performance (note moyenne × taux) et les
     déductions (charges sociales, impôt sur le revenu) affichées dans Salarié > Rémunération —
-    des taux que l'organisation configure elle-même, pas un barème fiscal officiel."""
+    des taux que l'organisation configure elle-même, pas un barème fiscal officiel. Le taux de TVA
+    standard voyage ici aussi : pré-rempli automatiquement depuis le pays à l'inscription (voir
+    vat_rate_for_country), il reste corrigible ici si la loi fiscale a changé ou si le pays n'était
+    pas couvert — repris comme valeur initiale du champ TVA (%) de chaque nouveau projet."""
     class Meta:
         model = Organisation
-        fields = ['taux_prime_performance_fcfa', 'taux_charges_sociales_pct', 'taux_impot_revenu_pct']
+        fields = ['taux_prime_performance_fcfa', 'taux_charges_sociales_pct', 'taux_impot_revenu_pct', 'taux_tva_pct']
 
     def validate_taux_prime_performance_fcfa(self, value):
         if value < 0:
@@ -122,6 +129,9 @@ class OrganisationRemunerationSerializer(serializers.ModelSerializer):
         return self._validate_pct(value)
 
     def validate_taux_impot_revenu_pct(self, value):
+        return self._validate_pct(value)
+
+    def validate_taux_tva_pct(self, value):
         return self._validate_pct(value)
 
 
@@ -188,6 +198,7 @@ class RegisterPersonalOrganisationSerializer(serializers.Serializer):
             country=validated_data['country'],
             country_code=validated_data.get('country_code', ''),
             city=validated_data['city'],
+            taux_tva_pct=vat_rate_for_country(validated_data.get('country_code')),
             **({'currency_code': validated_data['currency_code']} if validated_data.get('currency_code') else {}),
         )
         user = User.objects.create_user(
@@ -257,6 +268,7 @@ class RegisterCompanyOrganisationSerializer(serializers.Serializer):
             website=validated_data.get('website', ''),
             registration_number=validated_data['registration_number'],
             headcount=validated_data['headcount'],
+            taux_tva_pct=vat_rate_for_country(validated_data.get('country_code')),
             **({'currency_code': validated_data['currency_code']} if validated_data.get('currency_code') else {}),
         )
         user = User.objects.create_user(
@@ -368,10 +380,22 @@ class AffectationHistorySerializer(serializers.ModelSerializer):
         return f'{obj.changed_by.first_name} {obj.changed_by.last_name}' if obj.changed_by else None
 
 
+class StatutHistorySerializer(serializers.ModelSerializer):
+    changed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StatutHistory
+        fields = ['id', 'ancien_statut', 'nouveau_statut', 'motif', 'changed_at', 'changed_by']
+
+    def get_changed_by(self, obj):
+        return f'{obj.changed_by.first_name} {obj.changed_by.last_name}' if obj.changed_by else None
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     team = TeamSummarySerializer(read_only=True)
     grade_history = GradeHistorySerializer(many=True, read_only=True)
     affectation_history = AffectationHistorySerializer(many=True, read_only=True)
+    statut_history = StatutHistorySerializer(many=True, read_only=True)
     # Statut « en ligne » pour l'annuaire de la page Messagerie — voir _is_online.
     is_online = serializers.SerializerMethodField()
 
@@ -379,14 +403,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'fonction', 'role',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'is_active',
+            'matricule', 'sexe', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'is_active',
             'team', 'date_joined', 'date_embauche', 'last_seen_at', 'is_online',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document',
             'type_contrat', 'periode_essai', 'temps_travail',
             'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
             'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
-            'grade_history', 'affectation_history',
+            'grade_history', 'affectation_history', 'statut_history',
         ]
 
     def get_is_online(self, obj):
@@ -398,12 +422,20 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     team_id = serializers.PrimaryKeyRelatedField(
         queryset=Team.objects.all(), source='team', required=False, allow_null=True,
     )
+    # Obligatoires à l'inscription d'un nouvel employé (le modèle les autorise vides pour ne pas
+    # bloquer les profils existants créés avant cette règle) : Poste, Grade, Statut, Contrat et
+    # date d'embauche doivent être explicitement renseignés.
+    fonction = serializers.CharField(required=True, allow_blank=False, max_length=150)
+    grade = serializers.IntegerField(required=True, min_value=0)
+    statut = serializers.ChoiceField(required=True, choices=User.STATUT_CHOICES)
+    type_contrat = serializers.ChoiceField(required=True, choices=User.TYPE_CONTRAT_CHOICES)
+    date_embauche = serializers.DateField(required=True)
 
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'sexe', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
@@ -441,24 +473,34 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 
 
 class EmployeeAdminUpdateSerializer(serializers.ModelSerializer):
+    # Le grade ne se modifie plus ici : toute modification passe désormais par une
+    # GradeChangeRequest soumise à la validation de la Direction (voir GradeChangeRequestListCreateView).
+    # `motif` est obligatoire lors du passage au statut « inactif » — jamais persisté tel quel,
+    # il alimente StatutHistory.motif via User.change_statut.
+    motif = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
+
     class Meta:
         model = User
-        fields = ['id', 'grade', 'is_active', 'statut']
+        fields = ['id', 'is_active', 'statut', 'motif']
         read_only_fields = ['id']
 
     def validate(self, attrs):
         request = self.context.get('request')
         if attrs.get('is_active') is False and request and self.instance == request.user:
             raise serializers.ValidationError({'is_active': 'Vous ne pouvez pas désactiver votre propre compte.'})
+        new_statut = attrs.get('statut')
+        if new_statut == 'inactif' and self.instance and self.instance.statut != 'inactif' and not attrs.get('motif', '').strip():
+            raise serializers.ValidationError({'motif': 'Le motif est obligatoire pour mettre un employé en Inactif.'})
         return attrs
 
     def update(self, instance, validated_data):
-        grade = validated_data.pop('grade', None)
+        motif = validated_data.pop('motif', '')
+        statut = validated_data.pop('statut', None)
         request = self.context.get('request')
         changed_by = request.user if request else None
         instance = super().update(instance, validated_data)
-        if grade is not None:
-            instance.change_grade(grade, changed_by=changed_by)
+        if statut is not None:
+            instance.change_statut(statut, motif=motif, changed_by=changed_by)
         return instance
 
 
@@ -467,17 +509,22 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
     team_id = serializers.PrimaryKeyRelatedField(
         queryset=Team.objects.all(), source='team', required=False, allow_null=True,
     )
+    # Le grade ne se modifie plus depuis ce formulaire : toute modification passe désormais par
+    # une GradeChangeRequest soumise à la validation de la Direction (voir
+    # GradeChangeRequestListCreateView) — un « grade » envoyé ici est silencieusement ignoré.
+    # `motif_statut` est obligatoire lors du passage au statut « inactif ».
+    motif_statut = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
 
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password', 'phone', 'fonction',
-            'matricule', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'team_id',
+            'matricule', 'sexe', 'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'team_id',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document',
             'contrat_document', 'date_embauche', 'type_contrat', 'periode_essai',
             'temps_travail', 'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
-            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante',
+            'contact_urgence_nom', 'contact_urgence_telephone', 'assurance_sante', 'motif_statut',
         ]
         read_only_fields = ['id']
 
@@ -497,9 +544,16 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Cette équipe n’appartient pas à votre organisation.')
         return value
 
+    def validate(self, attrs):
+        new_statut = attrs.get('statut')
+        if new_statut == 'inactif' and self.instance and self.instance.statut != 'inactif' and not attrs.get('motif_statut', '').strip():
+            raise serializers.ValidationError({'motif_statut': 'Le motif est obligatoire pour mettre un employé en Inactif.'})
+        return attrs
+
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-        grade = validated_data.pop('grade', None)
+        motif_statut = validated_data.pop('motif_statut', '')
+        statut = validated_data.pop('statut', None)
         team_provided = 'team' in validated_data
         team = validated_data.pop('team', None)
         request = self.context.get('request')
@@ -510,11 +564,83 @@ class EmployeeAdminEditSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
             instance.save(update_fields=['password'])
-        if grade is not None:
-            instance.change_grade(grade, changed_by=changed_by)
+        if statut is not None:
+            instance.change_statut(statut, motif=motif_statut, changed_by=changed_by)
         if team_provided:
             instance.move_to_team(team, changed_by=changed_by)
         return instance
+
+
+class GradeChangeRequestSerializer(serializers.ModelSerializer):
+    """Demande de changement de grade — lecture (Gestion des équipes › Demandes de grade)."""
+    employee_nom = serializers.SerializerMethodField()
+    requested_by_nom = serializers.SerializerMethodField()
+    reviewed_by_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GradeChangeRequest
+        fields = [
+            'id', 'employee', 'employee_nom', 'ancien_grade', 'nouveau_grade', 'motif', 'statut',
+            'requested_by_nom', 'reviewed_by_nom', 'reviewed_at', 'commentaire_revue', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_employee_nom(self, obj):
+        return f'{obj.employee.first_name} {obj.employee.last_name}'
+
+    def get_requested_by_nom(self, obj):
+        return f'{obj.requested_by.first_name} {obj.requested_by.last_name}' if obj.requested_by else None
+
+    def get_reviewed_by_nom(self, obj):
+        return f'{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}' if obj.reviewed_by else None
+
+
+class GradeChangeRequestCreateSerializer(serializers.ModelSerializer):
+    """Soumission d'une demande de changement de grade (Gestion des équipes › bouton grade) : le
+    grade de l'employé n'est modifié qu'après validation par la Direction — voir
+    GradeChangeRequestReviewView. Le motif est obligatoire."""
+    motif = serializers.CharField(required=True, allow_blank=False)
+
+    class Meta:
+        model = GradeChangeRequest
+        fields = ['id', 'employee', 'nouveau_grade', 'motif']
+        read_only_fields = ['id']
+
+    def validate_employee(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cet employé n’appartient pas à votre organisation.')
+        return value
+
+    def validate(self, attrs):
+        employee = attrs['employee']
+        if attrs['nouveau_grade'] == employee.grade:
+            raise serializers.ValidationError({'nouveau_grade': 'Ce grade est déjà celui de cet employé.'})
+        if GradeChangeRequest.objects.filter(employee=employee, statut='attente').exists():
+            raise serializers.ValidationError('Une demande de changement de grade est déjà en attente pour cet employé.')
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context['request']
+        employee = validated_data['employee']
+        return GradeChangeRequest.objects.create(
+            employee=employee, ancien_grade=employee.grade, nouveau_grade=validated_data['nouveau_grade'],
+            motif=validated_data['motif'], requested_by=request.user,
+        )
+
+
+class GradeChangeRequestReviewSerializer(serializers.ModelSerializer):
+    """Validation ou rejet d'une demande de changement de grade par la Direction générale
+    (admin/directeur) — voir GradeChangeRequestReviewView."""
+    class Meta:
+        model = GradeChangeRequest
+        fields = ['id', 'statut', 'commentaire_revue']
+        read_only_fields = ['id']
+
+    def validate_statut(self, value):
+        if value not in ('approuvee', 'refusee'):
+            raise serializers.ValidationError('Le statut doit être « approuvée » ou « refusée ».')
+        return value
 
 
 class EmployeeContractSerializer(serializers.ModelSerializer):
@@ -535,6 +661,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
     responsable_hierarchique = serializers.SerializerMethodField()
     managed_teams = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    delegable_colleagues = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -542,7 +669,8 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone', 'fonction', 'matricule',
             'date_naissance', 'pays', 'pays_code', 'region', 'ville', 'statut', 'grade', 'role', 'organisation', 'team',
             'profile_photo', 'cni_document', 'autre_piece_document', 'cv_document', 'contrat_document', 'date_joined',
-            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions', 'date_embauche', 'type_contrat',
+            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions', 'delegable_colleagues',
+            'date_embauche', 'type_contrat',
             'periode_essai', 'temps_travail', 'anciennete',
             'competences_principales', 'competences_secondaires',
             'cnps', 'contribuable', 'banque', 'compte_bancaire', 'groupe_sanguin',
@@ -550,7 +678,7 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'role', 'organisation', 'team', 'date_joined', 'statut', 'grade',
-            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions',
+            'departement', 'responsable_hierarchique', 'managed_teams', 'permissions', 'delegable_colleagues',
             # Le contrat de travail est téléversé par les Ressources (ou le directeur/admin),
             # jamais par le salarié lui-même — voir EmployeeContractSerializer et accounts/access.py.
             'contrat_document',
@@ -565,6 +693,16 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
 
     def get_permissions(self, obj):
         return feature_permissions(obj)
+
+    def get_delegable_colleagues(self, obj):
+        """Collègues de son équipe et son manager — options du menu « Pendant mon absence mes
+        tâches seront déléguées à » (voir CongeForm / CongeDemande.delegue_a)."""
+        if not obj.team:
+            return []
+        people = list(obj.team.team_members.exclude(pk=obj.pk))
+        if obj.team.manager_id and obj.team.manager_id != obj.pk and obj.team.manager not in people:
+            people.append(obj.team.manager)
+        return [{'id': p.id, 'nom': f'{p.first_name} {p.last_name}'.strip()} for p in people]
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
@@ -660,8 +798,9 @@ class TeamSerializer(serializers.ModelSerializer):
 
 
 class TeamCreateSerializer(serializers.ModelSerializer):
-    """Création d'une équipe : le code est saisi librement par l'utilisateur (unique par
-    organisation), le niveau démarre toujours au plus bas (à ajuster ensuite si besoin), et une
+    """Création d'une équipe (ou d'une sous-équipe, via `parent` — même mécanisme) : le code
+    (3 lettres) est généré automatiquement à partir du nom, jamais saisi par l'utilisateur — voir
+    next_team_code. Le niveau démarre toujours au plus bas (à ajuster ensuite si besoin), et une
     équipe de direction (parent) peut être choisie dès la création."""
     manager_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), source='manager', write_only=True, required=False, allow_null=True,
@@ -670,15 +809,12 @@ class TeamCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'code', 'name', 'manager_id', 'parent']
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'code']
 
-    def validate_code(self, value):
+    def validate_name(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError('Le code est obligatoire.')
-        organisation = self.context['request'].user.organisation
-        if Team.objects.filter(organisation=organisation, code__iexact=value).exists():
-            raise serializers.ValidationError('Ce code est déjà utilisé par une autre équipe.')
+            raise serializers.ValidationError('Le nom est obligatoire.')
         return value
 
     def validate_manager_id(self, value):
@@ -693,7 +829,8 @@ class TeamCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         organisation = self.context['request'].user.organisation
         manager = validated_data.pop('manager', None)
-        team = Team.objects.create(organisation=organisation, niveau=4, manager=manager, **validated_data)
+        code = next_team_code(organisation, validated_data['name'])
+        team = Team.objects.create(organisation=organisation, code=code, niveau=4, manager=manager, **validated_data)
         if manager is not None:
             manager.move_to_team(team)
         return team
@@ -777,16 +914,19 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
     reviewed_by_role = serializers.SerializerMethodField()
     duree = serializers.ReadOnlyField()
     type_conge_detail = CongeTypeSerializer(source='type_conge', read_only=True)
+    delegue_a_nom = serializers.SerializerMethodField()
 
     class Meta:
         model = CongeDemande
         fields = [
-            'id', 'employee', 'employee_nom', 'employee_fonction', 'type_conge', 'type_conge_detail',
+            'id', 'code', 'employee', 'employee_nom', 'employee_fonction', 'type_conge', 'type_conge_detail',
             'date_debut', 'date_fin', 'duree', 'demi_journee_debut', 'demi_journee_fin', 'motif',
+            'delegue_a', 'delegue_a_nom', 'disponibilite_confirmee',
             'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
         ]
         read_only_fields = [
-            'id', 'employee', 'statut', 'cloture', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
+            'id', 'code', 'employee', 'statut', 'cloture', 'disponibilite_confirmee',
+            'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
         ]
 
     def get_employee_nom(self, obj):
@@ -798,10 +938,25 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
     def get_reviewed_by_role(self, obj):
         return obj.reviewed_by.get_role_display() if obj.reviewed_by else None
 
+    def get_delegue_a_nom(self, obj):
+        return f'{obj.delegue_a.first_name} {obj.delegue_a.last_name}' if obj.delegue_a else None
+
     def validate_type_conge(self, value):
         request = self.context['request']
         if value.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError('Ce type de congé n’appartient pas à votre organisation.')
+        return value
+
+    def validate_delegue_a(self, value):
+        # Gestion de responsabilité : uniquement un membre de sa propre équipe ou son manager —
+        # voir EmployeeMeSerializer.get_delegable_colleagues, qui alimente le même menu.
+        employee = self.context['request'].user
+        if value is None:
+            return value
+        team = employee.team
+        is_colleague = team is not None and (value.team_id == team.id or value.id == team.manager_id)
+        if not is_colleague:
+            raise serializers.ValidationError('Choisissez un membre de votre équipe ou votre manager.')
         return value
 
     def validate(self, attrs):
@@ -811,6 +966,10 @@ class CongeDemandeSerializer(serializers.ModelSerializer):
         if self.instance is None and type_conge and type_conge.categorie == 'technique':
             raise serializers.ValidationError(
                 {'type_conge': 'Le congé technique n’est pas une demande individuelle : il est configuré depuis Demandes > Congé Technique.'}
+            )
+        if self.instance is None and not attrs.get('delegue_a'):
+            raise serializers.ValidationError(
+                {'delegue_a': 'Choisissez la personne à qui vos tâches seront déléguées pendant votre absence.'}
             )
         if self.instance is None and type_conge and type_conge.categorie == 'maladie':
             if not date_debut:
@@ -991,10 +1150,10 @@ class AvanceDemandeSerializer(serializers.ModelSerializer):
     class Meta:
         model = AvanceDemande
         fields = [
-            'id', 'employee', 'employee_nom', 'employee_fonction', 'montant', 'motif', 'nombre_mois',
+            'id', 'code', 'employee', 'employee_nom', 'employee_fonction', 'montant', 'motif', 'nombre_mois',
             'statut', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at',
         ]
-        read_only_fields = ['id', 'employee', 'statut', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at']
+        read_only_fields = ['id', 'code', 'employee', 'statut', 'reviewed_by_nom', 'reviewed_by_role', 'reviewed_at', 'created_at']
 
     def get_employee_nom(self, obj):
         return f'{obj.employee.first_name} {obj.employee.last_name}'

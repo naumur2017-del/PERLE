@@ -6,8 +6,9 @@ import {
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import {
-  createEmployee, editEmployee, fetchEmployees, fetchTeams, updateEmployee, uploadEmployeeContract,
-  type Employee, type StatutEmploye, type Team,
+  createEmployee, createGradeChangeRequest, editEmployee, fetchEmployees, fetchGradeChangeRequests, fetchTeams,
+  updateEmployee, uploadEmployeeContract,
+  type Employee, type GradeChangeRequest, type StatutEmploye, type Team,
 } from '../api/employees'
 import { can } from '../auth/permissions'
 import type { Session } from '../auth/session'
@@ -20,6 +21,7 @@ import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
 import CountrySelect from '../components/CountrySelect'
 import RegionSelect from '../components/RegionSelect'
+import CitySelect from '../components/CitySelect'
 import PhoneInput from '../components/PhoneInput'
 import DatePicker from '../components/DatePicker'
 import './GestionEquipesPage.css'
@@ -657,12 +659,16 @@ type CreateEmployeeForm = {
   phone: string
   fonction: string
   matricule: string
+  sexe: string
   date_naissance: string
   pays: string
   pays_code: string
   region: string
   ville: string
   statut: StatutEmploye
+  // Obligatoire uniquement lors du passage au statut Inactif en modification — voir
+  // EmployeeAdminEditSerializer côté backend.
+  motif_statut: string
   grade: string
   team_id: string
   date_embauche: string
@@ -692,8 +698,8 @@ type CreateEmployeeFiles = {
 type Credentials = { name: string; email: string; password: string }
 
 const EMPTY_CREATE_FORM: CreateEmployeeForm = {
-  first_name: '', last_name: '', email: '', password: '', phone: '', fonction: '', matricule: '',
-  date_naissance: '', pays: '', pays_code: '', region: '', ville: '', statut: 'actif', grade: '0', team_id: '', date_embauche: '',
+  first_name: '', last_name: '', email: '', password: '', phone: '', fonction: '', matricule: '', sexe: '',
+  date_naissance: '', pays: '', pays_code: '', region: '', ville: '', statut: 'actif', motif_statut: '', grade: '0', team_id: '', date_embauche: '',
   type_contrat: '', periode_essai: '', temps_travail: '', competences_principales: '',
   competences_secondaires: '', cnps: '', contribuable: '', banque: '', compte_bancaire: '',
   groupe_sanguin: '', contact_urgence_nom: '', contact_urgence_telephone: '', assurance_sante: '',
@@ -711,12 +717,14 @@ const employeeToForm = (employee: Employee): CreateEmployeeForm => ({
   phone: employee.phone,
   fonction: employee.fonction,
   matricule: employee.matricule,
+  sexe: employee.sexe,
   date_naissance: employee.date_naissance ?? '',
   pays: employee.pays,
   pays_code: employee.pays_code,
   region: employee.region,
   ville: employee.ville,
   statut: employee.statut,
+  motif_statut: '',
   grade: String(employee.grade),
   team_id: employee.team ? String(employee.team.id) : '',
   date_embauche: employee.date_embauche ?? '',
@@ -832,16 +840,26 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
                   onChange={handleChange('matricule')}
                 />
               </label>
+              <label>Sexe
+                <select value={form.sexe} onChange={handleChange('sexe')}>
+                  <option value="">Non renseigné</option><option value="M">Homme</option><option value="F">Femme</option>
+                </select>
+              </label>
               <DatePicker label="Date de naissance" value={form.date_naissance} onChange={handleDateChange('date_naissance')} />
-              <CountrySelect
-                name="pays" label="Pays" value={form.pays_code || null}
-                onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '' }))}
+              {/* Lieu de résidence = Ville, Région, Pays. La ville dépend de la région choisie,
+                  qui dépend elle-même du pays (voir CitySelect/RegionSelect). */}
+              <CitySelect
+                name="ville" label="Ville" countryCode={form.pays_code || null} regionName={form.region || null} value={form.ville}
+                onChange={(v) => setForm((previous) => ({ ...previous, ville: v }))}
               />
               <RegionSelect
                 name="region" label="Région" countryCode={form.pays_code || null} value={form.region}
-                onChange={(v) => setForm((previous) => ({ ...previous, region: v }))}
+                onChange={(v) => setForm((previous) => ({ ...previous, region: v, ville: '' }))}
               />
-              <label>Ville<input value={form.ville} onChange={handleChange('ville')} placeholder="Ex. Douala" /></label>
+              <CountrySelect
+                name="pays" label="Pays" value={form.pays_code || null}
+                onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '', region: '', ville: '' }))}
+              />
               <label>Photo de profil<input type="file" accept="image/*" onChange={handleFile('profile_photo')} /></label>
             </div>
           </fieldset>
@@ -849,23 +867,38 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
           <fieldset>
             <legend>Informations professionnelles</legend>
             <div className="ge-form-grid">
-              <label>Poste / Fonction<input value={form.fonction} onChange={handleChange('fonction')} /></label>
-              <label>Grade<input type="number" min="0" value={form.grade} onChange={handleChange('grade')} /></label>
-              <label>Statut
-                <select value={form.statut} onChange={handleChange('statut')}>
+              <label>Poste / Fonction *<input required={!isEdit} value={form.fonction} onChange={handleChange('fonction')} /></label>
+              <label>
+                Grade *
+                <input
+                  required={!isEdit} disabled={isEdit} type="number" min="0" value={form.grade}
+                  title={isEdit ? 'Le grade se modifie via « Modifier le grade » sur la fiche employé (validation de la Direction).' : undefined}
+                  onChange={handleChange('grade')}
+                />
+              </label>
+              <label>Statut *
+                <select required={!isEdit} value={form.statut} onChange={handleChange('statut')}>
                   <option value="actif">Actif</option><option value="conge">En congé</option><option value="inactif">Inactif</option>
                 </select>
               </label>
+              {isEdit && form.statut === 'inactif' && employee?.statut !== 'inactif' && (
+                <label className="ge-form-wide">Motif du passage en Inactif *
+                  <textarea
+                    required rows={2} value={form.motif_statut} onChange={handleChange('motif_statut')}
+                    placeholder="Ex. Absence prolongée, fin de mission, mise à pied…"
+                  />
+                </label>
+              )}
               <label>Équipe / Département
                 <select value={form.team_id} onChange={handleChange('team_id')}>
                   <option value="">Non affecté</option>
                   {teams.map((team) => <option key={team.id} value={team.id}>{team.code} — {team.name}</option>)}
                 </select>
               </label>
-              <DatePicker label="Date d’embauche" value={form.date_embauche} onChange={handleDateChange('date_embauche')} />
-              <label>Type de contrat
-                <select value={form.type_contrat} onChange={handleChange('type_contrat')}>
-                  <option value="">Non renseigné</option><option value="cdi">CDI</option><option value="cdd">CDD</option><option value="stage">Stage</option><option value="alternance">Alternance</option><option value="consultant">Consultant</option>
+              <DatePicker name="date_embauche" label="Date d’embauche *" value={form.date_embauche} onChange={handleDateChange('date_embauche')} required={!isEdit} />
+              <label>Contrat *
+                <select required={!isEdit} value={form.type_contrat} onChange={handleChange('type_contrat')}>
+                  <option value="">Sélectionner…</option><option value="cdi">CDI</option><option value="cdd">CDD</option><option value="stage">Stage</option><option value="alternance">Alternance</option><option value="consultant">Consultant</option>
                 </select>
               </label>
               <label>Période d’essai
@@ -988,40 +1021,82 @@ function CredentialsModal({ credentials, onClose }: { credentials: Credentials; 
   )
 }
 
-function GradeModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (grade: number) => Promise<void> }) {
+function GradeModal({ employe, onClose, onSubmitRequest }: {
+  employe: Employe
+  onClose: () => void
+  // Ne modifie plus le grade directement : soumet une demande à la Direction générale, qui
+  // valide ou rejette (voir GradeChangeRequest / GradeChangeRequestReviewView).
+  onSubmitRequest: (nouveauGrade: number, motif: string) => Promise<void>
+}) {
   const [grade, setGrade] = useState(employe.grade)
+  const [motif, setMotif] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
-      await onSave(grade)
-      onClose()
+      await onSubmitRequest(grade, motif.trim())
+      setSubmitted(true)
     } catch (err) {
       setError(errorMessage(err))
       setSaving(false)
     }
   }
 
+  if (submitted) {
+    return (
+      <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Demande envoyée" onMouseDown={onClose}>
+        <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="ge-modal-head">
+            <h3>Demande envoyée</h3>
+            <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
+          </div>
+          <p className="ge-modal-employee">{employe.nom}</p>
+          <p>
+            Votre demande de changement de grade (G{employe.grade} → G{grade}) a été envoyée à la Direction générale
+            pour validation. Le grade et le salaire de base de {employe.nom} seront mis à jour automatiquement dès
+            validation.
+          </p>
+          <div className="ge-modal-actions">
+            <button type="button" className="ge-btn-primary" onClick={onClose}>Fermer</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Modifier le grade" onMouseDown={onClose}>
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Demander un changement de grade" onMouseDown={onClose}>
       <div className="ge-modal" onMouseDown={(event) => event.stopPropagation()}>
         <div className="ge-modal-head">
-          <h3>Modifier le grade</h3>
+          <h3>Demander un changement de grade</h3>
           <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
         <p className="ge-modal-employee">{employe.nom}</p>
+        <p className="ge-modal-subtitle">Cette demande sera soumise à la Direction générale pour validation ou rejet.</p>
         {error && <p className="ge-form-error">{error}</p>}
         <div className="ge-grade-stepper">
           <button type="button" onClick={() => setGrade((g) => Math.max(0, g - 1))} disabled={grade <= 0} aria-label="Diminuer le grade">−</button>
           <span className="ge-grade-stepper-value">{`G${grade}`}</span>
           <button type="button" onClick={() => setGrade((g) => g + 1)} aria-label="Augmenter le grade">+</button>
         </div>
+        <label className="param-field">Motif *
+          <textarea
+            required rows={3} value={motif} onChange={(event) => setMotif(event.target.value)}
+            placeholder="Ex. Évolution de poste, revalorisation annuelle, prise de responsabilités…"
+          />
+        </label>
         <div className="ge-modal-actions">
           <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
-          <button type="button" className="ge-btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
+          <button
+            type="button" className="ge-btn-primary" onClick={handleSave}
+            disabled={saving || grade === employe.grade || motif.trim().length === 0}
+          >
+            {saving ? 'Envoi…' : 'Envoyer la demande'}
+          </button>
         </div>
       </div>
     </div>
@@ -1034,20 +1109,33 @@ const STATUT_MENU_OPTIONS: { value: StatutEmploye; label: string }[] = [
   { value: 'inactif', label: 'Inactif' },
 ]
 
-function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (statut: StatutEmploye) => Promise<void> }) {
+function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: () => void; onSave: (statut: StatutEmploye, motif?: string) => Promise<void> }) {
   const [saving, setSaving] = useState<StatutEmploye | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Le passage à Inactif exige un motif : on ouvre un champ dédié plutôt que d'enregistrer
+  // immédiatement (voir EmployeeAdminUpdateSerializer côté backend, qui refuse sans motif).
+  const [pendingInactif, setPendingInactif] = useState(false)
+  const [motif, setMotif] = useState('')
 
-  const handleSelect = async (statut: StatutEmploye) => {
+  const handleSelect = async (statut: StatutEmploye, motifValue?: string) => {
     setSaving(statut)
     setError(null)
     try {
-      await onSave(statut)
+      await onSave(statut, motifValue)
       onClose()
     } catch (err) {
       setError(errorMessage(err))
       setSaving(null)
     }
+  }
+
+  const handleOptionClick = (statut: StatutEmploye) => {
+    if (statut === 'inactif' && employe.statutValue !== 'inactif') {
+      setError(null)
+      setPendingInactif(true)
+      return
+    }
+    handleSelect(statut)
   }
 
   return (
@@ -1059,19 +1147,43 @@ function StatutModal({ employe, onClose, onSave }: { employe: Employe; onClose: 
         </div>
         <p className="ge-modal-employee">{employe.nom}</p>
         {error && <p className="ge-form-error">{error}</p>}
-        <div className="ge-statut-options">
-          {STATUT_MENU_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={option.value === employe.statutValue ? 'is-selected' : ''}
-              disabled={saving !== null}
-              onClick={() => handleSelect(option.value)}
-            >
-              {saving === option.value ? 'Enregistrement…' : option.label}
-            </button>
-          ))}
-        </div>
+        {pendingInactif ? (
+          <>
+            <p className="ge-modal-subtitle">
+              Le motif est obligatoire pour mettre {employe.nom} en Inactif. Il pourra toujours se connecter mais ne
+              sera plus staffable sur aucune tâche jusqu’à sa remise en activité.
+            </p>
+            <label className="param-field">Motif *
+              <textarea
+                required rows={3} autoFocus value={motif} onChange={(event) => setMotif(event.target.value)}
+                placeholder="Ex. Absence prolongée, fin de mission, mise à pied…"
+              />
+            </label>
+            <div className="ge-modal-actions">
+              <button type="button" className="ge-btn-outline" onClick={() => setPendingInactif(false)} disabled={saving !== null}>Retour</button>
+              <button
+                type="button" className="ge-btn-primary" disabled={saving !== null || motif.trim().length === 0}
+                onClick={() => handleSelect('inactif', motif.trim())}
+              >
+                {saving === 'inactif' ? 'Enregistrement…' : 'Mettre en Inactif'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="ge-statut-options">
+            {STATUT_MENU_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={option.value === employe.statutValue ? 'is-selected' : ''}
+                disabled={saving !== null}
+                onClick={() => handleOptionClick(option.value)}
+              >
+                {saving === option.value ? 'Enregistrement…' : option.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1144,6 +1256,11 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
   const [credentials, setCredentials] = useState<Credentials | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(EMPLOYE_COLUMNS)
 
+  // Demandes de changement de grade en attente — seule la Direction générale (admin/directeur)
+  // peut les valider ou les rejeter, voir « Demandes des employés » (GradeChangeRequestReviewView).
+  const isDirection = session?.role === 'admin' || session?.role === 'directeur'
+  const [gradeRequests, setGradeRequests] = useState<GradeChangeRequest[]>([])
+
   useEffect(() => {
     let cancelled = false
     Promise.all([fetchEmployees(), fetchTeams()])
@@ -1158,11 +1275,23 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    if (!isDirection) return
+    let cancelled = false
+    fetchGradeChangeRequests('attente').then((rows) => { if (!cancelled) setGradeRequests(rows) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [isDirection])
+
   const employes = useMemo(() => employees.map((e) => toEmploye(e, teams)), [employees, teams])
 
-  const applyEmployeeUpdate = (id: number, data: { grade?: number; statut?: StatutEmploye }) =>
+  const applyEmployeeUpdate = (id: number, data: { statut?: StatutEmploye; motif?: string }) =>
     updateEmployee(id, data).then((updated) => {
       setEmployees((prev) => prev.map((e) => e.id === id ? updated : e))
+    })
+
+  const submitGradeRequest = (employeeId: number, nouveauGrade: number, motif: string) =>
+    createGradeChangeRequest(employeeId, nouveauGrade, motif).then((created) => {
+      if (isDirection) setGradeRequests((prev) => [created, ...prev])
     })
 
   const gradeModalEmploye = employes.find((e) => e.id === gradeModalId) ?? null
@@ -1220,6 +1349,12 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
           <button onClick={() => navigateTo('gestion-organigramme')}><Network size={14} />Organigramme</button>
         </nav>
         <div className="ge-header-actions">
+          {isDirection && (
+            <button type="button" className="ge-btn-outline ge-btn-outline-badged" onClick={() => navigateTo('gestion-demandes')}>
+              Demandes de grade
+              {gradeRequests.length > 0 && <span className="ge-header-badge">{gradeRequests.length}</span>}
+            </button>
+          )}
           <button type="button" className="ge-btn-primary" onClick={() => setCreateModalOpen(true)}><Plus size={14} />Ajouter un employé</button>
           <button type="button" className="ge-btn-outline"><Download size={14} />Exporter</button>
         </div>
@@ -1359,7 +1494,7 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
         <GradeModal
           employe={gradeModalEmploye}
           onClose={() => setGradeModalId(null)}
-          onSave={(grade) => applyEmployeeUpdate(gradeModalEmploye.id, { grade })}
+          onSubmitRequest={(nouveauGrade, motif) => submitGradeRequest(gradeModalEmploye.id, nouveauGrade, motif)}
         />
       )}
 
@@ -1367,7 +1502,7 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
         <StatutModal
           employe={statutModalEmploye}
           onClose={() => setStatutModalId(null)}
-          onSave={(statut) => applyEmployeeUpdate(statutModalEmploye.id, { statut })}
+          onSave={(statut, motif) => applyEmployeeUpdate(statutModalEmploye.id, { statut, motif })}
         />
       )}
 

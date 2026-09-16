@@ -15,6 +15,14 @@ from .access import CanViewTreasury
 from .models import DemandePaiement, LigneBudgetaire, Project, ProjectLigne
 
 
+def _validate_justificatif(fichier):
+    if fichier.size > 10 * 1024 * 1024:
+        raise ValidationError('Le fichier ne doit pas dépasser 10 Mo.')
+    if Path(fichier.name).suffix.lower() not in ('.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'):
+        raise ValidationError('Format de justificatif non pris en charge.')
+    return fichier
+
+
 class PaiementSerializer(serializers.ModelSerializer):
     numero = serializers.SerializerMethodField()
     paiement_numero = serializers.SerializerMethodField()
@@ -23,15 +31,22 @@ class PaiementSerializer(serializers.ModelSerializer):
     initie_par = serializers.SerializerMethodField()
     statut_libelle = serializers.CharField(source='get_statut_display', read_only=True)
     justificatif_nom = serializers.SerializerMethodField()
+    # Justificatif déposé dès la création de la demande (image ou PDF) — distinct de la preuve
+    # d'exécution éventuellement ajoutée plus tard à la décision (voir DecisionSerializer.fichier),
+    # qui remplace celui-ci si un nouveau fichier est fourni à ce moment-là.
+    justificatif = serializers.FileField(required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = DemandePaiement
-        fields = ['id', 'numero', 'paiement_numero', 'projet', 'projet_nom', 'ligne_budgetaire',
+        fields = ['id', 'numero', 'paiement_numero', 'reference_demande', 'projet', 'projet_nom', 'ligne_budgetaire',
                   'ligne_budgetaire_nom', 'fournisseur', 'type_depense', 'montant', 'devise',
                   'date_depense', 'objet', 'commentaires', 'mode_paiement', 'statut',
-                  'statut_libelle', 'initie_par', 'commentaire_execution', 'justificatif_nom',
+                  'statut_libelle', 'initie_par', 'commentaire_execution', 'justificatif', 'justificatif_nom',
                   'decided_at', 'created_at', 'updated_at']
         read_only_fields = ['devise', 'commentaire_execution', 'decided_at', 'created_at', 'updated_at']
+
+    def validate_justificatif(self, fichier):
+        return _validate_justificatif(fichier)
 
     def get_numero(self, obj):
         return f'DP-{obj.created_at.year}-{obj.pk:06d}'
@@ -137,11 +152,7 @@ class DecisionSerializer(serializers.Serializer):
     mode_paiement = serializers.ChoiceField(choices=['Virement bancaire', 'Mobile Money', 'Espèces', 'Chèque'], required=False)
 
     def validate_fichier(self, fichier):
-        if fichier.size > 10 * 1024 * 1024:
-            raise ValidationError('Le fichier ne doit pas dépasser 10 Mo.')
-        if Path(fichier.name).suffix.lower() not in ('.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'):
-            raise ValidationError('Format de justificatif non pris en charge.')
-        return fichier
+        return _validate_justificatif(fichier)
 
     def validate(self, attrs):
         if not attrs.get('commentaire') and not attrs.get('fichier'):

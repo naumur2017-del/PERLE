@@ -95,6 +95,7 @@
 }
 
 .tr-request-grid label em { color: #dc2626; font-style: normal; }
+.tr-file-name { color: #6c6c85; font-size: 10.5px; font-weight: 600; }
 
 .tr-request-grid select,
 .tr-request-grid input,

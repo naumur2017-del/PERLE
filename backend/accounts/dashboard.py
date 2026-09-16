@@ -18,7 +18,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import DemandePaiement, Project, Task, TaskAssignment, Team
+from .models import (
+    AvanceDemande, CongeDemande, CongeType, DemandePaiement, GradeChangeRequest, Project, Task,
+    TaskAssignment, Team, compute_conge_solde,
+)
 from .views import apply_fermetures_techniques
 
 MONTHS_FR = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.',
@@ -368,6 +371,14 @@ class DirectionDashboardView(APIView):
                 'detail': f'{soon} tâche(s) arrivent à terme avant le {(today + timedelta(days=15)).strftime("%d/%m/%Y")}.',
                 'target': 'pilotage',
             })
+        pending_grades = GradeChangeRequest.objects.filter(employee__organisation=organisation, statut='attente').count()
+        if pending_grades:
+            alerts.append({
+                'id': 'DA-grade', 'level': 'medium',
+                'title': f'{pending_grades} demande(s) de changement de grade en attente',
+                'detail': 'À valider ou rejeter depuis Gestion des équipes > Demandes des employés.',
+                'target': 'gestion-demandes',
+            })
 
         cash_final = cash[-1]['balance'] if cash else 0
         cash_prev = cash[-2]['balance'] if len(cash) > 1 else 0
@@ -638,5 +649,159 @@ class ManagerDashboardView(APIView):
             'projects': project_rows,
             'ehs': {'consumed': ehs_consumed, 'by_month': ehs_by_month},
             'workload': workload,
+            'alerts': alerts,
+        })
+
+
+# --------------------------------------------------------------------------- #
+# Vue employé                                                                 #
+# --------------------------------------------------------------------------- #
+
+class EmployeeDashboardView(APIView):
+    """Tableau de bord personnel de l'accueil pour tout salarié (y compris un manager, qui a en
+    plus son propre ManagerDashboardView) : ses propres tâches, EHS, congés et rémunération —
+    jamais les données d'un collègue. Même construction (recalcul à la volée, découpage par
+    période) que DirectionDashboardView/ManagerDashboardView."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        organisation = user.organisation
+        if not organisation:
+            raise PermissionDenied("Votre compte n'est rattaché à aucune organisation.")
+
+        apply_fermetures_techniques(organisation)
+        today = timezone.localdate()
+        period = request.query_params.get('period', 'quarter')
+        if period not in PERIODS:
+            period = 'quarter'
+
+        assignments = list(
+            TaskAssignment.objects.filter(user=user).select_related('task', 'task__project')
+        )
+
+        # --- KPIs tâches ---------------------------------------------
+        active_tasks = sum(1 for a in assignments if a.execution_statut != 'terminee')
+        late_tasks = sum(
+            1 for a in assignments
+            if a.execution_statut != 'terminee' and a.task.echeance and a.task.echeance < today
+        )
+        done_cutoff = today - timedelta(days=30)
+        tasks_done_30d = sum(
+            1 for a in assignments
+            if a.execution_statut == 'terminee' and a.terminee_le and a.terminee_le.date() >= done_cutoff
+        )
+        notes = [a.note for a in assignments if a.note]
+        avg_note = round(sum(notes) / len(notes), 1) if notes else None
+        hours_in_progress = round(sum(float(a.heures or 0) for a in assignments
+                                      if a.execution_statut in ACTIVE_EXECUTION), 1)
+        active_project_ids = {a.task.project_id for a in assignments
+                               if a.task.project_id and a.execution_statut != 'terminee'}
+        ehs_consumed = round(sum(float(a.ehs_consomme or 0) for a in assignments
+                                 if a.execution_statut == 'terminee'), 1)
+
+        # --- répartition par statut d'exécution -----------------------
+        exec_counts = {key: 0 for key, _ in EXECUTION_LABELS}
+        for assignment in assignments:
+            if assignment.execution_statut in exec_counts:
+                exec_counts[assignment.execution_statut] += 1
+        task_status = [{'label': label, 'value': exec_counts[key]} for key, label in EXECUTION_LABELS]
+
+        # --- tendance mensuelle (7 mois) -------------------------------
+        trend_months = []
+        cursor = _add_months(_month_start(today), -6)
+        for i in range(7):
+            start = _add_months(cursor, i)
+            end = _add_months(cursor, i + 1)
+            trend_months.append({'label': MONTHS_FR[start.month - 1], 'start': start, 'end': end,
+                                 'done': 0, 'assigned': 0})
+        for assignment in assignments:
+            d = assignment.created_at.date()
+            for bucket in trend_months:
+                if bucket['start'] <= d < bucket['end']:
+                    bucket['assigned'] += 1
+                    break
+            if assignment.execution_statut == 'terminee' and assignment.terminee_le:
+                d = assignment.terminee_le.date()
+                for bucket in trend_months:
+                    if bucket['start'] <= d < bucket['end']:
+                        bucket['done'] += 1
+                        break
+        tasks_trend = [{'label': b['label'], 'done': b['done'], 'created': b['assigned']} for b in trend_months]
+        ehs_by_month = []
+        for bucket in trend_months:
+            total = sum(float(a.ehs_consomme or 0) for a in assignments
+                        if a.execution_statut == 'terminee' and a.terminee_le
+                        and bucket['start'] <= a.terminee_le.date() < bucket['end'])
+            ehs_by_month.append({'label': bucket['label'], 'value': round(total, 1)})
+
+        # --- congés ----------------------------------------------------
+        soldes = [compute_conge_solde(user, ct) for ct in CongeType.objects.filter(
+            organisation=organisation, actif=True, categorie='standard')]
+        conge_acquis = float(sum(s['jours_acquis'] for s in soldes))
+        conge_pris = float(sum(s['jours_pris'] for s in soldes))
+        conge_solde = float(sum(s['solde'] for s in soldes))
+
+        # --- rémunération -----------------------------------------------
+        salaire_de_base = float(user.grade) * float(organisation.taux_grade_fcfa)
+        prime_performance = (avg_note or 0) * float(organisation.taux_prime_performance_fcfa)
+
+        # --- alertes ------------------------------------------------
+        alerts = []
+        if late_tasks:
+            alerts.append({
+                'id': 'EA-late', 'level': 'high',
+                'title': f'{late_tasks} tâche(s) en retard',
+                'detail': 'Des tâches qui vous sont attribuées ont dépassé leur échéance.',
+                'target': 'staffing-execute',
+            })
+        soon_cutoff = today + timedelta(days=7)
+        soon = sum(1 for a in assignments if a.execution_statut != 'terminee'
+                   and a.task.echeance and today <= a.task.echeance <= soon_cutoff)
+        if soon:
+            alerts.append({
+                'id': 'EA-soon', 'level': 'medium',
+                'title': f'{soon} échéance(s) dans les 7 jours',
+                'detail': 'Des tâches que vous exécutez arrivent bientôt à échéance.',
+                'target': 'staffing-execute',
+            })
+        pending_conges = CongeDemande.objects.filter(employee=user, statut='attente').count()
+        pending_avances = AvanceDemande.objects.filter(employee=user, statut='attente').count()
+        if pending_conges or pending_avances:
+            details = []
+            if pending_conges:
+                details.append(f'{pending_conges} demande(s) de congé')
+            if pending_avances:
+                details.append(f'{pending_avances} demande(s) d\'avance')
+            alerts.append({
+                'id': 'EA-pending', 'level': 'info',
+                'title': 'Demandes en attente de réponse',
+                'detail': ' et '.join(details) + '.',
+                'target': 'salarie',
+            })
+        if conge_solde <= 0 and conge_acquis > 0:
+            alerts.append({
+                'id': 'EA-solde', 'level': 'info',
+                'title': 'Solde de congés épuisé',
+                'detail': 'Vous n\'avez plus de jours de congé disponibles pour le moment.',
+                'target': 'salarie',
+            })
+
+        return Response({
+            'period': period,
+            'currency_code': organisation.currency_code,
+            'generated_at': timezone.now().isoformat(),
+            'kpi': {
+                'active_tasks': active_tasks, 'late_tasks': late_tasks,
+                'tasks_done_30d': tasks_done_30d, 'avg_note': avg_note,
+                'hours_in_progress': hours_in_progress, 'projects_active': len(active_project_ids),
+                'ehs_consumed': ehs_consumed,
+                'conge_acquis': round(conge_acquis, 1), 'conge_pris': round(conge_pris, 1),
+                'conge_solde': round(conge_solde, 1),
+                'salaire_de_base': salaire_de_base, 'prime_performance': round(prime_performance, 1),
+            },
+            'task_status': task_status,
+            'tasks_trend': tasks_trend,
+            'ehs_by_month': ehs_by_month,
             'alerts': alerts,
         })

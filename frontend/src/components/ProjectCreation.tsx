@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   createProject, createProjectLigne, deleteProjectLigne, fetchProject, fetchProjects, updateProject,
+  updateProjectLigne,
   type Project, type ProjectFormValues, type ProjectLigne, type ProjectStatut, type TypeMontant,
 } from '../api/projects'
 import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
 import { fetchTeams, type Team } from '../api/employees'
-import { fetchOrganisationEhs } from '../api/organisation'
+import { fetchOrganisationEhs, fetchOrganisationRemuneration } from '../api/organisation'
 import { ApiError } from '../api/client'
 import { currencySuffix, formatMontant } from '../utils/currency'
 import DatePicker from './DatePicker'
@@ -73,13 +74,19 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   // Taux réel configuré dans Paramètres > EHS — 150 n'est qu'un repli avant le chargement (même
   // défaut que le modèle Organisation côté backend), jamais une valeur figée en dur.
   const [ehsRate, setEhsRate] = useState(150)
+  // Taux de TVA standard de l'organisation (Paramètres > Rémunération), pré-rempli automatiquement
+  // selon son pays à l'inscription — valeur de départ du champ TVA (%) d'un nouveau projet, sans
+  // écraser un brouillon déjà chargé (voir openDraft) ni une valeur déjà saisie par l'utilisateur.
+  const [defaultTvaPct, setDefaultTvaPct] = useState(0)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchLignesBudgetaires(), fetchOrganisationEhs()])
-      .then(([teamsData, lignesData, ehsData]) => {
+    Promise.all([fetchTeams(), fetchLignesBudgetaires(), fetchOrganisationEhs(), fetchOrganisationRemuneration()])
+      .then(([teamsData, lignesData, ehsData, remunerationData]) => {
         setTeams(teamsData)
         setCatalogue(lignesData.filter((l) => l.actif))
         setEhsRate(ehsData.taux_ehs_fcfa)
+        setDefaultTvaPct(remunerationData.taux_tva_pct)
+        setTvaPct((current) => current === 0 ? remunerationData.taux_tva_pct : current)
       })
       .catch(() => {})
   }, [])
@@ -103,7 +110,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     setProjectId(null); setProjectCode(null)
     setProjectName(blank.nom); setClientName(blank.client); setProjectDescription(blank.description)
     setMontant(blank.montant); setTypeMontant(blank.typeMontant); setMargePct(blank.margePct)
-    setChargesPct(blank.chargesPct); setTvaPct(blank.tvaPct); setIrPct(blank.irPct)
+    setChargesPct(blank.chargesPct); setTvaPct(defaultTvaPct); setIrPct(blank.irPct)
     setDateDebut(blank.dateDebut); setDateFin(blank.dateFin); setReserveAmount(blank.reserveAmount)
     setLignes([]); setFormError(null)
   }
@@ -132,9 +139,12 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
   const margeMontant = montant * margePct / 100
   const chargesMontant = montant * chargesPct / 100
-  const budgetExecution = montant - margeMontant - chargesMontant
   const tvaMontant = montant * tvaPct / 100
   const irMontant = montant * irPct / 100
+  // TTC : montant − TVA − marge − charges transversales. HT : montant − IR − marge − charges
+  // transversales — les deux taxes ne se soustraient jamais ensemble, selon le type de montant saisi.
+  const taxeDeductible = typeMontant === 'TTC' ? tvaMontant : irMontant
+  const budgetExecution = montant - taxeDeductible - margeMontant - chargesMontant
   const equivalentEhs = budgetExecution > 0 ? budgetExecution / ehsRate : 0
 
   const coutsLignesBudgetaires = lignes.reduce((sum, l) => sum + l.montant, 0)
@@ -182,6 +192,18 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
       await deleteProjectLigne(projectId, ligne.id)
     }
     setLignes((prev) => prev.filter((l) => l.id !== ligne.id))
+  }
+
+  const updateLigne = async (ligne: ProjectLigne, values: { montant: number; date_debut: string; date_fin: string }) => {
+    const payload = { montant: values.montant, date_debut: values.date_debut || null, date_fin: values.date_fin || null }
+    if (projectId && ligne.id > 0) {
+      const updated = await updateProjectLigne(projectId, ligne.id, payload)
+      setLignes((prev) => prev.map((l) => l.id === ligne.id ? updated : l))
+    } else {
+      setLignes((prev) => prev.map((l) => l.id === ligne.id
+        ? { ...l, montant: values.montant, montant_reste_fcfa: values.montant - l.montant_consomme_fcfa, date_debut: payload.date_debut, date_fin: payload.date_fin }
+        : l))
+    }
   }
 
   const addReserveLine = () => {
@@ -262,14 +284,14 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         ) : (
           <div className="draft-panel">
             <table className="draft-table">
-              <thead><tr><th>Code</th><th>Nom du projet</th><th>Client</th><th>Montant HT</th><th>Budget d’exécution</th><th>Enregistré le</th></tr></thead>
+              <thead><tr><th>Code</th><th>Nom du projet</th><th>Client</th><th>Montant</th><th>Budget d’exécution</th><th>Enregistré le</th></tr></thead>
               <tbody>
                 {historique.map((project) => (
                   <tr key={project.id}>
                     <td className="draft-code"><button type="button" className="draft-code-link" onClick={() => openDraft(project)}>{project.code}</button></td>
                     <td className="draft-name">{project.nom}</td>
                     <td>{project.client || 'Client non renseigné'}</td>
-                    <td>{fmtFcfa(project.montant)}</td>
+                    <td>{fmtFcfa(project.montant)} <small>({project.type_montant})</small></td>
                     <td>{fmtFcfa(project.budget_execution)}</td>
                     <td>{new Date(project.updated_at).toLocaleDateString('fr-FR')}</td>
                   </tr>
@@ -288,14 +310,14 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         ) : (
           <div className="draft-panel">
             <table className="draft-table">
-              <thead><tr><th>Code</th><th>Nom du projet</th><th>Client</th><th>Montant HT</th><th>Budget d’exécution</th><th>Enregistré le</th></tr></thead>
+              <thead><tr><th>Code</th><th>Nom du projet</th><th>Client</th><th>Montant</th><th>Budget d’exécution</th><th>Enregistré le</th></tr></thead>
               <tbody>
                 {drafts.map((draft) => (
                   <tr key={draft.id}>
                     <td className="draft-code"><button type="button" className="draft-code-link" onClick={() => openDraft(draft)}>{draft.code}</button></td>
                     <td className="draft-name">{draft.nom}</td>
                     <td>{draft.client || 'Client non renseigné'}</td>
-                    <td>{fmtFcfa(draft.montant)}</td>
+                    <td>{fmtFcfa(draft.montant)} <small>({draft.type_montant})</small></td>
                     <td>{fmtFcfa(draft.budget_execution)}</td>
                     <td>{new Date(draft.updated_at).toLocaleDateString('fr-FR')}</td>
                   </tr>
@@ -327,7 +349,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
           <label className="field full project-text-field"><span>Nom du client <em>*</em></span><input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
           <label className="field full project-text-field"><span>Description du projet</span><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} rows={4} /></label>
           <div className="form-grid three">
-            <label className="field"><span>Montant HT du projet <em>*</em></span><div className="input-suffix"><input type="number" min={0} value={montant} onChange={(event) => setMontant(Number(event.target.value))} /><i>{currencySuffix()}</i></div></label>
+            <label className="field"><span>Montant {typeMontant} du projet <em>*</em></span><div className="input-suffix"><input type="number" min={0} value={montant} onChange={(event) => setMontant(Number(event.target.value))} /><i>{currencySuffix()}</i></div></label>
             <label className="field"><span>Type de montant <em>*</em></span><select value={typeMontant} onChange={(event) => setTypeMontant(event.target.value as TypeMontant)}><option value="HT">HT</option><option value="TTC">TTC</option></select></label>
             <label className="field"><span>Marge (%) <em>*</em></span><div className="input-suffix"><input type="number" min={0} max={100} value={margePct} onChange={(event) => setMargePct(Number(event.target.value))} /><i>%</i></div></label>
             <label className="field"><span>Charges transversales (%) <em>*</em></span><div className="input-suffix"><input type="number" min={0} max={100} value={chargesPct} onChange={(event) => setChargesPct(Number(event.target.value))} /><i>%</i></div><small>Entre 10% et 15%</small></label>
@@ -338,11 +360,12 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
           <div className="auto-summary">
             <h3>▣ &nbsp; Récapitulatif automatique</h3>
             <dl>
-              <div><dt>Montant HT</dt><dd>{fmtFcfa(montant)}</dd></div>
+              <div><dt>Montant {typeMontant}</dt><dd>{fmtFcfa(montant)}</dd></div>
+              <div><dt>{typeMontant === 'TTC' ? `TVA (${tvaPct}%)` : `IR (${irPct}%)`}</dt><dd className="cyan">- {fmtFcfa(taxeDeductible)}</dd></div>
               <div><dt>Marge ({margePct}%)</dt><dd className="blue">- {fmtFcfa(margeMontant)}</dd></div>
               <div><dt>Charges transversales ({chargesPct}%)</dt><dd className="orange">- {fmtFcfa(chargesMontant)}</dd></div>
             </dl>
-            <div className="execution-total"><span>Budget d’exécution</span><strong>{fmtFcfa(budgetExecution)}</strong><small>{fmtFcfa(montant)} − {fmtFcfa(margeMontant)} − {fmtFcfa(chargesMontant)}</small></div>
+            <div className="execution-total"><span>Budget d’exécution</span><strong>{fmtFcfa(budgetExecution)}</strong><small>{fmtFcfa(montant)} − {fmtFcfa(taxeDeductible)} − {fmtFcfa(margeMontant)} − {fmtFcfa(chargesMontant)}</small></div>
           </div>
 
           <div className="form-grid two dates">
@@ -380,7 +403,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         <div className="creation-overview">
           <div className="overview-heading"><h3>Aperçu et récapitulatif du projet</h3><p>Les résultats sont calculés automatiquement en temps réel.</p></div>
           <div className="financial-cards">
-            <article className="financial-card green"><span>Montant HT</span><strong>{fmtFcfa(montant)}</strong><small>100,00%</small></article>
+            <article className="financial-card green"><span>Montant {typeMontant}</span><strong>{fmtFcfa(montant)}</strong><small>100,00%</small></article>
             <article className="financial-card purple"><span>Marge ({margePct}%)</span><strong>{fmtFcfa(margeMontant)}</strong><small>{fmtPercent(margePct)}</small></article>
             <article className="financial-card orange"><span>Charges transversales ({chargesPct}%)</span><strong>{fmtFcfa(chargesMontant)}</strong><small>{fmtPercent(chargesPct)}</small></article>
             <article className="financial-card blue"><span>Budget d’exécution</span><strong>{fmtFcfa(budgetExecution)}</strong><small>{fmtPercent(montant > 0 ? (budgetExecution / montant) * 100 : 0)}</small></article>
@@ -435,7 +458,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         <ProjectChargesStep
           lignes={lignes} teams={teams} catalogue={catalogue}
           projectDateDebut={dateDebut} projectDateFin={dateFin} resteProjet={reste}
-          onAddLigne={addLigne} onRemoveLigne={removeLigne} onClose={() => setStep(1)}
+          onAddLigne={addLigne} onRemoveLigne={removeLigne} onUpdateLigne={updateLigne} onClose={() => setStep(1)}
         />
       </div>
     </div>}
@@ -443,7 +466,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   )
 }
 
-function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projectDateFin, resteProjet, onAddLigne, onRemoveLigne, onClose }: {
+function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projectDateFin, resteProjet, onAddLigne, onRemoveLigne, onUpdateLigne, onClose }: {
   lignes: ProjectLigne[]
   teams: Team[]
   catalogue: LigneBudgetaire[]
@@ -452,6 +475,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
   resteProjet: number
   onAddLigne: (values: { ligne_budgetaire: number; montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onRemoveLigne: (ligne: ProjectLigne) => Promise<void>
+  onUpdateLigne: (ligne: ProjectLigne, values: { montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onClose: () => void
 }) {
   return <section className="charges-step-card">
@@ -481,6 +505,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
           resteProjet={resteProjet}
           onAdd={onAddLigne}
           onRemove={onRemoveLigne}
+          onUpdate={onUpdateLigne}
         />
       ))}
       {teams.length === 0 && (
@@ -494,7 +519,7 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
   </section>
 }
 
-function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributedLignes, projectDateDebut, projectDateFin, resteProjet, onAdd, onRemove }: {
+function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributedLignes, projectDateDebut, projectDateFin, resteProjet, onAdd, onRemove, onUpdate }: {
   team: Team
   hasCatalogueLignes: boolean
   availableLignes: LigneBudgetaire[]
@@ -504,6 +529,7 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
   resteProjet: number
   onAdd: (values: { ligne_budgetaire: number; montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onRemove: (ligne: ProjectLigne) => Promise<void>
+  onUpdate: (ligne: ProjectLigne, values: { montant: number; date_debut: string; date_fin: string }) => Promise<void>
 }) {
   const [open, setOpen] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -514,6 +540,12 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [editingLigne, setEditingLigne] = useState<ProjectLigne | null>(null)
+  const [editMontant, setEditMontant] = useState('')
+  const [editDateDebut, setEditDateDebut] = useState('')
+  const [editDateFin, setEditDateFin] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const selectedLigne = availableLignes.find((l) => l.id === ligneId) ?? null
   const montantPrevu = selectedLigne?.montant_prevu ?? null
@@ -553,6 +585,33 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
     }
   }
 
+  const startEdit = (ligne: ProjectLigne) => {
+    setOpenMenuId(null)
+    setEditingLigne(ligne)
+    setEditMontant(String(ligne.montant))
+    setEditDateDebut(ligne.date_debut ?? '')
+    setEditDateFin(ligne.date_fin ?? '')
+  }
+
+  const cancelEdit = () => setEditingLigne(null)
+
+  const handleUpdate = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!editingLigne) return
+    const montantValue = Number(editMontant) || 0
+    if (montantValue <= 0) return
+    setEditSaving(true)
+    setError(null)
+    try {
+      await onUpdate(editingLigne, { montant: montantValue, date_debut: editDateDebut, date_fin: editDateFin })
+      setEditingLigne(null)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   return (
     <article className={`charge-group ${open ? 'open' : ''}`}>
       <button type="button" className="charge-group-title" onClick={() => setOpen((o) => !o)}>
@@ -564,9 +623,31 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
           {error && <p className="form-error">{error}</p>}
           <div className="charge-table-wrap">
             <table>
-              <thead><tr><th>Code</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th><th>CRUD</th></tr></thead>
+              <thead><tr><th>Code</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th><th>Action</th></tr></thead>
               <tbody>
-                {attributedLignes.map((ligne) => (
+                {attributedLignes.map((ligne) => ligne.id === editingLigne?.id ? (
+                  <tr key={ligne.id} className="charge-row-editing">
+                    <td>{ligne.code}</td>
+                    <td>
+                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
+                    </td>
+                    <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
+                    <td><input type="number" min={0} value={editMontant} onChange={(event) => setEditMontant(event.target.value)} /></td>
+                    <td colSpan={2}>
+                      <div className="charge-edit-dates">
+                        <DatePicker value={editDateDebut} onChange={setEditDateDebut} />
+                        <DatePicker value={editDateFin} min={editDateDebut || undefined} onChange={setEditDateFin} />
+                      </div>
+                    </td>
+                    <td className="charge-edit-actions">
+                      <button type="button" className="secondary-action" onClick={cancelEdit} disabled={editSaving}>Annuler</button>
+                      <button type="button" className="add-charge" onClick={handleUpdate} disabled={editSaving || (Number(editMontant) || 0) <= 0}>
+                        {editSaving ? 'Enregistrement…' : 'Enregistrer'}
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={ligne.id}>
                     <td>{ligne.code}</td>
                     <td>
@@ -577,10 +658,24 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                     <td>{ligne.montant.toLocaleString('fr-FR')}</td>
                     <td>{fmtDate(ligne.date_debut)}</td>
                     <td>{fmtDate(ligne.date_fin)}</td>
-                    <td>
-                      {ligne.is_transversale
-                        ? <span className="task-crud-locked" title="Attribuée d'office (10 % du montant du projet)">🔒</span>
-                        : <div className="task-crud"><button className="delete" title="Retirer" disabled={removingId === ligne.id} onClick={() => handleRemove(ligne)}>⌫</button></div>}
+                    <td className="charge-options-cell">
+                      <button
+                        type="button" className="charge-options-btn" aria-label="Options de la ligne" aria-haspopup="menu"
+                        aria-expanded={openMenuId === ligne.id}
+                        onClick={() => setOpenMenuId((current) => current === ligne.id ? null : ligne.id)}
+                      >⋮</button>
+                      {openMenuId === ligne.id && (
+                        <ul className="charge-options-menu" role="menu" onMouseLeave={() => setOpenMenuId(null)}>
+                          <li><button type="button" role="menuitem" onClick={() => startEdit(ligne)}>✎ Modifier</button></li>
+                          {!ligne.is_transversale && (
+                            <li>
+                              <button type="button" role="menuitem" className="danger" disabled={removingId === ligne.id} onClick={() => { setOpenMenuId(null); handleRemove(ligne) }}>
+                                ⌫ Supprimer
+                              </button>
+                            </li>
+                          )}
+                        </ul>
+                      )}
                     </td>
                   </tr>
                 ))}
