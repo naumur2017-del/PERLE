@@ -1,4 +1,5 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from './client'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostUpload } from './client'
+import { getSession } from '../auth/session'
 
 export interface LigneBudgetaire {
   id: number
@@ -26,3 +27,27 @@ export const updateLigneBudgetaire = (id: number, data: Partial<{ nom: string; e
   apiPatch<LigneBudgetaire>(`/architecture-monetaire/lignes/${id}/`, data)
 
 export const deleteLigneBudgetaire = (id: number) => apiDelete(`/architecture-monetaire/lignes/${id}/`)
+
+export interface ImportRowError { ligne: number; code: string; erreurs: Record<string, unknown> }
+export interface ImportResult { created: number; errors: ImportRowError[]; items: LigneBudgetaire[] }
+
+export const importLignesBudgetaires = (file: File): Promise<ImportResult> => {
+  const data = new FormData()
+  data.append('file', file)
+  return apiPostUpload<ImportResult>('/architecture-monetaire/lignes/import/', data)
+}
+
+/** Télécharge le modèle Excel vierge (avec exemples) pour l'import de l'architecture monétaire. */
+export async function downloadLigneBudgetaireModele() {
+  const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
+  const response = await fetch(`${base}/architecture-monetaire/lignes/import/`, {
+    headers: { Authorization: `Token ${getSession()?.token ?? ''}` },
+  })
+  if (!response.ok) throw new Error('Impossible de télécharger le modèle.')
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'architecture-monetaire-modele.xlsx'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

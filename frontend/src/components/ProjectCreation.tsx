@@ -5,6 +5,7 @@ import {
   type Project, type ProjectFormValues, type ProjectLigne, type ProjectStatut, type TypeMontant,
 } from '../api/projects'
 import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
+import { fetchTaskTemplates, type TaskTemplate } from '../api/taskTemplates'
 import { fetchTeams, type Team } from '../api/employees'
 import { fetchOrganisationEhs, fetchOrganisationRemuneration } from '../api/organisation'
 import { ApiError } from '../api/client'
@@ -31,6 +32,12 @@ const fmtDate = (value: string | null) => {
   const [year, month, day] = value.split('-')
   return `${day}/${month}/${year}`
 }
+
+/** Code — nom de la ligne, quel que soit son référentiel d'origine (voir ProjectLigne.type_ligne
+ * côté backend) : Architecture monétaire ('M') ou catalogue de l'Architecture des tâches ('E'). */
+const ligneLabel = (ligne: ProjectLigne) => ligne.type_ligne === 'E'
+  ? `${ligne.task_template_code} — ${ligne.task_template_nom}`
+  : `${ligne.ligne_budgetaire_code} — ${ligne.ligne_budgetaire_nom}`
 
 const emptyForm = () => ({
   nom: '', client: '', description: '',
@@ -71,6 +78,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
   const [teams, setTeams] = useState<Team[]>([])
   const [catalogue, setCatalogue] = useState<LigneBudgetaire[]>([])
+  const [templateCatalogue, setTemplateCatalogue] = useState<TaskTemplate[]>([])
   // Taux réel configuré dans Paramètres > EHS — 150 n'est qu'un repli avant le chargement (même
   // défaut que le modèle Organisation côté backend), jamais une valeur figée en dur.
   const [ehsRate, setEhsRate] = useState(150)
@@ -80,10 +88,11 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   const [defaultTvaPct, setDefaultTvaPct] = useState(0)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchLignesBudgetaires(), fetchOrganisationEhs(), fetchOrganisationRemuneration()])
-      .then(([teamsData, lignesData, ehsData, remunerationData]) => {
+    Promise.all([fetchTeams(), fetchLignesBudgetaires(), fetchTaskTemplates(), fetchOrganisationEhs(), fetchOrganisationRemuneration()])
+      .then(([teamsData, lignesData, templatesData, ehsData, remunerationData]) => {
         setTeams(teamsData)
         setCatalogue(lignesData.filter((l) => l.actif))
+        setTemplateCatalogue(templatesData.filter((t) => t.actif))
         setEhsRate(ehsData.taux_ehs_fcfa)
         setDefaultTvaPct(remunerationData.taux_tva_pct)
         setTvaPct((current) => current === 0 ? remunerationData.taux_tva_pct : current)
@@ -160,26 +169,48 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
   const goToChargesStep = () => setStep(2)
 
-  const addLigne = async (values: { ligne_budgetaire: number; montant: number; date_debut: string; date_fin: string }) => {
+  const addLigne = async (values: { type_ligne: 'M' | 'E'; ligne_budgetaire?: number | null; task_template?: number | null; montant: number; date_debut: string; date_fin: string }) => {
     const payload = {
-      ligne_budgetaire: values.ligne_budgetaire, montant: values.montant,
+      type_ligne: values.type_ligne,
+      ligne_budgetaire: values.type_ligne === 'M' ? values.ligne_budgetaire ?? null : null,
+      task_template: values.type_ligne === 'E' ? values.task_template ?? null : null,
+      montant: values.montant,
       date_debut: values.date_debut || null, date_fin: values.date_fin || null,
     }
     if (projectId) {
       const created = await createProjectLigne(projectId, payload)
       setLignes((prev) => [...prev, created])
     } else {
-      const source = catalogue.find((l) => l.id === values.ligne_budgetaire)
       tempIdRef.current -= 1
-      const pending: ProjectLigne = {
-        id: tempIdRef.current, code: `PRJ.${String(lignes.length + 1).padStart(3, '0')}`,
-        ligne_budgetaire: values.ligne_budgetaire,
-        ligne_budgetaire_nom: source?.nom ?? '', ligne_budgetaire_code: source?.code ?? '',
-        ligne_budgetaire_declinaison: source?.declinaison ?? '', ligne_budgetaire_montant_prevu: source?.montant_prevu ?? null,
-        equipe: source?.equipe ?? 0, equipe_nom: source?.equipe_nom ?? '', equipe_code: source?.equipe_code ?? '',
-        montant: values.montant, montant_consomme_fcfa: 0, montant_reste_fcfa: values.montant,
-        date_debut: values.date_debut || null, date_fin: values.date_fin || null,
-        is_transversale: false, montant_auto: false, created_at: '',
+      let pending: ProjectLigne
+      if (values.type_ligne === 'M') {
+        const source = catalogue.find((l) => l.id === values.ligne_budgetaire)
+        pending = {
+          id: tempIdRef.current, code: `PRJ.${String(lignes.length + 1).padStart(3, '0')}`,
+          type_ligne: 'M',
+          ligne_budgetaire: values.ligne_budgetaire ?? null,
+          ligne_budgetaire_nom: source?.nom ?? '', ligne_budgetaire_code: source?.code ?? '',
+          ligne_budgetaire_declinaison: source?.declinaison ?? '', ligne_budgetaire_montant_prevu: source?.montant_prevu ?? null,
+          task_template: null, task_template_nom: '', task_template_code: '',
+          equipe: source?.equipe ?? null, equipe_nom: source?.equipe_nom ?? '', equipe_code: source?.equipe_code ?? '',
+          montant: values.montant, montant_consomme_fcfa: 0, montant_reste_fcfa: values.montant, ehs_equivalent: null,
+          date_debut: values.date_debut || null, date_fin: values.date_fin || null,
+          is_transversale: false, montant_auto: false, created_at: '',
+        }
+      } else {
+        const source = templateCatalogue.find((t) => t.id === values.task_template)
+        pending = {
+          id: tempIdRef.current, code: `PRJ.${String(lignes.length + 1).padStart(3, '0')}`,
+          type_ligne: 'E',
+          ligne_budgetaire: null, ligne_budgetaire_nom: '', ligne_budgetaire_code: '',
+          ligne_budgetaire_declinaison: '', ligne_budgetaire_montant_prevu: null,
+          task_template: values.task_template ?? null, task_template_nom: source?.nom ?? '', task_template_code: source?.code ?? '',
+          equipe: source?.equipe ?? null, equipe_nom: source?.equipe_nom ?? '', equipe_code: source?.equipe_code ?? '',
+          montant: values.montant, montant_consomme_fcfa: 0, montant_reste_fcfa: values.montant,
+          ehs_equivalent: ehsRate ? values.montant / ehsRate : null,
+          date_debut: values.date_debut || null, date_fin: values.date_fin || null,
+          is_transversale: false, montant_auto: false, created_at: '',
+        }
       }
       setLignes((prev) => [...prev, pending])
     }
@@ -235,7 +266,9 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
         // on les persiste maintenant que le projet a un identifiant réel.
         for (const pending of lignes) {
           await createProjectLigne(created.id, {
-            ligne_budgetaire: pending.ligne_budgetaire, montant: pending.montant,
+            type_ligne: pending.type_ligne,
+            ligne_budgetaire: pending.ligne_budgetaire, task_template: pending.task_template,
+            montant: pending.montant,
             date_debut: pending.date_debut, date_fin: pending.date_fin,
           })
         }
@@ -420,27 +453,31 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
 
           <div className="task-table-wrap">
             <table className="task-table">
-              <thead><tr><th>Code</th><th>Équipe</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th></tr></thead>
+              <thead><tr><th>Code</th><th>Type</th><th>Équipe</th><th>Ligne</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th></tr></thead>
               <tbody>
                 {lignes.map((ligne) => (
                   <tr key={ligne.id}>
                     <td>{ligne.code}</td>
+                    <td><span className={`ligne-type-tag ligne-type-${ligne.type_ligne.toLowerCase()}`}>{ligne.type_ligne}</span></td>
                     <td>{ligne.equipe_code}</td>
                     <td>
-                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligneLabel(ligne)}
                       {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
+                      {ligne.type_ligne === 'E' && ligne.ehs_equivalent !== null && (
+                        <span className="creation-transversale-tag"> · {ligne.ehs_equivalent.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} EHS</span>
+                      )}
                     </td>
-                    <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
+                    <td>{ligne.type_ligne === 'E' ? '-' : (ligne.ligne_budgetaire_declinaison || '-')}</td>
                     <td>{ligne.montant.toLocaleString('fr-FR')}</td>
                     <td>{fmtDate(ligne.date_debut)}</td>
                     <td>{fmtDate(ligne.date_fin)}</td>
                   </tr>
                 ))}
                 {lignes.length === 0 && (
-                  <tr><td colSpan={7} className="creation-empty-row">Aucune ligne budgétaire pour le moment. Cliquez sur « Définir les lignes budgétaires ».</td></tr>
+                  <tr><td colSpan={8} className="creation-empty-row">Aucune ligne budgétaire pour le moment. Cliquez sur « Définir les lignes budgétaires ».</td></tr>
                 )}
               </tbody>
-              <tfoot><tr><td colSpan={4}>Total</td><td>{totalMontant.toLocaleString('fr-FR')}</td><td colSpan={2} /></tr></tfoot>
+              <tfoot><tr><td colSpan={5}>Total</td><td>{totalMontant.toLocaleString('fr-FR')}</td><td colSpan={2} /></tr></tfoot>
             </table>
           </div>
 
@@ -456,7 +493,7 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     {step === 2 && <div className="charges-overlay" role="dialog" aria-modal="true" aria-label="Charges et planification" onMouseDown={() => setStep(1)}>
       <div className="charges-overlay-content" onMouseDown={(event) => event.stopPropagation()}>
         <ProjectChargesStep
-          lignes={lignes} teams={teams} catalogue={catalogue}
+          lignes={lignes} teams={teams} catalogue={catalogue} templateCatalogue={templateCatalogue} ehsRate={ehsRate}
           projectDateDebut={dateDebut} projectDateFin={dateFin} resteProjet={reste}
           onAddLigne={addLigne} onRemoveLigne={removeLigne} onUpdateLigne={updateLigne} onClose={() => setStep(1)}
         />
@@ -466,14 +503,16 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
   )
 }
 
-function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projectDateFin, resteProjet, onAddLigne, onRemoveLigne, onUpdateLigne, onClose }: {
+function ProjectChargesStep({ lignes, teams, catalogue, templateCatalogue, ehsRate, projectDateDebut, projectDateFin, resteProjet, onAddLigne, onRemoveLigne, onUpdateLigne, onClose }: {
   lignes: ProjectLigne[]
   teams: Team[]
   catalogue: LigneBudgetaire[]
+  templateCatalogue: TaskTemplate[]
+  ehsRate: number
   projectDateDebut: string
   projectDateFin: string
   resteProjet: number
-  onAddLigne: (values: { ligne_budgetaire: number; montant: number; date_debut: string; date_fin: string }) => Promise<void>
+  onAddLigne: (values: { type_ligne: 'M' | 'E'; ligne_budgetaire?: number | null; task_template?: number | null; montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onRemoveLigne: (ligne: ProjectLigne) => Promise<void>
   onUpdateLigne: (ligne: ProjectLigne, values: { montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onClose: () => void
@@ -497,8 +536,10 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
         <TeamChargeGroup
           key={team.id}
           team={team}
-          hasCatalogueLignes={catalogue.some((l) => l.equipe === team.id)}
+          hasCatalogueLignes={catalogue.some((l) => l.equipe === team.id) || templateCatalogue.some((t) => t.equipe === team.id)}
           availableLignes={catalogue.filter((l) => l.equipe === team.id && !l.is_transversale && !lignes.some((pl) => pl.ligne_budgetaire === l.id))}
+          availableTemplates={templateCatalogue.filter((t) => t.equipe === team.id && !lignes.some((pl) => pl.task_template === t.id))}
+          ehsRate={ehsRate}
           attributedLignes={lignes.filter((l) => l.equipe === team.id)}
           projectDateDebut={projectDateDebut}
           projectDateFin={projectDateFin}
@@ -519,21 +560,25 @@ function ProjectChargesStep({ lignes, teams, catalogue, projectDateDebut, projec
   </section>
 }
 
-function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributedLignes, projectDateDebut, projectDateFin, resteProjet, onAdd, onRemove, onUpdate }: {
+function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, availableTemplates, ehsRate, attributedLignes, projectDateDebut, projectDateFin, resteProjet, onAdd, onRemove, onUpdate }: {
   team: Team
   hasCatalogueLignes: boolean
   availableLignes: LigneBudgetaire[]
+  availableTemplates: TaskTemplate[]
+  ehsRate: number
   attributedLignes: ProjectLigne[]
   projectDateDebut: string
   projectDateFin: string
   resteProjet: number
-  onAdd: (values: { ligne_budgetaire: number; montant: number; date_debut: string; date_fin: string }) => Promise<void>
+  onAdd: (values: { type_ligne: 'M' | 'E'; ligne_budgetaire?: number | null; task_template?: number | null; montant: number; date_debut: string; date_fin: string }) => Promise<void>
   onRemove: (ligne: ProjectLigne) => Promise<void>
   onUpdate: (ligne: ProjectLigne, values: { montant: number; date_debut: string; date_fin: string }) => Promise<void>
 }) {
   const [open, setOpen] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [typeLigne, setTypeLigne] = useState<'M' | 'E'>('M')
   const [ligneId, setLigneId] = useState<number | null>(null)
+  const [templateId, setTemplateId] = useState<number | null>(null)
   const [montant, setMontant] = useState('')
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
@@ -547,24 +592,35 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
   const [editDateFin, setEditDateFin] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
+  const changeType = (next: 'M' | 'E') => { setTypeLigne(next); setLigneId(null); setTemplateId(null) }
+
   const selectedLigne = availableLignes.find((l) => l.id === ligneId) ?? null
+  const selectedTemplate = availableTemplates.find((t) => t.id === templateId) ?? null
   const montantPrevu = selectedLigne?.montant_prevu ?? null
   const montantNumber = Number(montant) || 0
-  const depassePrevu = montantPrevu !== null && montantNumber > montantPrevu
+  const depassePrevu = typeLigne === 'M' && montantPrevu !== null && montantNumber > montantPrevu
   const depasseReste = montantNumber > resteProjet
-  const canSave = ligneId !== null && montantNumber > 0 && !depassePrevu && !depasseReste
+  const ehsApercu = ehsRate ? montantNumber / ehsRate : 0
+  const canSave = typeLigne === 'M'
+    ? ligneId !== null && montantNumber > 0 && !depassePrevu && !depasseReste
+    : templateId !== null && montantNumber > 0 && !depasseReste
   const periodeAlignee = !!projectDateDebut && !!projectDateFin && dateDebut === projectDateDebut && dateFin === projectDateFin
 
   const alignerSurProjet = () => { setDateDebut(projectDateDebut); setDateFin(projectDateFin) }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!canSave || ligneId === null) return
+    if (!canSave) return
     setSaving(true)
     setError(null)
     try {
-      await onAdd({ ligne_budgetaire: ligneId, montant: montantNumber, date_debut: dateDebut, date_fin: dateFin })
-      setLigneId(null); setMontant(''); setDateDebut(''); setDateFin(''); setShowForm(false)
+      await onAdd({
+        type_ligne: typeLigne,
+        ligne_budgetaire: typeLigne === 'M' ? ligneId : null,
+        task_template: typeLigne === 'E' ? templateId : null,
+        montant: montantNumber, date_debut: dateDebut, date_fin: dateFin,
+      })
+      setLigneId(null); setTemplateId(null); setMontant(''); setDateDebut(''); setDateFin(''); setShowForm(false)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -573,7 +629,8 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
   }
 
   const handleRemove = async (ligne: ProjectLigne) => {
-    if (!window.confirm(`Retirer la ligne budgétaire « ${ligne.ligne_budgetaire_nom} » de ce projet ?`)) return
+    const nom = ligne.type_ligne === 'E' ? ligne.task_template_nom : ligne.ligne_budgetaire_nom
+    if (!window.confirm(`Retirer la ligne « ${nom} » de ce projet ?`)) return
     setRemovingId(ligne.id)
     setError(null)
     try {
@@ -623,16 +680,17 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
           {error && <p className="form-error">{error}</p>}
           <div className="charge-table-wrap">
             <table>
-              <thead><tr><th>Code</th><th>Ligne budgétaire</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th><th>Action</th></tr></thead>
+              <thead><tr><th>Code</th><th>Type</th><th>Ligne</th><th>Déclinaison</th><th>{`Montant (${currencySuffix()})`}</th><th>Début</th><th>Fin</th><th>Action</th></tr></thead>
               <tbody>
                 {attributedLignes.map((ligne) => ligne.id === editingLigne?.id ? (
                   <tr key={ligne.id} className="charge-row-editing">
                     <td>{ligne.code}</td>
+                    <td><span className={`ligne-type-tag ligne-type-${ligne.type_ligne.toLowerCase()}`}>{ligne.type_ligne}</span></td>
                     <td>
-                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligneLabel(ligne)}
                       {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
                     </td>
-                    <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
+                    <td>{ligne.type_ligne === 'E' ? '-' : (ligne.ligne_budgetaire_declinaison || '-')}</td>
                     <td><input type="number" min={0} value={editMontant} onChange={(event) => setEditMontant(event.target.value)} /></td>
                     <td colSpan={2}>
                       <div className="charge-edit-dates">
@@ -650,11 +708,15 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                 ) : (
                   <tr key={ligne.id}>
                     <td>{ligne.code}</td>
+                    <td><span className={`ligne-type-tag ligne-type-${ligne.type_ligne.toLowerCase()}`}>{ligne.type_ligne}</span></td>
                     <td>
-                      {ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}
+                      {ligneLabel(ligne)}
                       {ligne.is_transversale && <span className="creation-transversale-tag"> · transversale 10 %</span>}
+                      {ligne.type_ligne === 'E' && ligne.ehs_equivalent !== null && (
+                        <span className="creation-transversale-tag"> · {ligne.ehs_equivalent.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} EHS</span>
+                      )}
                     </td>
-                    <td>{ligne.ligne_budgetaire_declinaison || '-'}</td>
+                    <td>{ligne.type_ligne === 'E' ? '-' : (ligne.ligne_budgetaire_declinaison || '-')}</td>
                     <td>{ligne.montant.toLocaleString('fr-FR')}</td>
                     <td>{fmtDate(ligne.date_debut)}</td>
                     <td>{fmtDate(ligne.date_fin)}</td>
@@ -680,7 +742,7 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
                   </tr>
                 ))}
                 {attributedLignes.length === 0 && (
-                  <tr><td colSpan={7} className="creation-empty-row">Aucune ligne attribuée pour cette équipe.</td></tr>
+                  <tr><td colSpan={8} className="creation-empty-row">Aucune ligne attribuée pour cette équipe.</td></tr>
                 )}
               </tbody>
             </table>
@@ -688,23 +750,44 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
 
           {showForm ? (
             <form className="charge-add-form" onSubmit={handleSubmit}>
-              <div className="form-grid three">
-                <label className="field"><span>Ligne budgétaire <em>*</em></span>
-                  <select value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))}>
-                    <option value="">{availableLignes.length === 0 ? 'Aucune ligne disponible' : 'Sélectionner une ligne'}</option>
-                    {availableLignes.map((l) => <option key={l.id} value={l.id}>{l.code} — {l.nom} ({l.equipe_code})</option>)}
-                  </select>
-                </label>
-                <label className="field"><span>{`Montant à consommer (${currencySuffix()}) `}<em>*</em></span><input type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} /></label>
+              <div className="ligne-type-toggle" role="group" aria-label="Référentiel de la ligne">
+                <button type="button" className={typeLigne === 'M' ? 'is-active' : ''} onClick={() => changeType('M')}>M — Monétaire</button>
+                <button type="button" className={typeLigne === 'E' ? 'is-active' : ''} onClick={() => changeType('E')}>E — EHS</button>
               </div>
+              {typeLigne === 'M' ? (
+                <div className="form-grid three">
+                  <label className="field"><span>Ligne budgétaire <em>*</em></span>
+                    <select value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))}>
+                      <option value="">{availableLignes.length === 0 ? 'Aucune ligne disponible' : 'Sélectionner une ligne'}</option>
+                      {availableLignes.map((l) => <option key={l.id} value={l.id}>{l.code} — {l.nom} ({l.equipe_code})</option>)}
+                    </select>
+                  </label>
+                  <label className="field"><span>{`Montant à consommer (${currencySuffix()}) `}<em>*</em></span><input type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} /></label>
+                </div>
+              ) : (
+                <div className="form-grid three">
+                  <label className="field"><span>Élément du catalogue de tâches <em>*</em></span>
+                    <select value={templateId ?? ''} onChange={(event) => setTemplateId(event.target.value === '' ? null : Number(event.target.value))}>
+                      <option value="">{availableTemplates.length === 0 ? 'Aucun élément disponible' : 'Sélectionner un élément'}</option>
+                      {availableTemplates.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.nom} ({t.equipe_code})</option>)}
+                    </select>
+                  </label>
+                  <label className="field"><span>{`Montant à consommer (${currencySuffix()}) `}<em>*</em></span><input type="number" min={0} value={montant} onChange={(event) => setMontant(event.target.value)} /></label>
+                </div>
+              )}
               <p className={`charge-hint${depasseReste ? ' charge-hint-danger' : ''}`}>
                 Budget restant du projet : {formatMontant(resteProjet)}{depasseReste ? ' — ce montant le dépasse.' : '.'}
               </p>
-              {selectedLigne && (
+              {typeLigne === 'M' && selectedLigne && (
                 <p className={`charge-hint${depassePrevu ? ' charge-hint-danger' : ''}`}>
                   {montantPrevu !== null
                     ? `Prévu pour cette ligne dans ce projet : ${formatMontant(montantPrevu)}${depassePrevu ? ' — ce montant le dépasse.' : '.'}`
                     : 'Aucun plafond défini pour cette ligne.'}
+                </p>
+              )}
+              {typeLigne === 'E' && selectedTemplate && montantNumber > 0 && (
+                <p className="charge-hint">
+                  Équivalent EHS : {ehsApercu.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} (aucun plafond pour une ligne du catalogue de tâches).
                 </p>
               )}
               <div className="form-grid three">
@@ -729,14 +812,14 @@ function TeamChargeGroup({ team, hasCatalogueLignes, availableLignes, attributed
             </form>
           ) : (
             <>
-              <button type="button" className="add-charge" onClick={() => setShowForm(true)} disabled={availableLignes.length === 0}>
+              <button type="button" className="add-charge" onClick={() => setShowForm(true)} disabled={availableLignes.length === 0 && availableTemplates.length === 0}>
                 ＋ &nbsp; Ajouter une ligne à l’équipe
               </button>
-              {availableLignes.length === 0 && (
+              {availableLignes.length === 0 && availableTemplates.length === 0 && (
                 <p className="charge-hint">
                   {hasCatalogueLignes
-                    ? 'Toutes les lignes budgétaires de cette équipe sont déjà attribuées à ce projet.'
-                    : 'Aucune ligne budgétaire n’est encore attribuée à cette équipe dans l’Architecture monétaire.'}
+                    ? 'Toutes les lignes de cette équipe sont déjà attribuées à ce projet.'
+                    : 'Aucune ligne n’est encore attribuée à cette équipe dans l’Architecture monétaire ou l’Architecture des tâches.'}
                 </p>
               )}
             </>

@@ -17,6 +17,7 @@ import GuidePage from './pages/GuidePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
+import StaffingEquipesPage from './pages/StaffingEquipesPage'
 import SuiviStaffingPage from './pages/SuiviStaffingPage'
 import MessagingPage from './pages/MessagingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -48,6 +49,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
   'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Suivez la performance de vos équipes et la mobilisation des ressources.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
+  'staffing-equipes': { path: '/staffing/equipes', title: 'Staffing des équipes', description: 'Attribuez une tâche du catalogue à une équipe : elle est ensuite envoyée pour validation dans Nouveau staffing.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
   'staffing-suivi': { path: '/staffing/suivi', title: 'Suivi des staffings', description: "Suivez l'évolution des staffing réalisés et leur statut." },
   'staffing-execute': { path: '/staffing/execute', title: 'Exécuté staffing', description: "Suivez l'exécution des tâches déjà staffées et l'avancement des collaborateurs affectés." },
@@ -163,6 +165,7 @@ function App() {
   const [pilotageFocus, setPilotageFocus] = useState<PilotageFocusTarget | null>(null)
   const [executeFocusCode, setExecuteFocusCode] = useState<string | null>(null)
   const [executeFocusTaskId, setExecuteFocusTaskId] = useState<number | null>(null)
+  const [staffingFocusTaskId, setStaffingFocusTaskId] = useState<number | null>(null)
   // Code d'une demande d'avance à reporter dans « Nouvelle demande de paiement » — voir
   // DemandesEmployesPage (clic sur une demande d'avance) et TresoreriePage (champ Code).
   const [paiementPrefillCode, setPaiementPrefillCode] = useState<string | null>(null)
@@ -413,6 +416,7 @@ function App() {
     {
       id: 'staffing', label: 'Staffing', icon: icons.staffing,
       children: [
+        { id: 'staffing-equipes', label: 'Staffing des équipes', feature: 'config:view' },
         { id: 'staffing', label: 'Nouveau staffing', feature: 'staffing:new' },
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
@@ -509,8 +513,19 @@ function App() {
             message="Cette page est réservée aux membres des équipes Direction et Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
             navigateTo={navigateTo}
           />
+      case 'staffing-equipes': return can(session, 'config:view')
+        ? <StaffingEquipesPage navigateTo={navigateTo} />
+        : <RestrictedPage
+            title="Staffing des équipes"
+            message="Cette page est réservée à la Direction et au Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
+            navigateTo={navigateTo}
+          />
       case 'staffing': return can(session, 'staffing:new')
-        ? <StaffingPage navigateTo={navigateTo} />
+        ? <StaffingPage
+            navigateTo={navigateTo}
+            focusTaskId={staffingFocusTaskId}
+            onFocusConsumed={() => setStaffingFocusTaskId(null)}
+          />
         : <RestrictedPage
             title="Nouveau staffing"
             message="Cette page est réservée aux équipes Direction et Pilotage et aux managers d’équipe. Contactez votre administrateur si vous pensez devoir y accéder."
@@ -780,6 +795,9 @@ function App() {
                             if (notification.cible_type === 'task' && notification.cible_id != null) {
                               setExecuteFocusTaskId(notification.cible_id)
                               navigateTo('staffing-execute')
+                            } else if (notification.cible_type === 'task_envoyee' && notification.cible_id != null) {
+                              setStaffingFocusTaskId(notification.cible_id)
+                              navigateTo('staffing')
                             } else if (notification.cible_type === 'grade_demande') {
                               navigateTo('gestion-demandes')
                             } else {

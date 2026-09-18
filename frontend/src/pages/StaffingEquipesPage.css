@@ -1,0 +1,7 @@
+/* Staffing des équipes réutilise l'essentiel des styles de la page Architecture (tableau,
+   panneau de détail « DÉTAIL / ATTRIBUTION D'UNE TÂCHE », etc. — voir ArchitecturePage.css,
+   chargée globalement) : ce fichier n'ajoute que l'en-tête propre à cette page. */
+.se-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.se-title-row h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; font-weight: 700; color: #14123a; }
+.se-title-info { color: #a8a8bd; }
+.se-title-row p { margin: 4px 0 0; font-size: 12.5px; color: #6c6c85; max-width: 640px; }

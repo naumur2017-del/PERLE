@@ -1907,6 +1907,36 @@ body {
 .align-period-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .align-period-btn.is-active { border-color: #6b4be6; background: #ede7ff; color: #2f23bd; }
 
+/* Choix du référentiel d'une ligne budgétaire de projet : M (Architecture monétaire) ou E
+   (Architecture des tâches, converti en EHS) — voir ProjectCreation.tsx / TeamChargeGroup. */
+.ligne-type-toggle { display: inline-flex; gap: 6px; align-self: flex-start; }
+.ligne-type-toggle button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d8d3f5;
+  border-radius: 6px;
+  background: #faf9ff;
+  color: #4a36d4;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ligne-type-toggle button.is-active { border-color: #6b4be6; background: #6b4be6; color: #fff; }
+
+.ligne-type-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.ligne-type-tag.ligne-type-m { background: #e7e3ff; color: #4a36d4; }
+.ligne-type-tag.ligne-type-e { background: #fdeecb; color: #b4620f; }
+
 .budget-restant-banner {
   display: flex;
   align-items: center;

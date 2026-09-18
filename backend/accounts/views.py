@@ -782,6 +782,13 @@ def _notify(user, message, cible_type='', cible_id=None):
     Notification.objects.create(user=user, message=message, cible_type=cible_type, cible_id=cible_id)
 
 
+def _task_libelle(task):
+    """Intitulé d'affichage d'une tâche : celui du catalogue si rattachée (voir Task.template,
+    optionnel), sinon un repli sur sa description libre (voir TaskSerializer.get_template_nom,
+    même logique côté serializer)."""
+    return task.template.nom if task.template_id else (task.description[:60] or 'Tâche libre')
+
+
 class CongeDemandeReviewView(generics.UpdateAPIView):
     """Approbation ou refus d'une demande de congé par un admin/directeur de l'organisation."""
     serializer_class = CongeDemandeReviewSerializer
@@ -1264,7 +1271,13 @@ class TaskListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied('Vous n’êtes pas autorisé à créer une tâche.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
-        serializer.save()
+        task = serializer.save()
+        if task.equipe.manager_id and task.equipe.manager_id != self.request.user.id:
+            _notify(
+                task.equipe.manager,
+                f'Nouvelle tâche « {_task_libelle(task)} » envoyée à votre équipe « {task.equipe.name} ».',
+                cible_type='task_envoyee', cible_id=task.id,
+            )
 
 
 def _can_manage_task(user, task):
@@ -1366,7 +1379,7 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
         if assignee and assignee.id != self.request.user.id:
             _notify(
                 assignee,
-                f'Une tâche vous a été attribuée : {assignment.task.code} — {assignment.task.template.nom}.',
+                f'Une tâche vous a été attribuée : {assignment.task.code} — {_task_libelle(assignment.task)}.',
                 cible_type='task', cible_id=assignment.task_id,
             )
 
@@ -1436,7 +1449,7 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
                 membre = f'{user.first_name} {user.last_name}'.strip() or user.email
                 _notify(
                     manager,
-                    f'{membre} a {verbe} la tâche {task.code} — {task.template.nom}.',
+                    f'{membre} a {verbe} la tâche {task.code} — {_task_libelle(task)}.',
                     cible_type='task', cible_id=task.id,
                 )
 
@@ -1627,7 +1640,7 @@ class UnreadMessagesSummaryView(generics.GenericAPIView):
             if read is None or last_msg.created_at > read.last_read_at:
                 unread_task_ids.append(task.id)
                 unread_tasks.append({
-                    'id': task.id, 'code': task.code, 'nom': task.template.nom, 'last_message_at': last_msg.created_at,
+                    'id': task.id, 'code': task.code, 'nom': _task_libelle(task), 'last_message_at': last_msg.created_at,
                 })
 
         unread_conversation_ids = []

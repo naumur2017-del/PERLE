@@ -7,7 +7,7 @@ export type TaskStatut = 'envoyee' | 'acceptee' | 'refusee'
 export interface Task {
   id: number
   code: string
-  template: number
+  template: number | null
   template_nom: string
   template_code: string
   template_details: string
@@ -19,6 +19,8 @@ export interface Task {
   ligne_budgetaire: number
   ligne_budgetaire_nom: string
   ligne_budgetaire_code: string
+  /** Déclinaison de la ligne budgétaire choisie (« Sous-ligne ») — voir LigneBudgetaire.declinaison. */
+  ligne_budgetaire_declinaison: string
   equipe: number
   equipe_nom: string
   equipe_code: string
@@ -39,7 +41,7 @@ export interface Task {
 }
 
 export interface TaskFormValues {
-  template: number
+  template?: number | null
   description?: string
   project?: number | null
   ligne_budgetaire: number

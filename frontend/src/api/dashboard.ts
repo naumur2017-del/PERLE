@@ -84,6 +84,7 @@ export interface ManagerDashboard {
   kpi: {
     members: number; members_available: number
     active_tasks: number; late_tasks: number
+    pending_validation: number
     tasks_done_30d: number; avg_note: number | null
     hours_in_progress: number; projects_active: number
   }
@@ -105,6 +106,7 @@ export interface EmployeeDashboard {
   currency_code: string
   generated_at: string
   kpi: {
+    new_tasks: number
     active_tasks: number; late_tasks: number
     tasks_done_30d: number; avg_note: number | null
     hours_in_progress: number; projects_active: number

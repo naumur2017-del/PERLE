@@ -1240,38 +1240,83 @@ class AvanceDemandeReviewSerializer(serializers.ModelSerializer):
 
 
 class ProjectLigneSerializer(serializers.ModelSerializer):
-    """Attribution d'une ligne budgétaire réelle (Architecture monétaire) à un projet, avec le
-    montant que ce projet va y consommer. Le montant est plafonné par le montant_prevu de la
-    ligne, propre à chaque projet (voir validate)."""
-    ligne_budgetaire_nom = serializers.CharField(source='ligne_budgetaire.nom', read_only=True)
-    ligne_budgetaire_code = serializers.CharField(source='ligne_budgetaire.code', read_only=True)
-    ligne_budgetaire_declinaison = serializers.CharField(source='ligne_budgetaire.declinaison', read_only=True)
-    ligne_budgetaire_montant_prevu = serializers.DecimalField(source='ligne_budgetaire.montant_prevu', max_digits=16, decimal_places=2, read_only=True, allow_null=True)
-    equipe = serializers.IntegerField(source='ligne_budgetaire.equipe_id', read_only=True)
-    equipe_nom = serializers.CharField(source='ligne_budgetaire.equipe.name', read_only=True)
-    equipe_code = serializers.CharField(source='ligne_budgetaire.equipe.code', read_only=True)
+    """Attribution d'une charge à un projet, sous l'une des deux formes du référentiel — voir
+    ProjectLigne.type_ligne : une ligne réelle de l'Architecture monétaire ('M', plafonnée par
+    son montant_prevu, propre à chaque projet — voir validate) ou un élément du catalogue de
+    l'Architecture des tâches ('E', sans plafond, simplement converti en EHS pour information)."""
+    ligne_budgetaire_nom = serializers.SerializerMethodField()
+    ligne_budgetaire_code = serializers.SerializerMethodField()
+    ligne_budgetaire_declinaison = serializers.SerializerMethodField()
+    ligne_budgetaire_montant_prevu = serializers.SerializerMethodField()
+    task_template_nom = serializers.SerializerMethodField()
+    task_template_code = serializers.SerializerMethodField()
+    equipe = serializers.SerializerMethodField()
+    equipe_nom = serializers.SerializerMethodField()
+    equipe_code = serializers.SerializerMethodField()
     montant_consomme_fcfa = serializers.SerializerMethodField()
     montant_reste_fcfa = serializers.SerializerMethodField()
+    ehs_equivalent = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectLigne
         fields = [
-            'id', 'code', 'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
-            'ligne_budgetaire_declinaison', 'ligne_budgetaire_montant_prevu', 'equipe', 'equipe_nom',
-            'equipe_code', 'montant', 'montant_consomme_fcfa', 'montant_reste_fcfa',
-            'date_debut', 'date_fin', 'is_transversale', 'montant_auto', 'created_at',
+            'id', 'code', 'type_ligne',
+            'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
+            'ligne_budgetaire_declinaison', 'ligne_budgetaire_montant_prevu',
+            'task_template', 'task_template_nom', 'task_template_code',
+            'equipe', 'equipe_nom', 'equipe_code', 'montant', 'montant_consomme_fcfa', 'montant_reste_fcfa',
+            'ehs_equivalent', 'date_debut', 'date_fin', 'is_transversale', 'montant_auto', 'created_at',
         ]
         read_only_fields = ['id', 'code', 'is_transversale', 'montant_auto', 'created_at']
 
+    def get_ligne_budgetaire_nom(self, obj):
+        return obj.ligne_budgetaire.nom if obj.ligne_budgetaire else ''
+
+    def get_ligne_budgetaire_code(self, obj):
+        return obj.ligne_budgetaire.code if obj.ligne_budgetaire else ''
+
+    def get_ligne_budgetaire_declinaison(self, obj):
+        return obj.ligne_budgetaire.declinaison if obj.ligne_budgetaire else ''
+
+    def get_ligne_budgetaire_montant_prevu(self, obj):
+        return obj.ligne_budgetaire.montant_prevu if obj.ligne_budgetaire else None
+
+    def get_task_template_nom(self, obj):
+        return obj.task_template.nom if obj.task_template else ''
+
+    def get_task_template_code(self, obj):
+        return obj.task_template.code if obj.task_template else ''
+
+    def get_equipe(self, obj):
+        equipe = obj.equipe_effective
+        return equipe.id if equipe else None
+
+    def get_equipe_nom(self, obj):
+        equipe = obj.equipe_effective
+        return equipe.name if equipe else ''
+
+    def get_equipe_code(self, obj):
+        equipe = obj.equipe_effective
+        return equipe.code if equipe else ''
+
     def get_montant_consomme_fcfa(self, obj):
         # Somme des heures déjà staffées (Nouveau staffing) sur toutes les tâches de ce projet
-        # rattachées à cette même ligne budgétaire — voir TaskAssignment.
+        # rattachées à cette même ligne budgétaire — voir TaskAssignment. Sans effet pour une
+        # ligne EHS ('E') : Task.ligne_budgetaire reste toujours une ligne monétaire.
+        if obj.type_ligne != 'M' or not obj.ligne_budgetaire_id:
+            return 0
         return TaskAssignment.objects.filter(
             task__project=obj.project, task__ligne_budgetaire=obj.ligne_budgetaire,
         ).aggregate(total=Sum('montant_fcfa'))['total'] or 0
 
     def get_montant_reste_fcfa(self, obj):
         return obj.montant - self.get_montant_consomme_fcfa(obj)
+
+    def get_ehs_equivalent(self, obj):
+        if obj.type_ligne != 'E':
+            return None
+        taux = obj.project.organisation.taux_ehs_fcfa
+        return float(obj.montant) / float(taux) if taux else None
 
     def get_project(self):
         return self.context['project'] if self.instance is None else self.instance.project
@@ -1282,12 +1327,37 @@ class ProjectLigneSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
         return value
 
+    def validate_task_template(self, value):
+        request = self.context['request']
+        if value.organisation_id != request.user.organisation_id:
+            raise serializers.ValidationError('Cet élément du catalogue de tâches n’appartient pas à votre organisation.')
+        return value
+
     def validate(self, attrs):
+        type_ligne = attrs.get('type_ligne', getattr(self.instance, 'type_ligne', 'M'))
         ligne_budgetaire = attrs.get('ligne_budgetaire', getattr(self.instance, 'ligne_budgetaire', None))
+        task_template = attrs.get('task_template', getattr(self.instance, 'task_template', None))
         montant = attrs.get('montant', getattr(self.instance, 'montant', None)) or 0
+
+        if self.instance is None:
+            if type_ligne == 'M':
+                if not ligne_budgetaire:
+                    raise serializers.ValidationError({'ligne_budgetaire': 'Sélectionnez une ligne de l’Architecture monétaire.'})
+                task_template = None
+                attrs['task_template'] = None
+            else:
+                if not task_template:
+                    raise serializers.ValidationError({'task_template': 'Sélectionnez un élément de l’Architecture des tâches.'})
+                ligne_budgetaire = None
+                attrs['ligne_budgetaire'] = None
+
         if self.instance is None and ligne_budgetaire and ProjectLigne.objects.filter(project=self.get_project(), ligne_budgetaire=ligne_budgetaire).exists():
             raise serializers.ValidationError({
                 'ligne_budgetaire': 'Cette ligne budgétaire est déjà attribuée à ce projet : modifiez l’attribution existante plutôt que d’en créer une nouvelle.',
+            })
+        if self.instance is None and task_template and ProjectLigne.objects.filter(project=self.get_project(), task_template=task_template).exists():
+            raise serializers.ValidationError({
+                'task_template': 'Cet élément du catalogue est déjà attribué à ce projet : modifiez l’attribution existante plutôt que d’en créer une nouvelle.',
             })
         if ligne_budgetaire and ligne_budgetaire.montant_prevu is not None:
             qs = ProjectLigne.objects.filter(project=self.get_project(), ligne_budgetaire=ligne_budgetaire)
@@ -1488,8 +1558,8 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     # (?user=<moi>) sans avoir à recouper avec /tasks/ séparément.
     task_code = serializers.CharField(source='task.code', read_only=True)
     task_description = serializers.CharField(source='task.description', read_only=True)
-    template_nom = serializers.CharField(source='task.template.nom', read_only=True)
-    template_code = serializers.CharField(source='task.template.code', read_only=True)
+    template_nom = serializers.SerializerMethodField()
+    template_code = serializers.SerializerMethodField()
     project_nom = serializers.CharField(source='task.project.nom', read_only=True, default=None)
     project_code = serializers.CharField(source='task.project.code', read_only=True, default=None)
     equipe_nom = serializers.CharField(source='task.equipe.name', read_only=True)
@@ -1509,7 +1579,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         # doubler d'une erreur générique moins lisible.
         validators = []
         fields = [
-            'id', 'task', 'user', 'user_nom', 'user_grade', 'heures', 'ehs_consomme', 'montant_fcfa',
+            'id', 'task', 'user', 'user_nom', 'user_grade', 'heures', 'instructions', 'ehs_consomme', 'montant_fcfa',
             'execution_statut', 'execution_statut_display', 'demarree_le', 'terminee_le',
             'temps_travaille_secondes', 'note', 'note_commentaire', 'notee_le', 'notee_par_nom',
             'created_by_nom', 'created_at',
@@ -1535,6 +1605,15 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
 
     def get_notee_par_nom(self, obj):
         return f'{obj.notee_par.first_name} {obj.notee_par.last_name}' if obj.notee_par else None
+
+    def get_template_nom(self, obj):
+        task = obj.task
+        if task.template_id:
+            return task.template.nom
+        return (task.description[:60] + '…') if len(task.description) > 60 else (task.description or 'Tâche libre')
+
+    def get_template_code(self, obj):
+        return obj.task.template.code if obj.task.template_id else ''
 
     def validate_note(self, value):
         if value is None:
@@ -1815,20 +1894,24 @@ class ConversationSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    """Attribution d'une tâche de la banque (TaskTemplate) à une équipe (onglet Attribution des
-    tâches). L'équipe est dérivée automatiquement de la ligne budgétaire choisie : elle n'est pas
-    saisie directement. Le projet est facultatif — une tâche « transversale » n'en a aucun. La
-    tâche est envoyée (statut « envoyee ») au manager de l'équipe, qui doit l'Accepter ou la
-    Refuser avant qu'elle apparaisse dans Nouveau staffing pour être répartie entre une ou
-    plusieurs personnes (voir TaskAssignmentSerializer et TaskDecisionView)."""
-    template_nom = serializers.CharField(source='template.nom', read_only=True)
-    template_code = serializers.CharField(source='template.code', read_only=True)
-    template_details = serializers.CharField(source='template.details', read_only=True)
-    template_priorite_defaut = serializers.CharField(source='template.priorite_defaut', read_only=True)
+    """Attribution d'une tâche à une équipe (onglet Staffing des équipes). L'équipe est dérivée
+    automatiquement de la ligne budgétaire choisie : elle n'est pas saisie directement. Le projet
+    est facultatif — une tâche « transversale » n'en a aucun. La tâche du catalogue (TaskTemplate)
+    est une orientation, pas une obligation : si elle est choisie, elle aide à préremplir la
+    description et la priorité (côté client) ; sinon la tâche reste décrite librement et
+    `template_nom` se replie sur le début de la description (voir get_template_nom). La tâche est
+    envoyée (statut « envoyee ») au manager de l'équipe, qui doit l'Accepter ou la Refuser avant
+    qu'elle apparaisse dans Nouveau staffing pour être répartie entre une ou plusieurs personnes
+    (voir TaskAssignmentSerializer et TaskDecisionView)."""
+    template_nom = serializers.SerializerMethodField()
+    template_code = serializers.SerializerMethodField()
+    template_details = serializers.SerializerMethodField()
+    template_priorite_defaut = serializers.SerializerMethodField()
     project_nom = serializers.CharField(source='project.nom', read_only=True, default=None)
     project_code = serializers.CharField(source='project.code', read_only=True, default=None)
     ligne_budgetaire_nom = serializers.CharField(source='ligne_budgetaire.nom', read_only=True)
     ligne_budgetaire_code = serializers.CharField(source='ligne_budgetaire.code', read_only=True)
+    ligne_budgetaire_declinaison = serializers.CharField(source='ligne_budgetaire.declinaison', read_only=True)
     equipe_nom = serializers.CharField(source='equipe.name', read_only=True)
     equipe_code = serializers.CharField(source='equipe.code', read_only=True)
     equipe_manager_nom = serializers.SerializerMethodField()
@@ -1845,7 +1928,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'id', 'code', 'template', 'template_nom', 'template_code', 'template_details',
             'template_priorite_defaut',
             'description', 'project', 'project_nom', 'project_code',
-            'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code',
+            'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'ligne_budgetaire_declinaison',
             'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
             'date_debut', 'echeance', 'priorite', 'priorite_display',
             'statut', 'statut_display', 'statut_decide_le',
@@ -1853,6 +1936,20 @@ class TaskSerializer(serializers.ModelSerializer):
             'actif', 'created_by_nom', 'created_at',
         ]
         read_only_fields = ['id', 'code', 'equipe', 'statut', 'statut_decide_le', 'created_at']
+
+    def get_template_nom(self, obj):
+        if obj.template_id:
+            return obj.template.nom
+        return (obj.description[:60] + '…') if len(obj.description) > 60 else (obj.description or 'Tâche libre')
+
+    def get_template_code(self, obj):
+        return obj.template.code if obj.template_id else ''
+
+    def get_template_details(self, obj):
+        return obj.template.details if obj.template_id else ''
+
+    def get_template_priorite_defaut(self, obj):
+        return obj.template.priorite_defaut if obj.template_id else obj.priorite
 
     def get_equipe_manager_nom(self, obj):
         manager = obj.equipe.manager
@@ -1880,6 +1977,8 @@ class TaskSerializer(serializers.ModelSerializer):
         return project_ligne.montant - consomme
 
     def validate_template(self, value):
+        if value is None:
+            return value
         request = self.context['request']
         if value.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError('Cette tâche du catalogue n’appartient pas à votre organisation.')

@@ -132,16 +132,21 @@ function deriveProjects(apiProjects: ApiProject[], assignments: TaskAssignment[]
     const ehsConsommeTotal = projectAssignments.reduce((sum, a) => sum + a.ehs_consomme, 0)
 
     const lignes: BudgetLine[] = p.lignes.map((l: ApiProjectLigne) => {
-      const ehsConsomme = projectAssignments
-        .filter((a) => a.ligne_budgetaire_code === l.ligne_budgetaire_code)
-        .reduce((sum, a) => sum + a.ehs_consomme, 0)
+      // Une ligne EHS ('E', catalogue de l'Architecture des tâches) n'a pas de ligne_budgetaire :
+      // aucun staffing ne s'y rattache (Task.ligne_budgetaire reste toujours monétaire), donc sa
+      // consommation EHS réelle est toujours nulle ici — seul son libellé bascule sur le catalogue.
+      const ehsConsomme = l.type_ligne === 'M'
+        ? projectAssignments.filter((a) => a.ligne_budgetaire_code === l.ligne_budgetaire_code).reduce((sum, a) => sum + a.ehs_consomme, 0)
+        : 0
       const budgetPrevu = l.montant
       const budgetConsomme = l.montant_consomme_fcfa
       const ehsPrevu = tauxEhs > 0 ? budgetPrevu / tauxEhs : 0
       const debut = l.date_debut ?? p.date_debut
       const fin = l.date_fin ?? p.date_fin
+      const ligneNom = l.type_ligne === 'E' ? l.task_template_nom : l.ligne_budgetaire_nom
+      const ligneCode = l.type_ligne === 'E' ? l.task_template_code : l.ligne_budgetaire_code
       return {
-        code: l.code, ligneNom: l.ligne_budgetaire_nom, ligneCode: l.ligne_budgetaire_code, equipeNom: l.equipe_nom,
+        code: l.code, ligneNom, ligneCode, equipeNom: l.equipe_nom,
         ehsPrevu, ehsConsomme, ehsRestant: Math.max(0, ehsPrevu - ehsConsomme),
         budgetPrevu, budgetConsomme, budgetRestant: Math.max(0, l.montant_reste_fcfa),
         progTemporelle: progTemporelleOf(debut, fin, todayMs),

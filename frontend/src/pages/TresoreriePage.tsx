@@ -110,7 +110,9 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à prefillCode
   }, [prefillCode])
 
-  const lignes = projects.find((project) => String(project.id) === form.projet)?.lignes ?? []
+  // Une demande de paiement ne se rattache qu'à une ligne monétaire (DemandePaiement.ligne_budgetaire,
+  // FK vers LigneBudgetaire) : les lignes EHS ('E', catalogue de tâches) d'un projet n'ont pas leur place ici.
+  const lignes = (projects.find((project) => String(project.id) === form.projet)?.lignes ?? []).filter((ligne) => ligne.type_ligne === 'M')
   const drafts: Brouillon[] = records.filter((record) => record.statut === 'brouillon')
     .filter((record) => (!projectFilter || String(record.projet) === projectFilter)
       && (!lineFilter || String(record.ligne_budgetaire) === lineFilter)
@@ -237,7 +239,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
               <label>Ligne budgétaire {!isTransversal && <em>*</em>}
                 <select value={form.ligneBudgetaire} disabled={isTransversal} onChange={(event) => updateField('ligneBudgetaire', event.target.value)}>
                   <option value="">{isTransversal ? 'Non applicable (dépense transversale)' : 'Sélectionner une ligne budgétaire'}</option>
-                  {lignes.map((ligne) => <option key={ligne.id} value={ligne.ligne_budgetaire}>{ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}</option>)}
+                  {lignes.map((ligne) => <option key={ligne.id} value={ligne.ligne_budgetaire as number}>{ligne.ligne_budgetaire_code} — {ligne.ligne_budgetaire_nom}</option>)}
                 </select>
               </label>
               <label>Fournisseur / Bénéficiaire <em>*</em>
@@ -327,7 +329,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
                     <select value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setLineFilter('') }}><option value="">Tous les projets</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.nom}</option>)}</select>
                   </label>
                   <label>Ligne budgétaire
-                    <select value={lineFilter} onChange={(event) => setLineFilter(event.target.value)}><option value="">Toutes les lignes</option>{[...new Map(projects.filter((project) => !projectFilter || String(project.id) === projectFilter).flatMap((project) => project.lignes).map((line) => [line.ligne_budgetaire, line])).values()].map((line) => <option key={line.ligne_budgetaire} value={line.ligne_budgetaire}>{line.ligne_budgetaire_nom}</option>)}</select>
+                    <select value={lineFilter} onChange={(event) => setLineFilter(event.target.value)}><option value="">Toutes les lignes</option>{[...new Map(projects.filter((project) => !projectFilter || String(project.id) === projectFilter).flatMap((project) => project.lignes).filter((line) => line.type_ligne === 'M').map((line) => [line.ligne_budgetaire, line])).values()].map((line) => <option key={line.ligne_budgetaire} value={line.ligne_budgetaire as number}>{line.ligne_budgetaire_nom}</option>)}</select>
                   </label>
                   <label className="tr-search">
                     <Search size={14} />

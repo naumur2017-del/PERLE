@@ -106,6 +106,15 @@ export default function ManagerDashboard({ session, navigateTo }: { session: Ses
         trend={{ direction: 'flat', text: `${kpi?.hours_in_progress ?? 0} h staffées` }}
         details="Tâches acceptées non terminées"
         onOpen={() => navigateTo('staffing-execute')} />
+      <KpiCard loading={loading} icon="🔔" tone={(kpi?.pending_validation ?? 0) > 0 ? 'warn' : 'ok'} label="Tâches à valider"
+        value={String(kpi?.pending_validation ?? 0)}
+        trend={{
+          direction: (kpi?.pending_validation ?? 0) > 0 ? 'down' : 'flat',
+          text: 'En attente de votre décision',
+          good: (kpi?.pending_validation ?? 0) === 0,
+        }}
+        details="Envoyées à votre équipe, à accepter ou refuser"
+        onOpen={() => navigateTo('staffing')} />
       <KpiCard loading={loading} icon="⛔" tone="danger" label="Tâches en retard"
         value={String(kpi?.late_tasks ?? 0)}
         trend={{ direction: (kpi?.late_tasks ?? 0) > 0 ? 'down' : 'flat', text: 'Échéance dépassée', good: (kpi?.late_tasks ?? 0) === 0 }}

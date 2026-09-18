@@ -39,7 +39,11 @@ const assigneesLabel = (task: Task): string => {
 
 type Tab = 'a_valider' | 'prete' | 'staffee'
 
-export default function StaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed }: {
+  navigateTo: (page: string) => void
+  focusTaskId?: number | null
+  onFocusConsumed?: () => void
+}) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [pendingTasks, setPendingTasks] = useState<Task[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -56,6 +60,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
   const [search, setSearch] = useState('')
   const [assignMemberId, setAssignMemberId] = useState<number | null>(null)
   const [assignHeures, setAssignHeures] = useState('')
+  const [assignInstructions, setAssignInstructions] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -70,6 +75,19 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
       .catch(() => setLoadError('Impossible de charger les tâches à staffer.'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Ouvre directement la tâche visée depuis une notification (« nouvelle tâche envoyée à votre
+  // équipe ») dans l'onglet « À valider ». N'agit qu'une fois les données chargées.
+  useEffect(() => {
+    if (focusTaskId == null || loading) return
+    if (pendingTasks.some((t) => t.id === focusTaskId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusTaskId), pas dérivé du rendu
+      setActiveTab('a_valider')
+      setSelectedId(focusTaskId)
+    }
+    onFocusConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à focusTaskId/loading/pendingTasks
+  }, [focusTaskId, loading, pendingTasks])
 
   const allTasks = [...pendingTasks, ...tasks]
   const selected = activeTab === 'a_valider'
@@ -158,10 +176,14 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
     setSaving(true)
     setActionError(null)
     try {
-      await createTaskAssignment({ task: selected.id, user: assignMemberId, heures: assignHeuresNumber })
+      await createTaskAssignment({
+        task: selected.id, user: assignMemberId, heures: assignHeuresNumber,
+        instructions: assignInstructions.trim(),
+      })
       await refreshTask(selected.id)
       setAssignMemberId(null)
       setAssignHeures('')
+      setAssignInstructions('')
     } catch (err) {
       setActionError(errorMessage(err))
     } finally {
@@ -391,6 +413,7 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                                   <span>
                                     <strong>{a.user_nom}</strong>
                                     <small>{a.heures} h (grade {a.user_grade}) · {fmtEhs(a.ehs_consomme)} EHS · {fmtFcfa(a.montant_fcfa)} · {a.execution_statut_display}</small>
+                                    {a.instructions && <small className="ns-affectation-instructions">« {a.instructions} »</small>}
                                   </span>
                                 </span>
                                 {a.execution_statut !== 'terminee' && (
@@ -421,6 +444,15 @@ export default function StaffingPage({ navigateTo }: { navigateTo: (page: string
                         <label className="ns-detail-field">
                           Heures sur cette tâche *
                           <input type="number" min={0} step="0.5" value={assignHeures} placeholder="Ex. 8" onChange={(e) => setAssignHeures(e.target.value)} />
+                        </label>
+                        <label className="ns-detail-field">
+                          Instructions pour la personne attribuée
+                          <textarea
+                            rows={3}
+                            value={assignInstructions}
+                            placeholder="Précisez les étapes à suivre, le contexte ou toute explication utile pour faciliter l’exécution..."
+                            onChange={(e) => setAssignInstructions(e.target.value)}
+                          />
                         </label>
 
                         {assignMember && assignHeuresNumber > 0 && (

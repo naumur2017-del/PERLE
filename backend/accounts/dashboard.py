@@ -482,6 +482,8 @@ class ManagerDashboardView(APIView):
                 if not group or any(a.execution_statut != 'terminee' for a in group):
                     late_tasks += 1
 
+        pending_validation = sum(1 for t in team_tasks if t.statut == 'envoyee')
+
         done_cutoff = today - timedelta(days=30)
         tasks_done_30d = sum(1 for a in assignments
                              if a.execution_statut == 'terminee' and a.terminee_le
@@ -611,14 +613,15 @@ class ManagerDashboardView(APIView):
                 'detail': 'Des tâches ont dépassé leur échéance sans être terminées.',
                 'target': 'staffing-execute',
             })
-        stale_cutoff = timezone.now() - timedelta(days=3)
-        pending = sum(1 for t in team_tasks if t.statut == 'envoyee' and t.created_at <= stale_cutoff)
-        if pending:
+        if pending_validation:
+            stale_cutoff = timezone.now() - timedelta(days=3)
+            is_stale = any(t.statut == 'envoyee' and t.created_at <= stale_cutoff for t in team_tasks)
             alerts.append({
-                'id': 'MA-pending', 'level': 'medium',
-                'title': f'{pending} tâche(s) en attente d\'acceptation',
-                'detail': 'Des tâches vous sont envoyées depuis plus de 3 jours.',
-                'target': 'controle-taches',
+                'id': 'MA-pending', 'level': 'high' if is_stale else 'medium',
+                'title': f'{pending_validation} tâche(s) à valider',
+                'detail': 'Des tâches vous ont été envoyées et attendent votre acceptation ou votre refus.'
+                          + (' Certaines depuis plus de 3 jours.' if is_stale else ''),
+                'target': 'staffing',
             })
         idle = [row['name'] for row in member_rows if row['active_tasks'] == 0 and row['statut'] == 'Actif']
         if idle:
@@ -638,6 +641,7 @@ class ManagerDashboardView(APIView):
             'kpi': {
                 'members': len(members), 'members_available': members_available,
                 'active_tasks': active_tasks, 'late_tasks': late_tasks,
+                'pending_validation': pending_validation,
                 'tasks_done_30d': tasks_done_30d, 'avg_note': avg_note,
                 'hours_in_progress': hours_in_progress,
                 'projects_active': len(active_project_ids),
@@ -681,6 +685,7 @@ class EmployeeDashboardView(APIView):
         )
 
         # --- KPIs tâches ---------------------------------------------
+        new_tasks = sum(1 for a in assignments if a.execution_statut == 'a_demarrer')
         active_tasks = sum(1 for a in assignments if a.execution_statut != 'terminee')
         late_tasks = sum(
             1 for a in assignments
@@ -748,6 +753,13 @@ class EmployeeDashboardView(APIView):
 
         # --- alertes ------------------------------------------------
         alerts = []
+        if new_tasks:
+            alerts.append({
+                'id': 'EA-new', 'level': 'medium',
+                'title': f'{new_tasks} nouvelle(s) tâche(s) attribuée(s)',
+                'detail': 'Des tâches vous ont été attribuées et attendent d\'être démarrées.',
+                'target': 'staffing-execute',
+            })
         if late_tasks:
             alerts.append({
                 'id': 'EA-late', 'level': 'high',
@@ -792,7 +804,7 @@ class EmployeeDashboardView(APIView):
             'currency_code': organisation.currency_code,
             'generated_at': timezone.now().isoformat(),
             'kpi': {
-                'active_tasks': active_tasks, 'late_tasks': late_tasks,
+                'new_tasks': new_tasks, 'active_tasks': active_tasks, 'late_tasks': late_tasks,
                 'tasks_done_30d': tasks_done_30d, 'avg_note': avg_note,
                 'hours_in_progress': hours_in_progress, 'projects_active': len(active_project_ids),
                 'ehs_consumed': ehs_consumed,

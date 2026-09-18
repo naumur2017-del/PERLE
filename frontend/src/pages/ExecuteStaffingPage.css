@@ -232,6 +232,9 @@
 .es-detail-info .es-detail-block { flex-direction: column; align-items: flex-start; gap: 4px; }
 .es-detail-info .es-detail-block dd { text-align: left; font-weight: 500; color: #35335c; line-height: 1.5; }
 .es-detail-info .es-echeance { color: #dc2626; }
+.es-detail-info .es-detail-instructions { padding: 8px 10px; border-radius: 8px; background: #f3effe; border: 1px solid #e0d6fb; }
+.es-detail-info .es-detail-instructions dt { display: flex; align-items: center; gap: 5px; color: #6b46c1; font-weight: 700; }
+.es-detail-info .es-detail-instructions dd { color: #4a2f8f; white-space: pre-wrap; }
 
 .es-wrike-link { display: inline-flex; align-items: center; gap: 5px; color: #6b46c1; font-weight: 700; text-decoration: none; }
 .es-wrike-link:hover { text-decoration: underline; }

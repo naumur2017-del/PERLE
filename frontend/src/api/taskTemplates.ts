@@ -1,4 +1,5 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from './client'
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostUpload } from './client'
+import { getSession } from '../auth/session'
 
 export type TaskTemplateType = 'dossier' | 'tache_elementaire'
 export type TaskTemplateFrequence = 'ponctuelle' | 'recurrente'
@@ -63,3 +64,27 @@ export const updateTaskTemplate = (id: number, data: Partial<TaskTemplateFormVal
   apiPatch<TaskTemplate>(`/task-templates/${id}/`, data)
 
 export const deleteTaskTemplate = (id: number) => apiDelete(`/task-templates/${id}/`)
+
+export interface ImportRowError { ligne: number; code: string; erreurs: Record<string, unknown> }
+export interface ImportResult { created: number; errors: ImportRowError[]; items: TaskTemplate[] }
+
+export const importTaskTemplates = (file: File): Promise<ImportResult> => {
+  const data = new FormData()
+  data.append('file', file)
+  return apiPostUpload<ImportResult>('/task-templates/import/', data)
+}
+
+/** Télécharge le modèle Excel vierge (avec exemples) pour l'import du catalogue des tâches. */
+export async function downloadTaskTemplateModele() {
+  const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
+  const response = await fetch(`${base}/task-templates/import/`, {
+    headers: { Authorization: `Token ${getSession()?.token ?? ''}` },
+  })
+  if (!response.ok) throw new Error('Impossible de télécharger le modèle.')
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'catalogue-des-taches-modele.xlsx'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

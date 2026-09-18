@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import paiements
 from . import dashboard
+from . import imports as excel_imports
 
 urlpatterns = [
     path('dashboard/direction/', dashboard.DirectionDashboardView.as_view()),
@@ -53,12 +54,14 @@ urlpatterns = [
     path('demandes/avances/<int:pk>/review/', views.AvanceDemandeReviewView.as_view()),
     path('architecture-monetaire/lignes/', views.LigneBudgetaireListCreateView.as_view()),
     path('architecture-monetaire/lignes/<int:pk>/', views.LigneBudgetaireDetailView.as_view()),
+    path('architecture-monetaire/lignes/import/', excel_imports.LigneBudgetaireImportView.as_view()),
     path('projects/', views.ProjectListCreateView.as_view()),
     path('projects/<int:pk>/', views.ProjectDetailView.as_view()),
     path('projects/<int:project_id>/lignes/', views.ProjectLigneListCreateView.as_view()),
     path('projects/<int:project_id>/lignes/<int:pk>/', views.ProjectLigneDetailView.as_view()),
     path('task-templates/', views.TaskTemplateListCreateView.as_view()),
     path('task-templates/<int:pk>/', views.TaskTemplateDetailView.as_view()),
+    path('task-templates/import/', excel_imports.TaskTemplateImportView.as_view()),
     path('tasks/', views.TaskListCreateView.as_view()),
     path('tasks/<int:pk>/', views.TaskDetailView.as_view()),
     path('tasks/<int:pk>/decision/', views.TaskDecisionView.as_view()),

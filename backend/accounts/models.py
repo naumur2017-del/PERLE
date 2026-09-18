@@ -985,13 +985,24 @@ class DemandePaiement(models.Model):
 
 
 class ProjectLigne(models.Model):
-    """Attribution d'une ligne budgétaire réelle (Architecture monétaire, tout niveau confondu) à
-    un projet : combien d'argent ce projet va consommer sur cette ligne. Le montant est plafonné
-    par LigneBudgetaire.montant_prevu, propre à chaque projet (pas un pot partagé entre projets) —
-    voir ProjectLigneSerializer.validate."""
+    """Attribution d'une charge à un projet, sous l'une des deux formes du référentiel (voir
+    `type_ligne`) : combien ce projet va y consommer.
+    - 'M' Monétaire : une ligne réelle de l'Architecture monétaire (`ligne_budgetaire`, tout
+      niveau confondu). Le montant est plafonné par LigneBudgetaire.montant_prevu, propre à
+      chaque projet (pas un pot partagé entre projets) — voir ProjectLigneSerializer.validate.
+    - 'E' EHS : un élément du catalogue de l'Architecture des tâches (`task_template`). Aucun
+      plafond (le catalogue de tâches ne porte pas de montant prévu) : le montant saisi est
+      simplement converti en EHS via Organisation.taux_ehs_fcfa, à titre indicatif."""
+    TYPE_LIGNE_CHOICES = [
+        ('M', 'Monétaire'),
+        ('E', 'EHS'),
+    ]
+
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lignes')
     code = models.CharField(max_length=20)
-    ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, related_name='project_lignes')
+    type_ligne = models.CharField(max_length=1, choices=TYPE_LIGNE_CHOICES, default='M')
+    ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, null=True, blank=True, related_name='project_lignes')
+    task_template = models.ForeignKey('TaskTemplate', on_delete=models.PROTECT, null=True, blank=True, related_name='project_lignes')
     montant = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     date_debut = models.DateField(null=True, blank=True)
     date_fin = models.DateField(null=True, blank=True)
@@ -1004,10 +1015,18 @@ class ProjectLigne(models.Model):
 
     class Meta:
         ordering = ['code']
-        unique_together = [('project', 'code'), ('project', 'ligne_budgetaire')]
+        unique_together = [('project', 'code'), ('project', 'ligne_budgetaire'), ('project', 'task_template')]
 
     def __str__(self):
-        return f'{self.code} — {self.ligne_budgetaire.nom}'
+        cible = self.task_template.nom if self.type_ligne == 'E' and self.task_template else (
+            self.ligne_budgetaire.nom if self.ligne_budgetaire else '?')
+        return f'{self.code} — {cible}'
+
+    @property
+    def equipe_effective(self):
+        if self.type_ligne == 'E':
+            return self.task_template.equipe if self.task_template else None
+        return self.ligne_budgetaire.equipe if self.ligne_budgetaire else None
 
 
 def next_project_ligne_code(project):
@@ -1143,7 +1162,10 @@ class Task(models.Model):
     ]
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='tasks')
     code = models.CharField(max_length=30)
-    template = models.ForeignKey(TaskTemplate, on_delete=models.PROTECT, related_name='attributions')
+    # Orientation, pas obligation : le catalogue aide à préremplir la description et la priorité
+    # (voir TaskSerializer), mais une tâche peut être décrite librement sans y être rattachée —
+    # voir TaskSerializer.get_template_nom pour le repli d'affichage dans ce cas.
+    template = models.ForeignKey(TaskTemplate, on_delete=models.PROTECT, null=True, blank=True, related_name='attributions')
     description = models.TextField(blank=True)
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
     ligne_budgetaire = models.ForeignKey(LigneBudgetaire, on_delete=models.PROTECT, related_name='taches')
@@ -1163,7 +1185,7 @@ class Task(models.Model):
         unique_together = ('organisation', 'code')
 
     def __str__(self):
-        return f'{self.code} — {self.template.nom}'
+        return f'{self.code} — {self.template.nom if self.template_id else self.description[:40]}'
 
 
 def next_task_code(organisation):
@@ -1190,6 +1212,10 @@ class TaskAssignment(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
     user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='task_assignments')
     heures = models.DecimalField(max_digits=6, decimal_places=2)
+    # Étapes/explications laissées par le manager à l'attribution, pour faciliter la compréhension
+    # de l'exécution par la personne staffée — distinct de `note_commentaire` (évaluation a
+    # posteriori) et du fil de discussion partagé de la tâche (TaskMessage).
+    instructions = models.TextField(blank=True)
     grade_snapshot = models.PositiveIntegerField()
     taux_snapshot = models.DecimalField(max_digits=8, decimal_places=2)
     ehs_consomme = models.DecimalField(max_digits=10, decimal_places=2)

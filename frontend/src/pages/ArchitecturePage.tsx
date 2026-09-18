@@ -1,21 +1,16 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import {
-  Archive, Building2, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Folder, FolderOpen,
-  ListChecks, Pencil, Plus, Search, Trash2, UserCheck, X,
+  Archive, Building2, ChevronDown, ChevronRight, Download, Folder, FolderOpen,
+  ListChecks, Pencil, Plus, Search, Trash2, Upload, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
-import { fetchProjects, type Project } from '../api/projects'
-import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
 import {
-  createTask, deleteTask, fetchTasks, updateTask, type Task, type TaskFormValues,
-  type TaskPriorite, type TaskStatut,
-} from '../api/tasks'
-import {
-  createTaskTemplate, deleteTaskTemplate, fetchTaskTemplates, updateTaskTemplate, type TaskTemplate,
+  createTaskTemplate, deleteTaskTemplate, downloadTaskTemplateModele, fetchTaskTemplates, importTaskTemplates,
+  updateTaskTemplate, type TaskTemplate,
   type TaskTemplateDeclenchement, type TaskTemplateFrequence, type TaskTemplatePriorite, type TaskTemplateType,
 } from '../api/taskTemplates'
 import { ApiError } from '../api/client'
-import DatePicker from '../components/DatePicker'
+import ExcelImportModal from '../components/ExcelImportModal'
 import './ArchitecturePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -34,457 +29,6 @@ const errorMessage = (error: unknown): string => {
 const formatDate = (value: string | null): string => {
   if (!value) return '—'
   return new Date(value).toLocaleDateString('fr-FR')
-}
-
-const staffingSummary = (task: Task): string => {
-  const count = task.assignments.length
-  if (count === 0) return 'Non staffée'
-  if (count === 1) return `Staffée à ${task.assignments[0].user_nom}`
-  return `Staffée à ${count} personnes`
-}
-
-const PRIORITE_OPTIONS: { value: TaskPriorite; label: string }[] = [
-  { value: 'haute', label: 'Haute' },
-  { value: 'moyenne', label: 'Moyenne' },
-  { value: 'basse', label: 'Basse' },
-]
-
-const STATUT_OPTIONS: { value: TaskStatut; label: string }[] = [
-  { value: 'envoyee', label: 'Envoyée' },
-  { value: 'acceptee', label: 'Acceptée' },
-  { value: 'refusee', label: 'Refusée' },
-]
-
-const PAGE_SIZE = 8
-
-type PageTab = 'attribution' | 'banque'
-type PanelMode = { kind: 'create'; from?: Task } | { kind: 'edit'; task: Task } | { kind: 'view'; task: Task } | null
-
-function exportTasksCsv(tasks: Task[]) {
-  const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Date de début', 'Échéance', 'Priorité', 'Statut', 'Créé le']
-  const rows = tasks.map((t) => [
-    t.template_code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
-    `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
-    formatDate(t.date_debut), formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
-  ])
-  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
-  const bom = String.fromCharCode(0xfeff)
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `attribution-des-taches-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreated, onUpdated, onDeleteRequest }: {
-  mode: Exclude<PanelMode, null>
-  teams: Team[]
-  projects: Project[]
-  templates: TaskTemplate[]
-  lignes: LigneBudgetaire[]
-  onClose: () => void
-  onCreated: (task: Task) => void
-  onUpdated: (task: Task) => void
-  onDeleteRequest: (task: Task) => void
-}) {
-  const seed = mode.kind === 'create' ? mode.from : mode.task
-  const [templateId, setTemplateId] = useState<number | null>(seed?.template ?? null)
-  const [description, setDescription] = useState(seed?.description ?? '')
-  const [transversale, setTransversale] = useState(seed ? seed.project === null : false)
-  const [projectId, setProjectId] = useState<number | null>(seed?.project ?? null)
-  const [equipeId, setEquipeId] = useState<number | null>(seed?.equipe ?? null)
-  const [ligneId, setLigneId] = useState<number | null>(seed?.ligne_budgetaire ?? null)
-  const [dateDebut, setDateDebut] = useState(mode.kind === 'create' ? '' : seed?.date_debut ?? '')
-  const [echeance, setEcheance] = useState(mode.kind === 'create' ? '' : seed?.echeance ?? '')
-  const [priorite, setPriorite] = useState<TaskPriorite>(seed?.priorite ?? 'moyenne')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [editing, setEditing] = useState(mode.kind !== 'view')
-
-  const readOnly = mode.kind === 'view' && !editing
-  const activeTemplates = templates.filter((t) => t.actif || t.id === templateId)
-  const selectedTemplate = activeTemplates.find((t) => t.id === templateId) ?? null
-  const selectedProject = projects.find((p) => p.id === projectId) ?? null
-
-  const equipeOptions = transversale
-    ? teams
-    : selectedProject ? teams.filter((t) => selectedProject.lignes.some((l) => l.equipe === t.id)) : []
-  const selectedEquipe = teams.find((t) => t.id === equipeId) ?? null
-
-  const ligneOptions = transversale
-    ? lignes.filter((l) => l.equipe === equipeId && l.actif).map((l) => ({ value: l.id, label: `${l.code} — ${l.nom}` }))
-    : selectedProject
-      ? selectedProject.lignes.filter((l) => l.equipe === equipeId).map((l) => ({ value: l.ligne_budgetaire, label: `${l.ligne_budgetaire_code} — ${l.ligne_budgetaire_nom}` }))
-      : []
-
-  const canSave = templateId !== null && ligneId !== null && equipeId !== null && echeance !== ''
-    && description.trim() !== '' && (transversale || projectId !== null)
-
-  const handleTemplateChange = (value: string) => {
-    const id = value === '' ? null : Number(value)
-    setTemplateId(id)
-    const tpl = templates.find((t) => t.id === id)
-    if (description.trim() === '' && tpl?.details) setDescription(tpl.details)
-    if (tpl) setPriorite(tpl.priorite_defaut)
-  }
-
-  const handleTransversaleChange = (checked: boolean) => {
-    setTransversale(checked)
-    if (checked) setProjectId(null)
-    setEquipeId(null)
-    setLigneId(null)
-  }
-
-  const handleProjectChange = (value: string) => {
-    setProjectId(value === '' ? null : Number(value))
-    setEquipeId(null)
-    setLigneId(null)
-  }
-
-  const handleEquipeChange = (value: string) => {
-    setEquipeId(value === '' ? null : Number(value))
-    setLigneId(null)
-  }
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!canSave || templateId === null || ligneId === null) return
-    setSaving(true)
-    setError(null)
-    const payload: TaskFormValues = {
-      template: templateId,
-      description: description.trim(),
-      project: transversale ? null : projectId,
-      ligne_budgetaire: ligneId,
-      date_debut: dateDebut || null,
-      echeance,
-      priorite,
-    }
-    try {
-      if (mode.kind === 'edit' || (mode.kind === 'view' && editing)) {
-        const updated = await updateTask(mode.task.id, payload)
-        onUpdated(updated)
-      } else {
-        const created = await createTask(payload)
-        onCreated(created)
-      }
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const title = mode.kind === 'create' ? 'Attribuer une tâche' : mode.kind === 'edit' ? 'Modifier l’attribution' : editing ? 'Modifier l’attribution' : (mode.task.template_nom || 'Détail de la tâche')
-
-  return (
-    <div className="arch-panel">
-      <div className="arch-panel-head">
-        <h3>{mode.kind === 'view' && !editing ? 'DÉTAIL / ATTRIBUTION D’UNE TÂCHE' : 'DÉTAIL / ATTRIBUTION D’UNE TÂCHE'}</h3>
-        <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
-      </div>
-
-      {readOnly ? (
-        <div className="arch-panel-view">
-          <div className="arch-panel-view-head">
-            <strong>{mode.task.code}</strong>
-            <span className={`arch-pill arch-pill-${mode.task.statut}`}>{mode.task.statut_display}</span>
-          </div>
-          <h4>{title}</h4>
-          {mode.task.description && <p className="arch-task-detail-desc">{mode.task.description}</p>}
-          <dl className="arch-task-detail">
-            <div><dt>Projet / Nature</dt><dd>{mode.task.project_nom ? `${mode.task.project_code} — ${mode.task.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
-            <div><dt>Équipe destinataire</dt><dd>{mode.task.equipe_code} — {mode.task.equipe_nom}</dd></div>
-            <div><dt>Manager destinataire</dt><dd>{mode.task.equipe_manager_nom ?? 'Aucun manager défini'}</dd></div>
-            <div><dt>Ligne budgétaire</dt><dd>{mode.task.ligne_budgetaire_code} — {mode.task.ligne_budgetaire_nom}</dd></div>
-            <div><dt>Date de début</dt><dd>{formatDate(mode.task.date_debut)}</dd></div>
-            <div><dt>Échéance</dt><dd>{formatDate(mode.task.echeance)}</dd></div>
-            <div><dt>Priorité</dt><dd>{mode.task.priorite_display}</dd></div>
-            <div><dt>Statut</dt><dd>{mode.task.statut_display}{mode.task.statut === 'acceptee' && <span className="arch-staffed-hint"> · {staffingSummary(mode.task).toLowerCase()}</span>}</dd></div>
-            <div><dt>Créée par</dt><dd>{mode.task.created_by_nom ?? '-'}</dd></div>
-          </dl>
-          <div className="ge-modal-actions">
-            <button type="button" className="arch-delete-btn" onClick={() => onDeleteRequest(mode.task)}><Trash2 size={13} />Supprimer la tâche</button>
-            <button type="button" className="ge-btn-primary" onClick={() => setEditing(true)}><Pencil size={13} />Modifier</button>
-          </div>
-        </div>
-      ) : (
-        <form className="param-form" onSubmit={handleSubmit}>
-          {error && <p className="ge-form-error">{error}</p>}
-
-          <div className="arch-panel-grid">
-            <label className="param-field">Projet / Nature *
-              <select required={!transversale} disabled={transversale} value={projectId ?? ''} onChange={(event) => handleProjectChange(event.target.value)}>
-                <option value="">{transversale ? 'Tâche transversale' : 'Sélectionner un projet'}</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.nom}</option>)}
-              </select>
-            </label>
-            <label className="param-field">Équipe destinataire *
-              <select required value={equipeId ?? ''} onChange={(event) => handleEquipeChange(event.target.value)} disabled={!transversale && !selectedProject}>
-                <option value="">{!transversale && !selectedProject ? 'Choisissez un projet d’abord' : equipeOptions.length === 0 ? 'Aucune équipe disponible' : 'Sélectionner une équipe'}</option>
-                {equipeOptions.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
-              </select>
-            </label>
-            <DatePicker label="Date de début" className="param-field" value={dateDebut} onChange={setDateDebut} />
-            <DatePicker label="Échéance *" className="param-field" required value={echeance} min={dateDebut || undefined} onChange={setEcheance} />
-
-            <label className="param-checkbox-field">
-              <input type="checkbox" checked={transversale} onChange={(event) => handleTransversaleChange(event.target.checked)} />
-              Tâche transversale (aucun projet)
-            </label>
-            <label className="param-field">Manager destinataire
-              <input readOnly value={selectedEquipe?.manager ? `${selectedEquipe.manager.first_name} ${selectedEquipe.manager.last_name}` : selectedEquipe ? 'Aucun manager défini' : ''} placeholder="Choisissez une équipe" />
-            </label>
-            <label className="param-field">Priorité *
-              <select required value={priorite} onChange={(event) => setPriorite(event.target.value as TaskPriorite)}>
-                {PRIORITE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
-            </label>
-
-            <label className="param-field">Tâche (depuis catalogue) *
-              <select required value={templateId ?? ''} onChange={(event) => handleTemplateChange(event.target.value)}>
-                <option value="">{activeTemplates.length === 0 ? 'Aucune tâche dans le catalogue' : 'Sélectionner une tâche'}</option>
-                {activeTemplates.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.nom}{t.type_element === 'dossier' ? ' (dossier)' : ''}</option>)}
-              </select>
-              {selectedTemplate?.details && <p className="charge-hint">{selectedTemplate.details}</p>}
-            </label>
-            <label className="param-field">Ligne budgétaire *
-              <select required value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))} disabled={!equipeId}>
-                <option value="">{!equipeId ? 'Choisissez une équipe d’abord' : ligneOptions.length === 0 ? 'Aucune ligne disponible' : 'Sélectionner une ligne'}</option>
-                {ligneOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-              </select>
-            </label>
-
-            <label className="param-field arch-panel-full">Description / Contexte *
-              <textarea required rows={3} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Précisez le contexte de cette attribution..." />
-            </label>
-          </div>
-
-          <div className="ge-modal-actions">
-            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
-            <button type="submit" className="ge-btn-primary" disabled={!canSave || saving}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-          </div>
-        </form>
-      )}
-    </div>
-  )
-}
-
-function TaskAttributionTab({ teams, tasks, projects, templates, lignes, loading, setTasks, actionError, setActionError }: {
-  teams: Team[]
-  tasks: Task[]
-  projects: Project[]
-  templates: TaskTemplate[]
-  lignes: LigneBudgetaire[]
-  loading: boolean
-  setTasks: (updater: (prev: Task[]) => Task[]) => void
-  actionError: string | null
-  setActionError: (error: string | null) => void
-}) {
-  const [search, setSearch] = useState('')
-  const [filterStatut, setFilterStatut] = useState<TaskStatut | 'tous'>('tous')
-  const [filterEcheanceDebut, setFilterEcheanceDebut] = useState('')
-  const [filterEcheanceFin, setFilterEcheanceFin] = useState('')
-  const [showMoreFilters, setShowMoreFilters] = useState(false)
-  const [filterEquipe, setFilterEquipe] = useState<number | 'tous'>('tous')
-  const [filterPriorite, setFilterPriorite] = useState<TaskPriorite | 'tous'>('tous')
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [page, setPage] = useState(1)
-  const [panel, setPanel] = useState<PanelMode>(null)
-
-  const query = search.trim().toLowerCase()
-  const filtered = tasks.filter((t) => (
-    (filterStatut === 'tous' || t.statut === filterStatut)
-    && (filterEquipe === 'tous' || t.equipe === filterEquipe)
-    && (filterPriorite === 'tous' || t.priorite === filterPriorite)
-    && (!filterEcheanceDebut || (t.echeance ?? '') >= filterEcheanceDebut)
-    && (!filterEcheanceFin || (t.echeance ?? '') <= filterEcheanceFin)
-    && (!query || t.template_nom.toLowerCase().includes(query) || t.code.toLowerCase().includes(query)
-      || (t.project_nom ?? '').toLowerCase().includes(query) || t.equipe_nom.toLowerCase().includes(query))
-  ))
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-
-  const changeFilter = (apply: () => void) => { apply(); setPage(1) }
-
-  const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const pageAllSelected = pageItems.length > 0 && pageItems.every((t) => selectedIds.has(t.id))
-  const toggleSelectPage = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (pageAllSelected) pageItems.forEach((t) => next.delete(t.id))
-      else pageItems.forEach((t) => next.add(t.id))
-      return next
-    })
-  }
-
-  const selectedTasks = tasks.filter((t) => selectedIds.has(t.id))
-
-  const handleDuplicate = () => {
-    if (selectedTasks.length !== 1) return
-    setPanel({ kind: 'create', from: selectedTasks[0] })
-  }
-
-  const handleExport = () => {
-    exportTasksCsv(selectedTasks.length > 0 ? selectedTasks : filtered)
-  }
-
-  const handleCreated = (task: Task) => {
-    setTasks((prev) => [task, ...prev])
-    setPanel(null)
-  }
-
-  const handleUpdated = (task: Task) => {
-    setTasks((prev) => prev.map((t) => t.id === task.id ? task : t))
-    setPanel({ kind: 'view', task })
-  }
-
-  const handleDeleteRequest = async (task: Task) => {
-    if (!window.confirm(`Supprimer la tâche « ${task.template_nom} » attribuée à ${task.equipe_nom} ?`)) return
-    setActionError(null)
-    try {
-      await deleteTask(task.id)
-      setTasks((prev) => prev.filter((t) => t.id !== task.id))
-      setSelectedIds((prev) => { const next = new Set(prev); next.delete(task.id); return next })
-      setPanel(null)
-    } catch (err) {
-      setActionError(errorMessage(err))
-    }
-  }
-
-  return (
-    <div className="arch-attribution">
-      <p className="arch-attribution-lead">Attribuer une tâche du catalogue à une équipe et à son manager.</p>
-
-      {actionError && <p className="ge-form-error">{actionError}</p>}
-
-      <div className="arch-toolbar-row">
-        <button type="button" className="arch-btn-primary" onClick={() => setPanel({ kind: 'create' })}><Plus size={14} />Attribuer une tâche</button>
-        <button type="button" className="arch-btn-outline" onClick={handleDuplicate} disabled={selectedTasks.length !== 1}><Copy size={14} />Dupliquer</button>
-        <button type="button" className="arch-btn-outline" onClick={handleExport} disabled={filtered.length === 0}><Download size={14} />Exporter</button>
-
-        <select className="arch-select-sm" value={filterStatut} onChange={(event) => changeFilter(() => setFilterStatut(event.target.value as TaskStatut | 'tous'))}>
-          <option value="tous">Tous statuts</option>
-          {STATUT_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-
-        <label className="arch-date-filter">Échéance du
-          <DatePicker value={filterEcheanceDebut} onChange={(v) => changeFilter(() => setFilterEcheanceDebut(v))} />
-        </label>
-        <label className="arch-date-filter">au
-          <DatePicker value={filterEcheanceFin} min={filterEcheanceDebut || undefined} onChange={(v) => changeFilter(() => setFilterEcheanceFin(v))} />
-        </label>
-
-        <label className="arch-search">
-          <Search size={13} />
-          <input placeholder="Rechercher..." value={search} onChange={(event) => changeFilter(() => setSearch(event.target.value))} />
-        </label>
-
-        <button type="button" className={`arch-btn-outline ${showMoreFilters ? 'is-active' : ''}`} onClick={() => setShowMoreFilters((v) => !v)}><Filter size={14} />Filtres</button>
-      </div>
-
-      {showMoreFilters && (
-        <div className="arch-toolbar-row arch-toolbar-row-secondary">
-          <select className="arch-select-sm" value={filterEquipe} onChange={(event) => changeFilter(() => setFilterEquipe(event.target.value === 'tous' ? 'tous' : Number(event.target.value)))}>
-            <option value="tous">Toutes les équipes</option>
-            {teams.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
-          </select>
-          <select className="arch-select-sm" value={filterPriorite} onChange={(event) => changeFilter(() => setFilterPriorite(event.target.value as TaskPriorite | 'tous'))}>
-            <option value="tous">Toutes priorités</option>
-            {PRIORITE_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </div>
-      )}
-
-      <div className="arch-table-panel">
-        <div className="arch-table-wrap">
-          <table className="arch-table">
-            <thead>
-              <tr>
-                <th className="arch-th-checkbox"><input type="checkbox" checked={pageAllSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" /></th>
-                <th>Code</th><th>Projet / Nature</th><th>Tâche (depuis catalogue)</th><th>Équipe destinataire</th>
-                <th>Manager destinataire</th><th>Ligne budgétaire</th><th>Date de début</th><th>Échéance</th><th>Priorité</th><th>Statut</th>
-                <th>Créé le</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && <tr><td colSpan={12} className="ge-detail-empty">Chargement…</td></tr>}
-              {!loading && pageItems.map((task) => (
-                <tr key={task.id}>
-                  <td className="arch-th-checkbox"><input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={`Sélectionner ${task.code}`} /></td>
-                  <td className="arch-code">{task.template_code}</td>
-                  <td>{task.project_nom ? <>{task.project_code}<br /><small>{task.project_nom}</small></> : <span className="arch-transversale-tag">– Transversale</span>}</td>
-                  <td className="arch-name">{task.template_nom}</td>
-                  <td>{task.equipe_code}</td>
-                  <td>{task.equipe_manager_nom ?? '—'}</td>
-                  <td>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</td>
-                  <td>{formatDate(task.date_debut)}</td>
-                  <td>{formatDate(task.echeance)}</td>
-                  <td><span className={`arch-pill arch-pill-prio-${task.priorite}`}>{task.priorite_display}</span></td>
-                  <td>
-                    <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span>
-                    {task.statut === 'acceptee' && (
-                      <div className="arch-staffed-hint">{staffingSummary(task)}</div>
-                    )}
-                  </td>
-                  <td>{formatDate(task.created_at)}</td>
-                  <td>
-                    <div className="arch-actions">
-                      <button type="button" className="arch-row-action" aria-label="Voir le détail" onClick={() => setPanel({ kind: 'view', task })}><Eye size={13} /></button>
-                      <button type="button" className="arch-row-action" aria-label="Modifier" onClick={() => setPanel({ kind: 'edit', task })}><Pencil size={13} /></button>
-                      <button type="button" className="arch-row-action danger" aria-label="Supprimer" onClick={() => handleDeleteRequest(task)}><Trash2 size={13} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && pageItems.length === 0 && (
-                <tr><td colSpan={12} className="ge-detail-empty">Aucune tâche ne correspond à ces filtres.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="arch-table-foot">
-          <span>Affichage {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1} à {Math.min(currentPage * PAGE_SIZE, filtered.length)} sur {filtered.length} tâche{filtered.length > 1 ? 's' : ''}</span>
-          <nav className="arch-pagination" aria-label="Pagination">
-            <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft size={14} /></button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} type="button" className={p === currentPage ? 'is-active' : ''} onClick={() => setPage(p)}>{p}</button>
-            ))}
-            <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight size={14} /></button>
-          </nav>
-        </div>
-      </div>
-
-      {panel && (
-        <TaskPanel
-          key={panel.kind === 'create' ? `create-${panel.from?.id ?? 'blank'}` : `${panel.kind}-${panel.task.id}`}
-          mode={panel}
-          teams={teams}
-          projects={projects}
-          templates={templates}
-          lignes={lignes}
-          onClose={() => setPanel(null)}
-          onCreated={handleCreated}
-          onUpdated={handleUpdated}
-          onDeleteRequest={handleDeleteRequest}
-        />
-      )}
-    </div>
-  )
 }
 
 const TEMPLATE_TYPE_OPTIONS: { value: TaskTemplateType; label: string }[] = [
@@ -795,13 +339,14 @@ function CataloguePanel({ mode, templates, dossiers, teams, onClose, onCreated, 
   )
 }
 
-function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, onDeleted }: {
+function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, onDeleted, onImported }: {
   templates: TaskTemplate[]
   teams: Team[]
   loading: boolean
   onCreated: (t: TaskTemplate) => void
   onUpdated: (t: TaskTemplate) => void
   onDeleted: (id: number) => void
+  onImported: () => void
 }) {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -809,6 +354,7 @@ function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, 
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [panel, setPanel] = useState<{ kind: 'create'; parentId: number | null; equipeId?: number | null } | { kind: 'edit' | 'view'; node: TaskTemplate } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const dossiers = templates.filter((t) => t.type_element === 'dossier')
   const tree = buildTemplateTree(templates)
@@ -903,6 +449,7 @@ function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, 
 
       <div className="arch-toolbar-row">
         <button type="button" className="arch-btn-primary" onClick={handleNewClick}><Plus size={14} />Nouvelle tâche</button>
+        <button type="button" className="arch-btn-outline" onClick={() => setImportOpen(true)}><Upload size={14} />Importer depuis Excel</button>
         <button type="button" className="arch-btn-outline" onClick={() => exportTemplatesCsv(templates)} disabled={templates.length === 0}><Download size={14} />Exporter</button>
         <label className="arch-search">
           <Search size={13} />
@@ -1012,30 +559,32 @@ function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, 
           )}
         </div>
       </div>
+
+      {importOpen && (
+        <ExcelImportModal
+          title="Importer le catalogue des tâches"
+          hint="Téléchargez le modèle, remplissez une ligne par élément (code, nom, code parent, équipe...) puis importez le fichier."
+          onDownloadModele={downloadTaskTemplateModele}
+          onImport={importTaskTemplates}
+          onClose={() => setImportOpen(false)}
+          onImported={onImported}
+        />
+      )}
     </div>
   )
 }
 
 export default function ArchitecturePage() {
-  const [pageTab, setPageTab] = useState<PageTab>('attribution')
-
   const [teams, setTeams] = useState<Team[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [templates, setTemplates] = useState<TaskTemplate[]>([])
-  const [lignes, setLignes] = useState<LigneBudgetaire[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchTaskTemplates(), fetchLignesBudgetaires()])
-      .then(([teamsData, tasksData, projectsData, templatesData, lignesData]) => {
+    Promise.all([fetchTeams(), fetchTaskTemplates()])
+      .then(([teamsData, templatesData]) => {
         setTeams(teamsData)
-        setTasks(tasksData)
-        setProjects(projectsData)
         setTemplates(templatesData)
-        setLignes(lignesData)
       })
       .catch(() => setLoadError('Impossible de charger l’architecture des tâches.'))
       .finally(() => setLoading(false))
@@ -1043,28 +592,17 @@ export default function ArchitecturePage() {
 
   return (
     <section className="arch-page">
-      <nav className="arch-subtabs">
-        <button className={pageTab === 'attribution' ? 'active' : ''} onClick={() => setPageTab('attribution')}><UserCheck size={14} />Attribution des tâches</button>
-        <button className={pageTab === 'banque' ? 'active' : ''} onClick={() => setPageTab('banque')}><Archive size={14} />Catalogue des tâches</button>
-      </nav>
-
       {loadError && <p className="ge-form-error">{loadError}</p>}
 
-      {pageTab === 'banque' ? (
-        <TaskTemplateBankTab
-          templates={templates}
-          teams={teams}
-          loading={loading}
-          onCreated={(t) => setTemplates((prev) => [...prev, t])}
-          onUpdated={(t) => setTemplates((prev) => prev.map((x) => x.id === t.id ? t : x))}
-          onDeleted={(id) => setTemplates((prev) => prev.filter((x) => x.id !== id))}
-        />
-      ) : (
-        <TaskAttributionTab
-          teams={teams} tasks={tasks} projects={projects} templates={templates} lignes={lignes} loading={loading}
-          setTasks={setTasks} actionError={actionError} setActionError={setActionError}
-        />
-      )}
+      <TaskTemplateBankTab
+        templates={templates}
+        teams={teams}
+        loading={loading}
+        onCreated={(t) => setTemplates((prev) => [...prev, t])}
+        onUpdated={(t) => setTemplates((prev) => prev.map((x) => x.id === t.id ? t : x))}
+        onDeleted={(id) => setTemplates((prev) => prev.filter((x) => x.id !== id))}
+        onImported={() => { fetchTaskTemplates().then(setTemplates).catch(() => {}) }}
+      />
     </section>
   )
 }

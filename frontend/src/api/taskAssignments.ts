@@ -11,6 +11,9 @@ export interface TaskAssignment {
   user_nom: string
   user_grade: number
   heures: number
+  /** Étapes/explications laissées par le manager à l'attribution, pour faciliter la
+   * compréhension de l'exécution par la personne staffée. */
+  instructions: string
   ehs_consomme: number
   montant_fcfa: number
   execution_statut: TaskExecutionStatut
@@ -53,7 +56,7 @@ export const fetchTaskAssignments = (params?: { task?: number; user?: number }) 
   return apiGet<TaskAssignment[]>(`/task-assignments/${qs ? `?${qs}` : ''}`)
 }
 
-export const createTaskAssignment = (data: { task: number; user: number; heures: number }) =>
+export const createTaskAssignment = (data: { task: number; user: number; heures: number; instructions?: string }) =>
   apiPost<TaskAssignment>('/task-assignments/', data)
 
 export const updateTaskAssignment = (id: number, data: { heures: number }) =>

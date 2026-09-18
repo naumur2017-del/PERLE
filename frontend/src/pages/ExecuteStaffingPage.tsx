@@ -481,6 +481,12 @@ export default function ExecuteStaffingPage({
                   <div><dt>Projet</dt><dd>{selected.project_nom ? `${selected.project_code} — ${selected.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
                   <div><dt>Tâche</dt><dd>{selected.template_nom}</dd></div>
                   {selected.task_description && <div className="es-detail-block"><dt>Description</dt><dd>{selected.task_description}</dd></div>}
+                  {selected.instructions && (
+                    <div className="es-detail-block es-detail-instructions">
+                      <dt><Info size={12} />Instructions du manager</dt>
+                      <dd>{selected.instructions}</dd>
+                    </div>
+                  )}
                   <div><dt>Attribuée par</dt><dd>{selected.task_created_by_nom ?? '—'}</dd></div>
                   <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
                   <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>

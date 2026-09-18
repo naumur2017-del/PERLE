@@ -3,23 +3,35 @@ import { apiDelete, apiGet, apiPatch, apiPost } from './client'
 export type ProjectStatut = 'brouillon' | 'definitif'
 export type TypeMontant = 'HT' | 'TTC'
 
+export type ProjectLigneType = 'M' | 'E'
+
 export interface ProjectLigne {
   id: number
   code: string
-  ligne_budgetaire: number
+  /** 'M' Monétaire : ligne réelle de l'Architecture monétaire (ligne_budgetaire, plafonnée par
+   * son montant_prevu). 'E' EHS : élément du catalogue de l'Architecture des tâches
+   * (task_template), sans plafond — le montant est simplement converti en EHS (ehs_equivalent). */
+  type_ligne: ProjectLigneType
+  ligne_budgetaire: number | null
   ligne_budgetaire_nom: string
   ligne_budgetaire_code: string
   ligne_budgetaire_declinaison: string
   ligne_budgetaire_montant_prevu: number | null
-  equipe: number
+  task_template: number | null
+  task_template_nom: string
+  task_template_code: string
+  equipe: number | null
   equipe_nom: string
   equipe_code: string
   montant: number
   /** Somme réelle de TaskAssignment.montant_fcfa déjà staffé sur cette ligne (voir
    * ProjectLigneSerializer.get_montant_consomme_fcfa côté backend) — dès le staffing, pas
-   * seulement une fois la tâche terminée. */
+   * seulement une fois la tâche terminée. Toujours 0 pour une ligne EHS ('E'). */
   montant_consomme_fcfa: number
   montant_reste_fcfa: number
+  /** Montant converti en EHS via Organisation.taux_ehs_fcfa — uniquement pour une ligne EHS
+   * ('E'), null sinon. */
+  ehs_equivalent: number | null
   date_debut: string | null
   date_fin: string | null
   /** Ligne « Charges transversales » (Ressources) attribuée d'office au projet — non supprimable. */
@@ -85,7 +97,9 @@ export const updateProject = (id: number, data: Partial<ProjectFormValues>) =>
 export const deleteProject = (id: number) => apiDelete(`/projects/${id}/`)
 
 export interface ProjectLigneFormValues {
-  ligne_budgetaire: number
+  type_ligne: ProjectLigneType
+  ligne_budgetaire?: number | null
+  task_template?: number | null
   montant: number
   date_debut?: string | null
   date_fin?: string | null

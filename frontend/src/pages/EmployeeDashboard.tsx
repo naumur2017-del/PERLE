@@ -77,6 +77,15 @@ export default function EmployeeDashboard({ session, navigateTo }: { session: Se
     </div>}
 
     <div className="dsh-kpi-grid">
+      <KpiCard loading={loading} icon="🔔" tone={(kpi?.new_tasks ?? 0) > 0 ? 'warn' : 'ok'} label="Nouvelles tâches attribuées"
+        value={String(kpi?.new_tasks ?? 0)}
+        trend={{
+          direction: (kpi?.new_tasks ?? 0) > 0 ? 'down' : 'flat',
+          text: 'À démarrer',
+          good: (kpi?.new_tasks ?? 0) === 0,
+        }}
+        details="Tâches qui vous ont été attribuées, pas encore démarrées"
+        onOpen={() => navigateTo('staffing-execute')} />
       <KpiCard loading={loading} icon="▤" tone="primary" label="Mes tâches actives"
         value={String(kpi?.active_tasks ?? 0)}
         trend={{ direction: 'flat', text: `${kpi?.hours_in_progress ?? 0} h en cours` }}

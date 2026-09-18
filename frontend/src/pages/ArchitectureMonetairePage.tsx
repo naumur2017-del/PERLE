@@ -2,15 +2,16 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Ban, CheckCircle2, ChevronDown, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
-  FolderClosed, FolderOpen, Layers, MoreVertical, Pencil, Plus, RotateCcw, Search, Trash2, X,
+  FolderClosed, FolderOpen, Layers, MoreVertical, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X,
 } from 'lucide-react'
 import {
-  createLigneBudgetaire, deleteLigneBudgetaire, fetchLignesBudgetaires, updateLigneBudgetaire,
-  type LigneBudgetaire,
+  createLigneBudgetaire, deleteLigneBudgetaire, downloadLigneBudgetaireModele, fetchLignesBudgetaires,
+  importLignesBudgetaires, updateLigneBudgetaire, type LigneBudgetaire,
 } from '../api/architectureMonetaire'
 import { fetchTeams, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
+import ExcelImportModal from '../components/ExcelImportModal'
 import './ArchitectureMonetairePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -232,6 +233,7 @@ export default function ArchitectureMonetairePage() {
   const [perPage, setPerPage] = useState(25)
   const [createFor, setCreateFor] = useState<{ parent: LigneBudgetaire | null } | null>(null)
   const [editingLigne, setEditingLigne] = useState<LigneBudgetaire | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -246,6 +248,13 @@ export default function ArchitectureMonetairePage() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
+
+  const reloadAfterImport = () => {
+    fetchLignesBudgetaires().then((lignesData) => {
+      setLignes(lignesData)
+      setExpandedIds(new Set(lignesData.filter((l) => l.niveau === 1).map((l) => l.id)))
+    }).catch(() => {})
+  }
 
   const treeMode = search.trim() === '' && equipeFilter === 'toutes' && niveauFilter === 'tous'
 
@@ -340,6 +349,9 @@ export default function ArchitectureMonetairePage() {
       <div className="ge-header-row">
         <div />
         <div className="ge-header-actions">
+          <button type="button" className="ge-btn-outline" onClick={() => setImportOpen(true)}>
+            <Upload size={14} />Importer depuis Excel
+          </button>
           <button type="button" className="ge-btn-primary" onClick={() => setCreateFor({ parent: null })} disabled={teams.length === 0}>
             <Plus size={14} />Nouvelle ligne budgétaire
           </button>
@@ -459,6 +471,16 @@ export default function ArchitectureMonetairePage() {
       )}
       {editingLigne && (
         <LigneBudgetaireModal mode="edit" teams={teams} lignes={lignes} initial={editingLigne} onClose={() => setEditingLigne(null)} onSubmit={handleUpdate} />
+      )}
+      {importOpen && (
+        <ExcelImportModal
+          title="Importer l’architecture monétaire"
+          hint="Téléchargez le modèle, remplissez une ligne par élément (code, nom, code parent, équipe...) puis importez le fichier."
+          onDownloadModele={downloadLigneBudgetaireModele}
+          onImport={importLignesBudgetaires}
+          onClose={() => setImportOpen(false)}
+          onImported={reloadAfterImport}
+        />
       )}
     </section>
   )
