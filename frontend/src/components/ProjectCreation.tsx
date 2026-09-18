@@ -166,6 +166,9 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     : null
 
   const reserveActive = reserveAmount > 0
+  // Le projet ne peut être enregistré définitivement que si le budget d'exécution est
+  // (quasi) intégralement attribué : reste ≤ 1 % (lignes budgétaires + réserve).
+  const resteDansLaTolerance = Math.abs(restePercent) <= 1
 
   const goToChargesStep = () => setStep(2)
 
@@ -248,6 +251,10 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
     setSaveMenuOpen(false)
     setFormError(null)
     if (!projectName.trim()) { setFormError('Le nom du projet est requis.'); return }
+    if (mode === 'definitif' && !resteDansLaTolerance) {
+      setFormError(`Le reste du budget (${fmtPercent(restePercent)}) doit être proche de 0 % (au maximum 1 %) avant d’enregistrer définitivement le projet. Ajustez les lignes budgétaires ou affectez le reste en réserve.`)
+      return
+    }
     setSaving(true)
     try {
       const payload: ProjectFormValues = {
@@ -426,7 +433,14 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
               {saveMenuOpen && (
                 <ul className="save-project-menu" onMouseLeave={() => setSaveMenuOpen(false)}>
                   <li><button type="button" onClick={() => saveProject('brouillon')}>Enregistrer dans le brouillon</button></li>
-                  <li><button type="button" onClick={() => saveProject('definitif')}>Enregistrer définitivement le projet</button></li>
+                  <li>
+                    <button
+                      type="button"
+                      disabled={!resteDansLaTolerance}
+                      title={resteDansLaTolerance ? undefined : `Le reste du budget (${fmtPercent(restePercent)}) doit être proche de 0 % (au maximum 1 %) pour enregistrer définitivement.`}
+                      onClick={() => saveProject('definitif')}
+                    >Enregistrer définitivement le projet</button>
+                  </li>
                 </ul>
               )}
             </div>

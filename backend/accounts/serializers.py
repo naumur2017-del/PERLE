@@ -1322,12 +1322,16 @@ class ProjectLigneSerializer(serializers.ModelSerializer):
         return self.context['project'] if self.instance is None else self.instance.project
 
     def validate_ligne_budgetaire(self, value):
+        if value is None:
+            return value
         request = self.context['request']
         if value.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError('Cette ligne budgétaire n’appartient pas à votre organisation.')
         return value
 
     def validate_task_template(self, value):
+        if value is None:
+            return value
         request = self.context['request']
         if value.organisation_id != request.user.organisation_id:
             raise serializers.ValidationError('Cet élément du catalogue de tâches n’appartient pas à votre organisation.')
@@ -2023,7 +2027,7 @@ class TaskSerializer(serializers.ModelSerializer):
         organisation = request.user.organisation
         ligne_budgetaire = validated_data['ligne_budgetaire']
         equipe = ligne_budgetaire.equipe
-        code = next_task_code(organisation)
+        code = next_task_code(organisation, equipe)
         return Task.objects.create(
             organisation=organisation, equipe=equipe, code=code, created_by=request.user, **validated_data
         )

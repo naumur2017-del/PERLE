@@ -9,4 +9,7 @@
 .excel-import-errors { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
 .excel-import-errors li { padding: 7px 9px; border-radius: 6px; background: #fdeeee; color: #a33a3a; font-size: 11px; font-weight: 600; line-height: 1.4; }
 
+.excel-import-warnings { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+.excel-import-warnings li { padding: 7px 9px; border-radius: 6px; background: #fdf3e0; color: #8a6116; font-size: 11px; font-weight: 600; line-height: 1.4; }
+
 .excel-import-file { display: flex; align-items: center; gap: 8px; }

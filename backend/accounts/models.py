@@ -1188,10 +1188,11 @@ class Task(models.Model):
         return f'{self.code} — {self.template.nom if self.template_id else self.description[:40]}'
 
 
-def next_task_code(organisation):
-    year = timezone.localdate().year
-    prefix = f'TSK-{year}-'
-    count = Task.objects.filter(organisation=organisation, code__startswith=prefix).count()
+def next_task_code(organisation, equipe):
+    """Code séquentiel par équipe (TSK-<code équipe>-001, 002…) plutôt que par année : permet de
+    dénombrer directement le nombre de tâches faites par équipe à la lecture du code."""
+    prefix = f'TSK-{equipe.code}-'
+    count = Task.objects.filter(organisation=organisation, equipe=equipe).count()
     return f'{prefix}{str(count + 1).zfill(3)}'
 
 

@@ -3,7 +3,8 @@ import { Download, UploadCloud, X } from 'lucide-react'
 import './ExcelImportModal.css'
 
 export interface ImportRowError { ligne: number; code: string; erreurs: Record<string, unknown> }
-export interface ImportResult { created: number; errors: ImportRowError[]; items: unknown[] }
+export interface ImportRowWarning { ligne: number; code: string; message: string }
+export interface ImportResult { created: number; errors: ImportRowError[]; avertissements?: ImportRowWarning[]; items: unknown[] }
 
 function formatRowError(erreurs: Record<string, unknown>): string {
   return Object.entries(erreurs)
@@ -92,6 +93,13 @@ export default function ExcelImportModal({ title, hint, onDownloadModele, onImpo
           {result && (
             <div className="excel-import-summary">
               <strong>{result.created}</strong> élément{result.created > 1 ? 's' : ''} importé{result.created > 1 ? 's' : ''} avec succès.
+              {result.avertissements && result.avertissements.length > 0 && (
+                <ul className="excel-import-warnings">
+                  {result.avertissements.map((warning, index) => (
+                    <li key={index}>Ligne {warning.ligne}{warning.code ? ` (${warning.code})` : ''} : {warning.message}</li>
+                  ))}
+                </ul>
+              )}
               {result.errors.length > 0 && (
                 <ul className="excel-import-errors">
                   {result.errors.map((rowError, index) => (
