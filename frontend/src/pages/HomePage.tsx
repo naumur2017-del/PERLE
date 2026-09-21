@@ -40,7 +40,7 @@ export default function HomePage({ session, navigateTo }: { session: Session; na
         >{t(item.label)}</button>
       ))}
     </div>
-    {content}
+    <div className="home-dash-content" key={tab}>{content}</div>
   </div>
 }
 

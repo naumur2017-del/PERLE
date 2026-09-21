@@ -474,7 +474,7 @@ export default function ExecuteStaffingPage({
 
                 <div className="es-detail-id">
                   <strong>{selected.task_code}</strong>
-                  <span className="es-detail-badge">{selected.template_code}</span>
+                  {selected.template_code && <span className="es-detail-badge">{selected.template_code}</span>}
                 </div>
 
                 <dl className="es-detail-info">

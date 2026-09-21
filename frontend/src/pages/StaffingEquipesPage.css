@@ -5,3 +5,9 @@
 .se-title-row h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; font-weight: 700; color: #14123a; }
 .se-title-info { color: #a8a8bd; }
 .se-title-row p { margin: 4px 0 0; font-size: 12.5px; color: #6c6c85; max-width: 640px; }
+
+/* .dsh-root porte sa propre marge horizontale (dashboard.css), pensée pour les pages qui n'ont
+   pas d'autre conteneur. Ici il partage la page avec .arch-page, qui a déjà sa marge : on retire
+   celle du tableau de bord pour qu'il s'aligne sur la même largeur que le tableau en dessous,
+   plutôt que de créer une double marge. */
+.se-dashboard.dsh-root { padding-left: 0; padding-right: 0; }

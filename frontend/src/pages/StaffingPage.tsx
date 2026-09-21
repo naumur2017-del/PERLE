@@ -326,7 +326,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                         )}
                         {filtered.map((task) => (
                           <tr key={task.id} className={selectedId === task.id ? 'ns-row-selected' : ''} onClick={() => handleSelect(task)}>
-                            <td className="ns-code">{task.template_code}</td>
+                            <td className="ns-code">{task.code}</td>
                             <td>{task.project_nom ?? 'Transversale'}</td>
                             <td className="ns-name">{task.template_nom}</td>
                             <td>{task.equipe_nom}</td>

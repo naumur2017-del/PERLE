@@ -454,8 +454,9 @@ export default function ProjectCreation({ onCancel }: { onCancel: () => void }) 
             <article className="financial-card purple"><span>Marge ({margePct}%)</span><strong>{fmtFcfa(margeMontant)}</strong><small>{fmtPercent(margePct)}</small></article>
             <article className="financial-card orange"><span>Charges transversales ({chargesPct}%)</span><strong>{fmtFcfa(chargesMontant)}</strong><small>{fmtPercent(chargesPct)}</small></article>
             <article className="financial-card blue"><span>Budget d’exécution</span><strong>{fmtFcfa(budgetExecution)}</strong><small>{fmtPercent(montant > 0 ? (budgetExecution / montant) * 100 : 0)}</small></article>
-            <article className="financial-card cyan"><span>TVA ({tvaPct}%)</span><strong>{fmtFcfa(tvaMontant)}</strong><small>{fmtPercent(tvaPct)}</small></article>
-            <article className="financial-card cyan"><span>IR ({irPct}%)</span><strong>{fmtFcfa(irMontant)}</strong><small>{fmtPercent(irPct)}</small></article>
+            {typeMontant === 'TTC'
+              ? <article className="financial-card cyan"><span>TVA ({tvaPct}%)</span><strong>{fmtFcfa(tvaMontant)}</strong><small>{fmtPercent(tvaPct)}</small></article>
+              : <article className="financial-card cyan"><span>IR ({irPct}%)</span><strong>{fmtFcfa(irMontant)}</strong><small>{fmtPercent(irPct)}</small></article>}
           </div>
 
           <div className="budget-strip">

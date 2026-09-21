@@ -13,9 +13,13 @@ import {
   createTask, deleteTask, fetchTasks, updateTask, type Task, type TaskFormValues,
   type TaskPriorite, type TaskStatut,
 } from '../api/tasks'
-import { fetchTaskTemplates, type TaskTemplate } from '../api/taskTemplates'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
+import { Panel, KpiCard, type PanelState } from '../components/dashboard/DashboardUI'
+import { TasksTrendChart } from '../components/dashboard/ManagerCharts'
+import { TeamTasksBarChart, TaskStatusDonut, ProjectBudgetScatter } from '../components/dashboard/StaffingCharts'
+import { formatMontant } from '../utils/currency'
+import '../components/dashboard/dashboard.css'
 import './StaffingEquipesPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -55,16 +59,18 @@ const STATUT_OPTIONS: { value: TaskStatut; label: string }[] = [
   { value: 'refusee', label: 'Refusée' },
 ]
 
+const MONTHS_FR = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.']
+
 const PAGE_SIZE = 8
 
 type PanelMode = { kind: 'create'; from?: Task } | { kind: 'edit'; task: Task } | { kind: 'view'; task: Task } | null
 
-interface LigneOption { value: number; label: string; declinaison: string }
+interface LigneOption { value: number; label: string }
 
 function exportTasksCsv(tasks: Task[]) {
   const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Sous-ligne', 'Date de début', 'Échéance', 'Priorité', 'Statut', 'Créé le']
   const rows = tasks.map((t) => [
-    t.template_code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
+    t.code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
     `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
     t.ligne_budgetaire_declinaison, formatDate(t.date_debut), formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
   ])
@@ -81,11 +87,10 @@ function exportTasksCsv(tasks: Task[]) {
   URL.revokeObjectURL(url)
 }
 
-function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreated, onUpdated, onDeleteRequest }: {
+function TaskPanel({ mode, teams, projects, lignes, onClose, onCreated, onUpdated, onDeleteRequest }: {
   mode: Exclude<PanelMode, null>
   teams: Team[]
   projects: Project[]
-  templates: TaskTemplate[]
   lignes: LigneBudgetaire[]
   onClose: () => void
   onCreated: (task: Task) => void
@@ -93,12 +98,12 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
   onDeleteRequest: (task: Task) => void
 }) {
   const seed = mode.kind === 'create' ? mode.from : mode.task
-  const [templateId, setTemplateId] = useState<number | null>(seed?.template ?? null)
   const [description, setDescription] = useState(seed?.description ?? '')
   const [transversale, setTransversale] = useState(seed ? seed.project === null : false)
   const [projectId, setProjectId] = useState<number | null>(seed?.project ?? null)
   const [equipeId, setEquipeId] = useState<number | null>(seed?.equipe ?? null)
   const [ligneId, setLigneId] = useState<number | null>(seed?.ligne_budgetaire ?? null)
+  const [sousLigneId, setSousLigneId] = useState<number | null>(null)
   const [dateDebut, setDateDebut] = useState(mode.kind === 'create' ? '' : seed?.date_debut ?? '')
   const [echeance, setEcheance] = useState(mode.kind === 'create' ? '' : seed?.echeance ?? '')
   const [priorite, setPriorite] = useState<TaskPriorite>(seed?.priorite ?? 'moyenne')
@@ -107,8 +112,6 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
   const [editing, setEditing] = useState(mode.kind !== 'view')
 
   const readOnly = mode.kind === 'view' && !editing
-  const activeTemplates = templates.filter((t) => t.actif || t.id === templateId)
-  const selectedTemplate = activeTemplates.find((t) => t.id === templateId) ?? null
   const selectedProject = projects.find((p) => p.id === projectId) ?? null
 
   // Une tâche ne peut être rattachée qu'à une ligne budgétaire monétaire (voir Task.ligne_budgetaire,
@@ -120,39 +123,42 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
   const selectedEquipe = teams.find((t) => t.id === equipeId) ?? null
 
   const ligneOptions: LigneOption[] = transversale
-    ? lignes.filter((l) => l.equipe === equipeId && l.actif).map((l) => ({ value: l.id, label: `${l.code} — ${l.nom}`, declinaison: l.declinaison }))
+    ? lignes.filter((l) => l.equipe === equipeId && l.actif).map((l) => ({ value: l.id, label: `${l.code} — ${l.nom}` }))
     : selectedProject
-      ? projectLignesMonetaires.filter((l) => l.equipe === equipeId).map((l) => ({ value: l.ligne_budgetaire as number, label: `${l.ligne_budgetaire_code} — ${l.ligne_budgetaire_nom}`, declinaison: l.ligne_budgetaire_declinaison }))
+      ? projectLignesMonetaires.filter((l) => l.equipe === equipeId).map((l) => ({ value: l.ligne_budgetaire as number, label: `${l.ligne_budgetaire_code} — ${l.ligne_budgetaire_nom}` }))
       : []
-  const selectedLigneOption = ligneOptions.find((l) => l.value === ligneId) ?? null
+  // Sous-lignes disponibles : les LigneBudgetaire directement enfants de la ligne sélectionnée
+  // (arborescence de l'Architecture monétaire) — vide si la ligne choisie est déjà une feuille.
+  const sousLigneOptions = ligneId === null ? [] : lignes.filter((l) => l.parent === ligneId && l.actif)
+  const selectedSousLigne = sousLigneOptions.find((l) => l.id === sousLigneId) ?? null
 
   const canSave = ligneId !== null && equipeId !== null && echeance !== ''
     && description.trim() !== '' && (transversale || projectId !== null)
-
-  const handleTemplateChange = (value: string) => {
-    const id = value === '' ? null : Number(value)
-    setTemplateId(id)
-    const tpl = templates.find((t) => t.id === id)
-    if (description.trim() === '' && tpl?.details) setDescription(tpl.details)
-    if (tpl) setPriorite(tpl.priorite_defaut)
-  }
 
   const handleTransversaleChange = (checked: boolean) => {
     setTransversale(checked)
     if (checked) setProjectId(null)
     setEquipeId(null)
     setLigneId(null)
+    setSousLigneId(null)
   }
 
   const handleProjectChange = (value: string) => {
     setProjectId(value === '' ? null : Number(value))
     setEquipeId(null)
     setLigneId(null)
+    setSousLigneId(null)
   }
 
   const handleEquipeChange = (value: string) => {
     setEquipeId(value === '' ? null : Number(value))
     setLigneId(null)
+    setSousLigneId(null)
+  }
+
+  const handleLigneChange = (value: string) => {
+    setLigneId(value === '' ? null : Number(value))
+    setSousLigneId(null)
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -161,10 +167,10 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
     setSaving(true)
     setError(null)
     const payload: TaskFormValues = {
-      template: templateId,
+      template: null,
       description: description.trim(),
       project: transversale ? null : projectId,
-      ligne_budgetaire: ligneId,
+      ligne_budgetaire: sousLigneId ?? ligneId,
       date_debut: dateDebut || null,
       echeance,
       priorite,
@@ -252,21 +258,18 @@ function TaskPanel({ mode, teams, projects, templates, lignes, onClose, onCreate
               </select>
             </label>
 
-            <label className="param-field">Tâche (depuis catalogue)
-              <select value={templateId ?? ''} onChange={(event) => handleTemplateChange(event.target.value)}>
-                <option value="">{activeTemplates.length === 0 ? 'Aucune tâche dans le catalogue' : 'Sélectionner une tâche'}</option>
-                {activeTemplates.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.nom}{t.type_element === 'dossier' ? ' (dossier)' : ''}</option>)}
-              </select>
-              {selectedTemplate?.details && <p className="charge-hint">{selectedTemplate.details}</p>}
-            </label>
             <label className="param-field">Ligne budgétaire *
-              <select required value={ligneId ?? ''} onChange={(event) => setLigneId(event.target.value === '' ? null : Number(event.target.value))} disabled={!equipeId}>
+              <select required value={ligneId ?? ''} onChange={(event) => handleLigneChange(event.target.value)} disabled={!equipeId}>
                 <option value="">{!equipeId ? 'Choisissez une équipe d’abord' : ligneOptions.length === 0 ? 'Aucune ligne disponible' : 'Sélectionner une ligne'}</option>
                 {ligneOptions.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>
             </label>
             <label className="param-field">Sous-ligne
-              <input readOnly value={ligneId === null ? '' : (selectedLigneOption?.declinaison || 'Aucune déclinaison pour cette ligne')} placeholder="Sélectionnez d’abord une ligne budgétaire" />
+              <select value={sousLigneId ?? ''} onChange={(event) => setSousLigneId(event.target.value === '' ? null : Number(event.target.value))} disabled={ligneId === null}>
+                <option value="">{ligneId === null ? 'Sélectionnez d’abord une ligne budgétaire' : sousLigneOptions.length === 0 ? 'Aucune sous-ligne disponible' : 'Sélectionner une sous-ligne'}</option>
+                {sousLigneOptions.map((l) => <option key={l.id} value={l.id}>{l.code} — {l.nom}</option>)}
+              </select>
+              {selectedSousLigne?.declinaison && <p className="charge-hint">{selectedSousLigne.declinaison}</p>}
             </label>
 
             <label className="param-field arch-panel-full">Description / Contexte *
@@ -288,7 +291,6 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
   const [teams, setTeams] = useState<Team[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
-  const [templates, setTemplates] = useState<TaskTemplate[]>([])
   const [lignes, setLignes] = useState<LigneBudgetaire[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -306,12 +308,11 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
   const [panel, setPanel] = useState<PanelMode>(null)
 
   useEffect(() => {
-    Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchTaskTemplates(), fetchLignesBudgetaires()])
-      .then(([teamsData, tasksData, projectsData, templatesData, lignesData]) => {
+    Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchLignesBudgetaires()])
+      .then(([teamsData, tasksData, projectsData, lignesData]) => {
         setTeams(teamsData)
         setTasks(tasksData)
         setProjects(projectsData)
-        setTemplates(templatesData)
         setLignes(lignesData)
       })
       .catch(() => setLoadError('Impossible de charger le staffing des équipes.'))
@@ -388,6 +389,58 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
     }
   }
 
+  const dashboardState: PanelState = loadError ? 'error' : loading ? 'loading' : 'ready'
+
+  const projetsDefinitifs = projects.filter((p) => p.statut === 'definitif')
+  const budgetTotalEngage = projetsDefinitifs.reduce((sum, p) => sum + p.budget_execution, 0)
+  const tachesEnvoyees = tasks.filter((t) => t.statut === 'envoyee').length
+  const tachesDecidees = tasks.filter((t) => t.statut === 'acceptee' || t.statut === 'refusee')
+  const tauxAcceptation = tachesDecidees.length > 0
+    ? Math.round((tachesDecidees.filter((t) => t.statut === 'acceptee').length / tachesDecidees.length) * 100)
+    : null
+  const equipesActives = new Set(tasks.map((t) => t.equipe)).size
+
+  const tachesParEquipe = teams
+    .map((team) => ({ label: team.name, value: tasks.filter((t) => t.equipe === team.id).length }))
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+
+  const repartitionStatut = [
+    { label: 'Envoyée', value: tasks.filter((t) => t.statut === 'envoyee').length },
+    { label: 'Acceptée', value: tasks.filter((t) => t.statut === 'acceptee').length },
+    { label: 'Refusée', value: tasks.filter((t) => t.statut === 'refusee').length },
+  ]
+
+  // Évolution des tâches sur les 7 derniers mois : créées (date de création) vs
+  // acceptées (date de décision du manager) — même fenêtre que ManagerDashboard.
+  const now = new Date()
+  const trendBuckets = Array.from({ length: 7 }, (_, i) => {
+    const start = new Date(now.getFullYear(), now.getMonth() - (6 - i), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() - (6 - i) + 1, 1)
+    return { label: MONTHS_FR[start.getMonth()], start, end, created: 0, done: 0 }
+  })
+  tasks.forEach((t) => {
+    const createdAt = new Date(t.created_at)
+    const createdBucket = trendBuckets.find((b) => createdAt >= b.start && createdAt < b.end)
+    if (createdBucket) createdBucket.created += 1
+    if (t.statut === 'acceptee' && t.statut_decide_le) {
+      const decideAt = new Date(t.statut_decide_le)
+      const decideBucket = trendBuckets.find((b) => decideAt >= b.start && decideAt < b.end)
+      if (decideBucket) decideBucket.done += 1
+    }
+  })
+  const tasksTrend = trendBuckets.map((b) => ({ label: b.label, created: b.created, done: b.done }))
+
+  const projectScatterData = projetsDefinitifs.map((p) => {
+    const attribue = p.lignes.reduce((sum, l) => sum + l.montant, 0)
+    return {
+      label: p.nom,
+      budgetExecution: p.budget_execution,
+      attribuePercent: p.budget_execution > 0 ? (attribue / p.budget_execution) * 100 : 0,
+    }
+  })
+
   return (
     <section className="arch-page se-page">
       <div className="se-title-row">
@@ -399,6 +452,56 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
       </div>
 
       {loadError && <p className="ge-form-error">{loadError}</p>}
+
+      <div className="dsh-root se-dashboard">
+        <div className="dsh-kpi-grid">
+          <KpiCard loading={loading} icon="▦" tone="primary" label="Projets enregistrés"
+            value={String(projetsDefinitifs.length)}
+            trend={{ direction: 'flat', text: `${Math.max(0, projects.length - projetsDefinitifs.length)} en brouillon` }}
+            details="Projets définitivement enregistrés"
+            onOpen={() => navigateTo('pilotage')} />
+          <KpiCard loading={loading} icon="◈" tone="ok" label="Budget total engagé"
+            value={formatMontant(budgetTotalEngage, undefined, { notation: 'compact' })}
+            trend={{ direction: 'flat', text: 'Budget d’exécution cumulé' }}
+            details="Sur les projets enregistrés"
+            onOpen={() => navigateTo('pilotage')} />
+          <KpiCard loading={loading} icon="▤" tone="primary" label="Tâches attribuées"
+            value={String(tasks.length)}
+            trend={{ direction: 'flat', text: `${equipesActives} équipe(s) concernée(s)` }}
+            details="Toutes équipes confondues"
+            onOpen={() => changeFilter(() => { setFilterStatut('tous'); setFilterEquipe('tous') })} />
+          <KpiCard loading={loading} icon="⏳" tone={tachesEnvoyees > 0 ? 'warn' : 'ok'} label="Tâches à valider"
+            value={String(tachesEnvoyees)}
+            trend={{ direction: tachesEnvoyees > 0 ? 'down' : 'flat', text: 'En attente de décision', good: tachesEnvoyees === 0 }}
+            details="Envoyées, pas encore décidées"
+            onOpen={() => changeFilter(() => setFilterStatut('envoyee'))} />
+          <KpiCard loading={loading} icon="✓" tone={tauxAcceptation === null || tauxAcceptation >= 70 ? 'ok' : 'warn'} label="Taux d’acceptation"
+            value={tauxAcceptation === null ? '—' : `${tauxAcceptation} %`}
+            trend={{ direction: 'flat', text: `${tachesDecidees.length} décision(s)` }}
+            details="Acceptées parmi les décidées"
+            onOpen={() => changeFilter(() => setFilterStatut('acceptee'))} />
+          <KpiCard loading={loading} icon="☰" tone="primary" label="Équipes actives"
+            value={String(equipesActives)}
+            trend={{ direction: 'flat', text: `${teams.length} équipe(s) au total` }}
+            details="Ayant au moins une tâche"
+            onOpen={() => navigateTo('gestion-equipes')} />
+        </div>
+
+        <div className="dsh-grid">
+          <Panel className="dsh-col-7" title="Évolution des tâches" subtitle="Créées et acceptées par mois, sur les 7 derniers mois" state={dashboardState}>
+            <TasksTrendChart data={tasksTrend} />
+          </Panel>
+          <Panel className="dsh-col-5" title="Tâches par équipe" subtitle="Volume total attribué, toutes périodes confondues" state={dashboardState}>
+            <TeamTasksBarChart data={tachesParEquipe} />
+          </Panel>
+          <Panel className="dsh-col-5" title="Répartition par statut" subtitle="Décision du manager destinataire" state={dashboardState}>
+            <TaskStatusDonut data={repartitionStatut} />
+          </Panel>
+          <Panel className="dsh-col-7" title="Projets — budget vs attribution" subtitle="Un point par projet enregistré définitivement" state={dashboardState}>
+            <ProjectBudgetScatter data={projectScatterData} />
+          </Panel>
+        </div>
+      </div>
 
       <div className="arch-attribution">
         {actionError && <p className="ge-form-error">{actionError}</p>}
@@ -458,7 +561,7 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
                 {!loading && pageItems.map((task) => (
                   <tr key={task.id}>
                     <td className="arch-th-checkbox"><input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={`Sélectionner ${task.code}`} /></td>
-                    <td className="arch-code">{task.template_code}</td>
+                    <td className="arch-code">{task.code}</td>
                     <td>{task.project_nom ? <>{task.project_code}<br /><small>{task.project_nom}</small></> : <span className="arch-transversale-tag">– Transversale</span>}</td>
                     <td className="arch-name">{task.template_nom}</td>
                     <td>{task.equipe_code}</td>
@@ -508,7 +611,6 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
             mode={panel}
             teams={teams}
             projects={projects}
-            templates={templates}
             lignes={lignes}
             onClose={() => setPanel(null)}
             onCreated={handleCreated}

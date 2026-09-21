@@ -2008,9 +2008,16 @@ class TaskSerializer(serializers.ModelSerializer):
         project = attrs.get('project', getattr(self.instance, 'project', None))
         ligne_budgetaire = attrs.get('ligne_budgetaire', getattr(self.instance, 'ligne_budgetaire', None))
         # Tâche non transversale : la ligne budgétaire doit être une ligne effectivement
-        # attribuée à ce projet (voir Création de projet, étape 2).
+        # attribuée à ce projet (voir Création de projet, étape 2) — ou une sous-ligne (enfant)
+        # de celle-ci (voir Staffing des équipes, champ « Sous-ligne ») : l'attribution porte sur
+        # la ligne parente, une tâche peut viser plus précisément l'une de ses sous-lignes.
         if project is not None and ligne_budgetaire is not None:
-            if not ProjectLigne.objects.filter(project=project, ligne_budgetaire=ligne_budgetaire).exists():
+            chaine = []
+            noeud = ligne_budgetaire
+            while noeud is not None:
+                chaine.append(noeud)
+                noeud = noeud.parent
+            if not ProjectLigne.objects.filter(project=project, ligne_budgetaire__in=chaine).exists():
                 raise serializers.ValidationError({
                     'ligne_budgetaire': 'Cette ligne budgétaire n’est pas attribuée à ce projet.',
                 })

@@ -9,6 +9,44 @@
 @keyframes page-enter { from { opacity: 0; transform: translateY(4px); } }
 
 /* Bascule entre les tableaux de bord disponibles en tête de l'accueil (Direction / Manager /
-   Mon espace — un ou plusieurs onglets selon le profil de l'utilisateur, voir HomePage.tsx). */
-.home-dashboards { display: flex; flex-direction: column; gap: 12px; }
-.home-dash-tabs { align-self: flex-start; max-width: 100%; margin: 12px 32px 0; }
+   Mon espace — un ou plusieurs onglets selon le profil de l'utilisateur, voir HomePage.tsx).
+   Styles propres à cet endroit (pas de changement partagé avec .dsh-segmented, réutilisé ailleurs
+   pour les sélecteurs de période) : texte plus grand, transition douce, pastille active en relief. */
+.home-dashboards { display: flex; flex-direction: column; gap: 16px; }
+.home-dash-tabs {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 16px 32px 0;
+  padding: 4px;
+  gap: 2px;
+}
+/* Sélecteurs doublés (.home-dash-tabs.dsh-segmented) pour l'emporter sur les règles
+   .dsh-segmented déjà définies ailleurs (dashboard.css) à spécificité égale sinon. */
+.home-dash-tabs.dsh-segmented button {
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .1px;
+  color: var(--dsh-text-2, #3a3a55);
+  transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease, transform 150ms ease;
+}
+.home-dash-tabs.dsh-segmented button:hover:not(.is-active) { background: rgba(107, 70, 193, .08); color: var(--dsh-primary, #6b46c1); }
+.home-dash-tabs.dsh-segmented button.is-active {
+  background: var(--dsh-primary, #6b46c1);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(107, 70, 193, .28);
+  transform: translateY(-1px);
+}
+
+/* Le contenu change de clé React à chaque bascule d'onglet (voir HomePage.tsx) : il se remonte
+   donc et rejoue cette entrée en fondu/glissé, plutôt que de changer brutalement d'un tableau de
+   bord à l'autre. */
+.home-dash-content { animation: home-dash-enter 360ms cubic-bezier(.22, 1, .36, 1); }
+@keyframes home-dash-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-dash-content { animation: none; }
+  .home-dash-tabs button { transition: none; }
+}

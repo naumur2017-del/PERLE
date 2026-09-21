@@ -23,9 +23,7 @@
   --dsh-shadow: 0 1px 2px rgba(26, 26, 46, .05), 0 6px 18px rgba(107, 70, 193, .05);
 
   display: block;
-  max-width: 1400px;
   width: 100%;
-  margin: 0 auto;
   padding: 8px 32px 48px;
   color: var(--dsh-text);
   font-size: 13px;
@@ -212,7 +210,7 @@
   border-bottom: 1px solid var(--dsh-border);
 }
 .dsh-panel-head h3 { margin: 0; font-size: 13px; font-weight: 700; }
-.dsh-panel-head p { margin-top: 2px; color: var(--dsh-muted); font-size: 11px; }
+.dsh-panel-head p { margin-top: 2px; color: var(--dsh-text-2); font-size: 11.5px; }
 .dsh-panel-actions { flex-shrink: 0; }
 /* Le corps absorbe la hauteur gagnée en s'alignant sur son voisin ; son contenu principal
    (graphique, jauge EHS, tableau, alertes) est ensuite étiré pour occuper cet espace. */
@@ -243,7 +241,7 @@
 .dsh-chart-host { position: relative; display: flex; flex-direction: column; justify-content: center; }
 .dsh-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .dsh-grid-line, .dsh-grid { stroke: #efecf7; stroke-width: 1; }
-.dsh-axis { fill: var(--dsh-muted); font-size: 10px; }
+.dsh-axis { fill: var(--dsh-text-2); font-size: 11px; font-weight: 600; }
 .dsh-axis-line { stroke: var(--dsh-border-strong); stroke-width: 1; }
 .dsh-hit { cursor: pointer; }
 .dsh-hit:hover { fill: rgba(107, 70, 193, .05); }
@@ -276,7 +274,7 @@
 .dsh-tooltip i { width: 8px; height: 8px; border-radius: 2px; }
 
 .dsh-donut-value { fill: var(--dsh-text); font-size: 26px; font-weight: 700; }
-.dsh-donut-sub { fill: var(--dsh-muted); font-size: 11px; }
+.dsh-donut-sub { fill: var(--dsh-text-2); font-size: 11px; font-weight: 600; }
 .dsh-toggle { display: inline-flex; margin-bottom: 12px; padding: 3px; border: 1px solid var(--dsh-border); border-radius: 9px; background: var(--dsh-surface-2); }
 .dsh-toggle button { padding: 5px 12px; border: 0; border-radius: 6px; background: none; color: var(--dsh-text-2); font: inherit; font-size: 11.5px; }
 .dsh-toggle button.is-active { background: var(--dsh-primary); color: #fff; font-weight: 600; }
@@ -301,7 +299,7 @@
 .dsh-donut-legend button:hover { background: var(--dsh-surface-2); }
 .dsh-donut-legend i { width: 10px; height: 10px; border-radius: 2px; }
 .dsh-donut-legend em { font-style: normal; font-weight: 700; }
-.dsh-donut-legend small { grid-column: 2 / -1; color: var(--dsh-muted); font-size: 10.5px; }
+.dsh-donut-legend small { grid-column: 2 / -1; color: var(--dsh-text-2); font-size: 11px; font-weight: 600; }
 
 /* Barres de progression réutilisées par le portefeuille et les EHS */
 .dsh-track { position: relative; display: flex; align-items: center; height: 9px; margin: 4px 0; border-radius: 5px; background: #efecf7; }
