@@ -11,6 +11,10 @@ export interface TaskMessage {
   contenu: string
   attachment: string | null
   attachment_type: MessageAttachmentType | ''
+  /** Entrée générée automatiquement (tâche envoyée, acceptée/refusée, staffée, exécution
+   * démarrée/mise en pause/terminée…) plutôt qu'écrite par un utilisateur — voir
+   * backend _log_task_event. Affichée dans le même fil mais stylée différemment. */
+  est_systeme: boolean
   created_at: string
   edited_at: string | null
 }

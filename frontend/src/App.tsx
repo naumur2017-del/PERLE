@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage'
 import PilotagePage, { type PilotageFocusTarget } from './pages/PilotagePage'
 import ControleTachesPage from './pages/ControleTachesPage'
 import PerformanceStaffingPage from './pages/PerformanceStaffingPage'
+import WorkspaceOverviewPage from './pages/WorkspaceOverviewPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
 import ComptesOperationsPage from './pages/ComptesOperationsPage'
@@ -48,6 +49,7 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   pilotage: { path: '/pilotage', title: 'Pilotage des projets et gestion budgétaire', description: 'Vue globale des projets : budget, coûts, EHS, durées et avancement.' },
   'controle-taches': { path: '/pilotage/controle-taches', title: 'Contrôle des tâches', description: "Suivez l'avancement et la conformité des tâches EHS et monétaires de vos projets." },
   'controle-execution': { path: '/pilotage/controle-execution', title: 'Performance & Staffing', description: 'Suivez la performance de vos équipes et la mobilisation des ressources.' },
+  'pilotage-apercu': { path: '/pilotage/apercu', title: 'Aperçu de l’espace', description: 'Parcourez les projets de l’organisation, leurs équipes, lignes budgétaires et tâches.' },
   creation: { path: '/creation-projet', title: 'Création de projet', description: 'Créez et planifiez un nouveau projet.' },
   'staffing-equipes': { path: '/staffing/equipes', title: 'Staffing des équipes', description: 'Attribuez une tâche du catalogue à une équipe : elle est ensuite envoyée pour validation dans Nouveau staffing.' },
   staffing: { path: '/staffing', title: 'Nouveau staffing', description: 'Affectez les bonnes ressources aux bonnes tâches et suivez la planification en temps réel.' },
@@ -144,6 +146,16 @@ function App() {
     return Object.entries(pageConfig).find(([, page]) => page.path === window.location.pathname)?.[0] ?? 'accueil'
   }
 
+  // Ouvre un onglet directement sur le détail d'une tâche depuis une URL du type
+  // /staffing/equipes?task=123 (voir Aperçu de l'espace, qui ouvre ce lien via window.open) —
+  // consommé une fois par StaffingEquipesPage (TaskDetailModal), voir onFocusConsumed plus bas.
+  const getInitialTaskFocusFromUrl = () => {
+    if (window.location.pathname !== pageConfig['staffing-equipes'].path) return null
+    const raw = new URLSearchParams(window.location.search).get('task')
+    const id = raw ? Number(raw) : NaN
+    return Number.isFinite(id) && id > 0 ? id : null
+  }
+
   const [session, setSession] = useState<Session | null>(getSession)
   const [activeNav, setActiveNav] = useState(getPageFromPath)
   const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>({ pilotage: true })
@@ -166,6 +178,7 @@ function App() {
   const [executeFocusCode, setExecuteFocusCode] = useState<string | null>(null)
   const [executeFocusTaskId, setExecuteFocusTaskId] = useState<number | null>(null)
   const [staffingFocusTaskId, setStaffingFocusTaskId] = useState<number | null>(null)
+  const [equipesFocusTaskId, setEquipesFocusTaskId] = useState<number | null>(getInitialTaskFocusFromUrl)
   // Code d'une demande d'avance à reporter dans « Nouvelle demande de paiement » — voir
   // DemandesEmployesPage (clic sur une demande d'avance) et TresoreriePage (champ Code).
   const [paiementPrefillCode, setPaiementPrefillCode] = useState<string | null>(null)
@@ -410,6 +423,7 @@ function App() {
         { id: 'pilotage', label: 'Pilotage des projets et gestion budgétaire' },
         { id: 'controle-taches', label: 'Contrôle des tâches' },
         { id: 'controle-execution', label: 'Performance & Staffing' },
+        { id: 'pilotage-apercu', label: 'Aperçu de l’espace' },
       ],
     },
     { id: 'creation', label: 'Création de projet', icon: icons.creation, feature: 'projets:create' },
@@ -506,6 +520,7 @@ function App() {
       case 'pilotage': return <PilotagePage navigateTo={navigateTo} focusTarget={pilotageFocus} onFocusConsumed={() => setPilotageFocus(null)} />
       case 'controle-taches': return <ControleTachesPage navigateTo={navigateTo} onOpenLigneBudgetaire={openLigneBudgetaire} />
       case 'controle-execution': return <PerformanceStaffingPage navigateTo={navigateTo} />
+      case 'pilotage-apercu': return <WorkspaceOverviewPage navigateTo={navigateTo} />
       case 'creation': return can(session, 'projets:create')
         ? <CreationProjetPage onCancel={() => navigateTo('pilotage')} />
         : <RestrictedPage
@@ -514,7 +529,11 @@ function App() {
             navigateTo={navigateTo}
           />
       case 'staffing-equipes': return can(session, 'config:view')
-        ? <StaffingEquipesPage navigateTo={navigateTo} />
+        ? <StaffingEquipesPage
+            navigateTo={navigateTo}
+            focusTaskId={equipesFocusTaskId}
+            onFocusConsumed={() => setEquipesFocusTaskId(null)}
+          />
         : <RestrictedPage
             title="Staffing des équipes"
             message="Cette page est réservée à la Direction et au Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."

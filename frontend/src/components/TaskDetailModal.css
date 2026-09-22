@@ -1,0 +1,46 @@
+/* Sélecteur doublé (.tdm-modal.ge-modal) pour l'emporter sur .ge-modal (max-width: 380px,
+   GestionEquipesPage.css) à spécificité égale sinon. */
+.tdm-modal.ge-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 94vw);
+  max-width: 920px;
+  height: min(680px, 90vh);
+  padding: 0;
+  overflow: hidden;
+}
+
+.tdm-modal .ge-modal-head { padding: 18px 20px; border-bottom: 1px solid #f0eef8; }
+.tdm-head-actions { display: flex; align-items: center; gap: 10px; }
+
+.tdm-body { display: flex; flex: 1; min-height: 0; }
+
+.tdm-fields {
+  flex: 0 0 320px;
+  padding: 18px 20px;
+  border-right: 1px solid #f0eef8;
+  overflow-y: auto;
+}
+
+.tdm-thread { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tdm-thread-head {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0; padding: 14px 20px; border-bottom: 1px solid #f0eef8;
+  font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px;
+}
+
+.tdm-list { flex: 1; }
+
+.tdm-system-entry {
+  display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+  margin: 0; padding: 6px 10px; border-radius: 8px; background: #f7f5ff; align-self: center;
+  max-width: 90%; color: #6c6c85; font-size: 11px; text-align: center;
+}
+.tdm-system-entry span { font-weight: 700; color: #4a2f8f; }
+.tdm-system-entry time { margin-left: 4px; color: #a8a8bd; font-size: 10px; }
+
+@media (max-width: 720px) {
+  .tdm-modal { width: 96vw; height: 92vh; }
+  .tdm-body { flex-direction: column; overflow-y: auto; }
+  .tdm-fields { flex: 0 0 auto; border-right: none; border-bottom: 1px solid #f0eef8; }
+}

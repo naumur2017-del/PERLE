@@ -15,6 +15,7 @@ import {
 } from '../api/tasks'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
+import TaskDetailModal from '../components/TaskDetailModal'
 import { Panel, KpiCard, type PanelState } from '../components/dashboard/DashboardUI'
 import { TasksTrendChart } from '../components/dashboard/ManagerCharts'
 import { TeamTasksBarChart, TaskStatusDonut, ProjectBudgetScatter } from '../components/dashboard/StaffingCharts'
@@ -287,7 +288,11 @@ function TaskPanel({ mode, teams, projects, lignes, onClose, onCreated, onUpdate
   )
 }
 
-export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusConsumed }: {
+  navigateTo: (page: string) => void
+  focusTaskId?: number | null
+  onFocusConsumed?: () => void
+}) {
   const [teams, setTeams] = useState<Team[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -306,6 +311,9 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [panel, setPanel] = useState<PanelMode>(null)
+  // Tâche ouverte en détail complet (fiche + historique/discussion) depuis une navigation externe
+  // (ex. l'Aperçu de l'espace, ouvert dans un nouvel onglet via ?task=<id>) — voir TaskDetailModal.
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
 
   useEffect(() => {
     Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchLignesBudgetaires()])
@@ -318,6 +326,20 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
       .catch(() => setLoadError('Impossible de charger le staffing des équipes.'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Ouvre directement le détail complet de la tâche visée depuis une navigation externe (ex. un
+  // nouvel onglet ouvert depuis l'Aperçu de l'espace, ?task=<id>). N'agit qu'une fois les tâches
+  // chargées.
+  useEffect(() => {
+    if (focusTaskId == null || loading) return
+    const task = tasks.find((t) => t.id === focusTaskId)
+    if (task) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusTaskId), pas dérivé du rendu
+      setDetailTask(task)
+    }
+    onFocusConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à focusTaskId/loading/tasks
+  }, [focusTaskId, loading, tasks])
 
   const query = search.trim().toLowerCase()
   const filtered = tasks.filter((t) => (
@@ -618,6 +640,8 @@ export default function StaffingEquipesPage({ navigateTo }: { navigateTo: (page:
             onDeleteRequest={handleDeleteRequest}
           />
         )}
+
+        {detailTask && <TaskDetailModal task={detailTask} onClose={() => setDetailTask(null)} />}
       </div>
     </section>
   )

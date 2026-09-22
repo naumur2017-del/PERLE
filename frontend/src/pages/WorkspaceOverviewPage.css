@@ -1,0 +1,79 @@
+.ovw-page { display: flex; flex-direction: column; gap: 16px; width: 100%; padding: 20px 32px 28px; color: #1a1a2e; animation: ovw-enter 220ms ease-out; }
+@keyframes ovw-enter { from { opacity: 0; transform: translateY(6px); } }
+
+.ovw-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ovw-title-row h1 { margin: 0; font-size: 20px; font-weight: 700; color: #14123a; }
+.ovw-title-row p { margin: 4px 0 0; font-size: 12.5px; color: #6c6c85; max-width: 640px; }
+
+.ovw-search {
+  display: flex; align-items: center; gap: 8px; max-width: 360px;
+  padding: 9px 12px; border: 1px solid #e6e0f5; border-radius: 10px; background: #fff;
+  color: #8f8fa6;
+}
+.ovw-search input { flex: 1; border: 0; outline: none; font-size: 12.5px; color: #1a1a2e; background: none; }
+.ovw-search input::placeholder { color: #a8a8bd; }
+
+/* Tableau « Liste des projets », même convention que Pilotage des projets (PilotagePage.css :
+   .pil-table-panel/.pil-table/.pil-chevron-btn/.pil-expand-row/.pil-subtable) : lignes dépliables
+   plutôt qu'une navigation qui remplace la vue. */
+.ovw-table-panel { border: 1px solid #eae7f6; border-radius: 12px; background: #fff; }
+.ovw-table-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f0eef8; }
+.ovw-table-head h3 { margin: 0; font-size: 13.5px; font-weight: 700; color: #14123a; }
+
+.ovw-table-wrap { overflow-x: auto; }
+.ovw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ovw-table th, .ovw-table td { padding: 9px 10px; border-bottom: 1px solid #f0eef8; text-align: left; white-space: nowrap; }
+.ovw-table thead th { background: #faf9fe; color: #6c6c85; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+.ovw-table > tbody > tr:hover { background: #faf9ff; }
+.ovw-table .ovw-code { color: #6b46c1; font-weight: 700; }
+.ovw-table .ovw-name { font-weight: 600; color: #14123a; white-space: normal; }
+
+.ovw-expand-toggle { width: 30px; text-align: center; }
+.ovw-chevron-btn {
+  display: grid; place-items: center; width: 24px; height: 24px; margin: 0 auto;
+  border: 1px solid #e6e0f5; border-radius: 6px; background: #fff; color: #6c6c85; cursor: pointer;
+}
+.ovw-chevron-btn:hover { background: #f0eef8; color: #6b46c1; }
+.ovw-row-expanded { background: #faf9ff; }
+.ovw-expand-row td.ovw-expand-cell { padding: 0; background: #faf9ff; border-bottom: 1px solid #eae7f6; white-space: normal; }
+
+.ovw-subtable { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.ovw-subtable th, .ovw-subtable td { padding: 9px 10px 9px 40px; border-bottom: 1px solid #f0eef8; text-align: left; white-space: nowrap; }
+.ovw-subtable thead th { background: #f4f2fb; color: #6c6c85; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; padding-left: 40px; }
+.ovw-subtable tbody tr:last-child > td { border-bottom: none; }
+.ovw-subtable tbody tr:hover { background: #f4f2fb; }
+
+.ovw-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; padding: 14px 16px 14px 40px; }
+.ovw-panel { border: 1px solid #e6e0f5; border-radius: 12px; background: #fff; overflow: hidden; }
+.ovw-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-bottom: 1px solid #f0eef8; font-size: 12.5px; font-weight: 700; color: #14123a; }
+.ovw-panel .ovw-empty { margin: 0; padding: 16px; }
+.ovw-table-plain th, .ovw-table-plain td { padding: 8px 14px; white-space: normal; }
+.ovw-table-plain thead th { background: #faf9fe; }
+
+.ovw-pill { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.ovw-pill-definitif { background: #e6f5ec; color: #12864a; }
+.ovw-pill-brouillon { background: #fdf1e2; color: #b4620f; }
+.ovw-pill-statut-envoyee { background: #fdf1e2; color: #b4620f; }
+.ovw-pill-statut-acceptee { background: #e6f5ec; color: #12864a; }
+.ovw-pill-statut-refusee { background: #fdeceb; color: #c9271b; }
+
+.ovw-row-clickable { cursor: pointer; transition: background 120ms ease; }
+.ovw-row-clickable:hover, .ovw-row-clickable:focus-visible { background: #f3effe; }
+.ovw-row-clickable:focus-visible { outline: 2px solid #6b46c1; outline-offset: -2px; }
+
+/* Ligne budgétaire cliquée (colonne « Lignes budgétaires ») et sa (ses) tâche(s) correspondante(s)
+   mise(s) en évidence dans le tableau « Tâches » voisin — voir highlightedLigneBudgetaireId. */
+.ovw-row-selected, .ovw-row-selected:hover { background: #ede7fb; }
+.ovw-row-selected td:first-child { box-shadow: inset 3px 0 0 #6b46c1; }
+.ovw-row-highlighted, .ovw-row-highlighted:hover { background: #fdf3e0; animation: ovw-highlight-pulse 900ms ease-out; }
+@keyframes ovw-highlight-pulse {
+  0% { background: #fbe4b0; }
+  100% { background: #fdf3e0; }
+}
+
+.ovw-empty { margin: 0; padding: 24px 16px; color: #8f8fa6; font-size: 12.5px; text-align: center; }
+.ovw-error { color: #c9271b; }
+
+@media (max-width: 720px) {
+  .ovw-page { padding: 16px; }
+}

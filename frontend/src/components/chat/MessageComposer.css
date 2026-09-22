@@ -43,6 +43,8 @@
 
 .mc-preview img, .mc-preview video { display: block; max-width: 200px; max-height: 140px; border-radius: 8px; object-fit: cover; }
 .mc-preview audio { width: 210px; height: 34px; }
+.mc-preview-file { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: #35335c; font-size: 12px; font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-preview-file svg { flex: 0 0 auto; color: #6b46c1; }
 
 .mc-preview-remove {
   position: absolute;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
-import { Image as ImageIcon, Mic, Send, Square, X } from 'lucide-react'
+import { FileText, Mic, Paperclip, Send, Square, X } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import './MessageComposer.css'
 
@@ -16,7 +16,7 @@ const errorMessage = (error: unknown): string => {
   return "Impossible d'envoyer le message."
 }
 
-type PreviewKind = 'image' | 'video' | 'audio'
+type PreviewKind = 'image' | 'video' | 'audio' | 'file'
 
 interface MessageComposerProps {
   onSend: (contenu: string, attachment?: File) => Promise<void>
@@ -70,7 +70,12 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
     clearPending()
     setPendingFile(file)
     setPreviewUrl(URL.createObjectURL(file))
-    setPreviewKind(file.type.startsWith('video/') ? 'video' : 'image')
+    setPreviewKind(
+      file.type.startsWith('video/') ? 'video'
+        : file.type.startsWith('image/') ? 'image'
+          : file.type.startsWith('audio/') ? 'audio'
+            : 'file'
+    )
   }
 
   const startRecording = async () => {
@@ -159,6 +164,9 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
           {previewKind === 'image' && <img src={previewUrl} alt="Aperçu" />}
           {previewKind === 'video' && <video src={previewUrl} controls />}
           {previewKind === 'audio' && <audio src={previewUrl} controls />}
+          {previewKind === 'file' && (
+            <span className="mc-preview-file"><FileText size={18} />{pendingFile?.name}</span>
+          )}
           <button type="button" className="mc-preview-remove" onClick={clearPending} aria-label="Retirer la pièce jointe" disabled={sending}>
             <X size={14} />
           </button>
@@ -175,12 +183,12 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
           </div>
         ) : (
           <>
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" hidden onChange={handleFileChange} />
+            <input ref={fileInputRef} type="file" hidden onChange={handleFileChange} />
             <button
-              type="button" className="mc-icon-btn" title="Joindre une image ou une vidéo"
-              aria-label="Joindre une image ou une vidéo" onClick={() => fileInputRef.current?.click()} disabled={sending}
+              type="button" className="mc-icon-btn" title="Joindre un fichier (image, vidéo, document…)"
+              aria-label="Joindre un fichier" onClick={() => fileInputRef.current?.click()} disabled={sending}
             >
-              <ImageIcon size={18} />
+              <Paperclip size={18} />
             </button>
             <textarea
               ref={textareaRef}
