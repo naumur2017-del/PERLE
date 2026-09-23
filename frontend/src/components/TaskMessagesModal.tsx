@@ -12,6 +12,8 @@ import { TypingIndicator } from './chat/TypingIndicator'
 import { useTypingSignal } from '../hooks/useTypingSignal'
 import './TaskMessagesModal.css'
 
+const fmtHeure = (iso: string) => new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
 const errorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
     const payload = error.payload as Record<string, unknown> | null
@@ -136,6 +138,17 @@ export default function TaskMessagesModal({ taskId, title, subtitle, onClose, on
               <p className="tm-empty">Aucun message pour l'instant. Écrivez le premier — tout le monde engagé sur cette tâche le verra.</p>
             )}
             {messages.map((m) => {
+              // Mention automatique (tâche attribuée, échéance fixée, staffée, exécution…) :
+              // affichée dans le même fil que les messages écrits, mais comme une ligne
+              // d'activité centrée plutôt qu'une bulle de discussion — voir TaskMessage.est_systeme.
+              if (m.est_systeme) {
+                return (
+                  <div key={m.id} className="tm-system-event">
+                    <span className="tm-system-text"><strong>{m.auteur_nom ?? 'Quelqu’un'}</strong> {m.contenu}</span>
+                    <span className="tm-system-time">{fmtHeure(m.created_at)}</span>
+                  </div>
+                )
+              }
               const mine = m.auteur !== null && m.auteur === myId
               return (
                 <MessageBubble

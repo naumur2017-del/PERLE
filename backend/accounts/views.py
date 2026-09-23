@@ -305,13 +305,13 @@ class EmployeeListView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
-            raise PermissionDenied('Vous n’êtes pas autorisé à ajouter un employé.')
-        if not self.request.user.organisation_id:
-            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
         serializer.save()
 
     def create(self, request, *args, **kwargs):
+        if request.user.role not in ('admin', 'directeur'):
+            raise PermissionDenied('Vous n’êtes pas autorisé à ajouter un employé.')
+        if not request.user.organisation_id:
+            raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -787,6 +787,16 @@ def _task_libelle(task):
     optionnel), sinon un repli sur sa description libre (voir TaskSerializer.get_template_nom,
     même logique côté serializer)."""
     return task.template.nom if task.template_id else (task.description[:60] or 'Tâche libre')
+
+
+def _log_task_event(task, auteur, contenu):
+    """Poste une entrée générée automatiquement (« mention automatique ») dans le fil de
+    discussion de la tâche — même fil que les messages des utilisateurs (TaskMessage), mais
+    stylée différemment côté frontend (voir TaskMessage.est_systeme). `contenu` est la suite de
+    la phrase après le nom de l'auteur, ex. « a attribué la tâche « X » à l'équipe « Y ». » —
+    le manager de l'équipe (et toute personne déjà staffée) y a accès dès que la tâche existe
+    pour son équipe, sans mécanisme d'invitation séparé (voir _can_access_task_messages)."""
+    TaskMessage.objects.create(task=task, auteur=auteur, contenu=contenu, est_systeme=True)
 
 
 class CongeDemandeReviewView(generics.UpdateAPIView):
@@ -1278,6 +1288,18 @@ class TaskListCreateView(generics.ListCreateAPIView):
                 f'Nouvelle tâche « {_task_libelle(task)} » envoyée à votre équipe « {task.equipe.name} ».',
                 cible_type='task_envoyee', cible_id=task.id,
             )
+        # Mention automatique : chaque information clé de l'attribution devient un message dans
+        # le fil de la tâche, comme un récapitulatif horodaté — le manager de l'équipe y a déjà
+        # accès dès la création (voir _can_access_task_messages), pas besoin de l'y inviter.
+        auteur = self.request.user
+        _log_task_event(task, auteur, f'a attribué la tâche « {_task_libelle(task)} » à l’équipe « {task.equipe.name} ».')
+        if task.project_id:
+            _log_task_event(task, auteur, f'a rattaché la tâche au projet « {task.project.code} — {task.project.nom} ».')
+        if task.date_debut:
+            _log_task_event(task, auteur, f'a fixé la date de début au {task.date_debut.strftime("%d/%m/%Y")}.')
+        if task.echeance:
+            _log_task_event(task, auteur, f'a fixé l’échéance au {task.echeance.strftime("%d/%m/%Y")}.')
+        _log_task_event(task, auteur, f'a défini la priorité : {task.get_priorite_display()}.')
 
 
 def _can_manage_task(user, task):
@@ -1344,6 +1366,15 @@ class TaskDecisionView(generics.GenericAPIView):
         task.statut = decision
         task.statut_decide_le = timezone.now()
         task.save(update_fields=['statut', 'statut_decide_le'])
+        _log_task_event(task, request.user, 'a accepté la tâche.' if decision == 'acceptee' else 'a refusé la tâche.')
+        if task.created_by_id and task.created_by_id != request.user.id:
+            manager_nom = f'{request.user.first_name} {request.user.last_name}'.strip() or request.user.email
+            verbe = 'acceptée' if decision == 'acceptee' else 'refusée'
+            _notify(
+                task.created_by,
+                f'La tâche « {_task_libelle(task)} » a été {verbe} par {manager_nom}.',
+                cible_type='task', cible_id=task.id,
+            )
         return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
 
 
@@ -1382,6 +1413,8 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
                 f'Une tâche vous a été attribuée : {assignment.task.code} — {_task_libelle(assignment.task)}.',
                 cible_type='task', cible_id=assignment.task_id,
             )
+        assignee_nom = f'{assignee.first_name} {assignee.last_name}'.strip() or assignee.email
+        _log_task_event(assignment.task, self.request.user, f'a affecté {assignee_nom} à cette tâche ({assignment.heures} h).')
 
 
 class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1409,7 +1442,15 @@ class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if not _can_manage_task(self.request.user, instance.task):
             raise PermissionDenied('Vous n’êtes pas autorisé à retirer cette personne de la tâche.')
+        task, retire = instance.task, instance.user
         instance.delete()
+        retire_nom = f'{retire.first_name} {retire.last_name}'.strip() or retire.email
+        _log_task_event(task, self.request.user, f'a retiré {retire_nom} de cette tâche.')
+        if retire.id != self.request.user.id:
+            _notify(
+                retire, f'Vous avez été retiré(e) de la tâche « {_task_libelle(task)} ».',
+                cible_type='task', cible_id=task.id,
+            )
 
 
 def _segment_seconds(started_at):
@@ -1452,6 +1493,7 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
                     f'{membre} a {verbe} la tâche {task.code} — {_task_libelle(task)}.',
                     cible_type='task', cible_id=task.id,
                 )
+            _log_task_event(task, user, f'a {verbe} la tâche.')
 
         if action == 'demarrer':
             if assignment.execution_statut != 'a_demarrer':

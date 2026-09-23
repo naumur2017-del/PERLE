@@ -1750,8 +1750,8 @@ class TaskMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskMessage
-        fields = ['id', 'task', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'created_at', 'edited_at']
-        read_only_fields = ['id', 'task', 'auteur', 'auteur_nom', 'attachment_type', 'created_at', 'edited_at']
+        fields = ['id', 'task', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'est_systeme', 'created_at', 'edited_at']
+        read_only_fields = ['id', 'task', 'auteur', 'auteur_nom', 'attachment_type', 'est_systeme', 'created_at', 'edited_at']
 
     def get_auteur_nom(self, obj):
         return f'{obj.auteur.first_name} {obj.auteur.last_name}' if obj.auteur else None

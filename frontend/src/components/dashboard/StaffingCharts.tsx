@@ -5,7 +5,7 @@
 
 import { type MouseEvent, type ReactNode } from 'react'
 import { ChartTable } from './DashboardUI'
-import { focusPoint, labelStep, niceMax, useTooltip } from './chartTools'
+import { focusPoint, niceMax, useTooltip } from './chartTools'
 import { DIR_COLORS, DIR_PALETTE } from './directorData'
 import { formatMontant } from '../../utils/currency'
 

@@ -1259,11 +1259,16 @@ class TaskMessage(models.Model):
     contenu = models.TextField(blank=True)
     attachment = models.FileField(upload_to='task_messages/%Y/%m/', null=True, blank=True)
     attachment_type = models.CharField(max_length=10, choices=MESSAGE_ATTACHMENT_TYPE_CHOICES, blank=True)
+    # Entrée générée automatiquement par le serveur (tâche envoyée/acceptée/refusée/staffée,
+    # exécution démarrée/mise en pause/reprise/terminée/déclinée…) plutôt qu'écrite par un
+    # utilisateur — voir _log_task_event dans les vues. `auteur` reste la personne qui a
+    # effectué l'action ; seul l'affichage change côté frontend (voir api/taskMessages.ts).
+    est_systeme = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ['created_at', 'id']
 
     def __str__(self):
         return f'{self.task.code} — {self.auteur.email if self.auteur else "?"} @ {self.created_at:%Y-%m-%d %H:%M}'
