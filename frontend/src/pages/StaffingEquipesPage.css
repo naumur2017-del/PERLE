@@ -11,3 +11,24 @@
    celle du tableau de bord pour qu'il s'aligne sur la même largeur que le tableau en dessous,
    plutôt que de créer une double marge. */
 .se-dashboard.dsh-root { padding-left: 0; padding-right: 0; }
+
+/* Pastille « En revue » (arch-pill-* couvre déjà envoyee/acceptee/refusee — voir ArchitecturePage.css) :
+   ton orange distinct de « Envoyée » pour ne pas confondre le statut de décision et la rubrique
+   d'exécution, affichés côte à côte dans la même cellule. */
+.se-pill-revue { background: #fff2df; color: #b4620f; }
+
+/* Modale « Clôturer la revue » (ReviewCloseModal) : une ligne par personne staffée non encore
+   notée, avec ses propres étoiles (réutilise su-rating-stars, SuiviStaffingPage.css, chargée
+   globalement) et un commentaire facultatif. */
+.se-review-modal { max-width: 520px; }
+.se-review-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.se-review-list li { padding: 10px 12px; border: 1px solid #eee9fa; border-radius: 10px; background: #fbfaff; display: flex; flex-direction: column; gap: 6px; }
+.se-review-nom { font-size: 12.5px; font-weight: 700; color: #14123a; }
+.se-review-list textarea { width: 100%; border: 1px solid #ddd8f2; border-radius: 7px; padding: 6px 8px; font-size: 11.5px; color: #2b2b4a; resize: vertical; }
+
+/* Bascule inline du statut de revue (En revue -> En cours / Terminée), directement dans le
+   tableau : pas de panneau ni de modale, un changement immédiat (voir handleOverride). */
+.se-revue-select {
+  display: inline-block; height: 20px; padding: 0 4px; border: 1px solid #f0c987; border-radius: 5px;
+  background: #fff2df; color: #b4620f; font-size: 10px; font-weight: 700; cursor: pointer;
+}

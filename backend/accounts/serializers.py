@@ -1750,8 +1750,8 @@ class TaskMessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskMessage
-        fields = ['id', 'task', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'created_at', 'edited_at']
-        read_only_fields = ['id', 'task', 'auteur', 'auteur_nom', 'attachment_type', 'created_at', 'edited_at']
+        fields = ['id', 'task', 'auteur', 'auteur_nom', 'contenu', 'attachment', 'attachment_type', 'est_systeme', 'created_at', 'edited_at']
+        read_only_fields = ['id', 'task', 'auteur', 'auteur_nom', 'attachment_type', 'est_systeme', 'created_at', 'edited_at']
 
     def get_auteur_nom(self, obj):
         return f'{obj.auteur.first_name} {obj.auteur.last_name}' if obj.auteur else None
@@ -1935,11 +1935,13 @@ class TaskSerializer(serializers.ModelSerializer):
             'ligne_budgetaire', 'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'ligne_budgetaire_declinaison',
             'equipe', 'equipe_nom', 'equipe_code', 'equipe_manager_nom',
             'date_debut', 'echeance', 'priorite', 'priorite_display',
-            'statut', 'statut_display', 'statut_decide_le',
+            'statut', 'statut_display', 'statut_decide_le', 'revue_override',
             'assignments', 'budget_ligne_montant', 'budget_reste_fcfa',
             'actif', 'created_by_nom', 'created_at',
         ]
-        read_only_fields = ['id', 'code', 'equipe', 'statut', 'statut_decide_le', 'created_at']
+        # revue_override ne se modifie que via TaskRevueOverrideView (permission et journalisation
+        # dédiées) : jamais par un PATCH générique sur la tâche.
+        read_only_fields = ['id', 'code', 'equipe', 'statut', 'statut_decide_le', 'revue_override', 'created_at']
 
     def get_template_nom(self, obj):
         if obj.template_id:

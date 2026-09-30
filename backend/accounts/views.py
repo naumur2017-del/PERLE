@@ -789,6 +789,77 @@ def _task_libelle(task):
     return task.template.nom if task.template_id else (task.description[:60] or 'Tâche libre')
 
 
+def _log_task_event(task, user, texte):
+    """Dépose une entrée automatique dans le fil de discussion de la tâche (TaskMessage,
+    est_systeme=True) pour qu'on retrouve l'historique complet des opérations (envoi, décision,
+    staffing, exécution…) directement dans sa fenêtre de détail — voir TaskDetailModal côté
+    frontend, qui affiche ces entrées différemment des messages écrits."""
+    TaskMessage.objects.create(task=task, auteur=user, contenu=texte, est_systeme=True)
+
+
+def _clear_revue_override(task):
+    """Invalide la bascule manuelle de rubrique (Task.revue_override, voir TaskRevueOverrideView)
+    dès que le staffing réel de la tâche change (nouvelle attribution, retrait, changement
+    d'exécution) : une décision de la Direction/du Pilotage prise sur un état donné du staffing
+    ne doit jamais rester périmée une fois cet état modifié — la rubrique redevient alors
+    calculée automatiquement (voir taskRevueStatut côté frontend)."""
+    if task.revue_override:
+        task.revue_override = ''
+        task.save(update_fields=['revue_override'])
+
+
+def _task_edit_snapshot(task):
+    """Valeurs des champs modifiables d'une tâche (édition depuis Staffing des équipes) à
+    comparer avant/après un PATCH — voir _describe_task_changes."""
+    return {
+        'template_id': task.template_id, 'description': task.description,
+        'project_id': task.project_id, 'ligne_budgetaire_id': task.ligne_budgetaire_id,
+        'equipe_id': task.equipe_id,
+        'date_debut': task.date_debut, 'echeance': task.echeance, 'priorite': task.priorite,
+    }
+
+
+def _describe_task_changes(before, task):
+    """Traduit les changements de champs d'une tâche en phrases lisibles pour son fil de
+    discussion (voir _log_task_event) — même principe que l'historique d'activité de Wrike : une
+    entrée automatique par type de changement, les deux bornes de date regroupées en une seule
+    phrase quand elles changent ensemble."""
+    messages = []
+    if before['date_debut'] != task.date_debut or before['echeance'] != task.echeance:
+        if task.date_debut and task.echeance:
+            duree = (task.echeance - task.date_debut).days + 1
+            messages.append(
+                f'a reprogrammé la tâche pour le {task.date_debut.strftime("%d/%m/%Y")} – '
+                f'{task.echeance.strftime("%d/%m/%Y")} ({duree} j).'
+            )
+        elif task.echeance:
+            messages.append(f'a fixé la date d’échéance au {task.echeance.strftime("%d/%m/%Y")}.')
+        elif task.date_debut:
+            messages.append(f'a fixé la date de début au {task.date_debut.strftime("%d/%m/%Y")}.')
+        else:
+            messages.append('a retiré les dates de la tâche.')
+    if before['priorite'] != task.priorite:
+        messages.append(f'a changé la priorité pour « {task.get_priorite_display()} ».')
+    if before['description'] != task.description:
+        messages.append('a modifié la description de la tâche.')
+    if before['equipe_id'] != task.equipe_id:
+        messages.append(f'a réattribué la tâche à l’équipe « {task.equipe.name} ».')
+    elif before['ligne_budgetaire_id'] != task.ligne_budgetaire_id:
+        ligne = task.ligne_budgetaire
+        messages.append(f'a changé la ligne budgétaire pour « {ligne.code} — {ligne.nom} ».')
+    if before['project_id'] != task.project_id:
+        if task.project_id:
+            messages.append(f'a rattaché la tâche au projet « {task.project.code} — {task.project.nom} ».')
+        else:
+            messages.append('a détaché la tâche de son projet (tâche transversale).')
+    if before['template_id'] != task.template_id:
+        if task.template_id:
+            messages.append(f'a changé la tâche du catalogue pour « {task.template.nom} ».')
+        else:
+            messages.append('a détaché la tâche du catalogue (description libre).')
+    return messages
+
+
 class CongeDemandeReviewView(generics.UpdateAPIView):
     """Approbation ou refus d'une demande de congé par un admin/directeur de l'organisation."""
     serializer_class = CongeDemandeReviewSerializer
@@ -1272,6 +1343,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')
         task = serializer.save()
+        _log_task_event(task, self.request.user, f'a envoyé cette tâche à l’équipe « {task.equipe.name} ».')
         if task.equipe.manager_id and task.equipe.manager_id != self.request.user.id:
             _notify(
                 task.equipe.manager,
@@ -1311,7 +1383,13 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         if not _can_manage_task(self.request.user, self.get_object()):
             raise PermissionDenied('Vous n’êtes pas autorisé à modifier cette tâche.')
+        # Snapshot pris sur serializer.instance (pas un nouveau get_object()) : c'est cet objet
+        # que serializer.save() modifie et persiste en place, donc c'est lui qu'il faut comparer
+        # avant/après pour que _describe_task_changes voie les vraies valeurs modifiées.
+        before = _task_edit_snapshot(serializer.instance)
         serializer.save()
+        for texte in _describe_task_changes(before, serializer.instance):
+            _log_task_event(serializer.instance, self.request.user, texte)
 
     def perform_destroy(self, instance):
         if not can_access_config(self.request.user):
@@ -1344,6 +1422,37 @@ class TaskDecisionView(generics.GenericAPIView):
         task.statut = decision
         task.statut_decide_le = timezone.now()
         task.save(update_fields=['statut', 'statut_decide_le'])
+        _log_task_event(task, request.user, 'a accepté cette tâche.' if decision == 'acceptee' else 'a refusé cette tâche.')
+        return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
+
+
+class TaskRevueOverrideView(generics.GenericAPIView):
+    """Bascule manuelle de la rubrique d'exécution d'une tâche « en revue » vers « En cours » ou
+    « Terminée » (Staffing des équipes), réservée à la Direction/au Pilotage — voir
+    Task.revue_override. Le champ est lu par tout le système (Nouveau staffing, Staffing des
+    équipes) pour catégoriser la tâche : le changement s'applique donc partout, immédiatement.
+    Réinitialisé automatiquement dès que le staffing de la tâche change (voir
+    _clear_revue_override), pour ne jamais rester périmé."""
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organisation = self.request.user.organisation
+        if not organisation:
+            return Task.objects.none()
+        return Task.objects.filter(organisation=organisation)
+
+    def post(self, request, pk):
+        if not can_access_config(request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à changer le statut de cette tâche.')
+        task = get_object_or_404(self.get_queryset(), pk=pk)
+        statut = request.data.get('statut')
+        if statut not in ('en_cours', 'termine'):
+            raise ValidationError({'statut': 'Statut invalide (« en_cours » ou « termine » attendu).'})
+        task.revue_override = statut
+        task.save(update_fields=['revue_override'])
+        label = 'En cours' if statut == 'en_cours' else 'Terminée'
+        _log_task_event(task, request.user, f'a changé le statut de revue de cette tâche pour « {label} ».')
         return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
 
 
@@ -1376,6 +1485,9 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied('Vous n’êtes pas autorisé à staffer cette tâche.')
         assignment = serializer.save()
         assignee = assignment.user
+        _clear_revue_override(assignment.task)
+        membre = f'{assignee.first_name} {assignee.last_name}'.strip() or assignee.email
+        _log_task_event(assignment.task, self.request.user, f'a attribué cette tâche à {membre} ({assignment.heures} h).')
         if assignee and assignee.id != self.request.user.id:
             _notify(
                 assignee,
@@ -1409,6 +1521,9 @@ class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         if not _can_manage_task(self.request.user, instance.task):
             raise PermissionDenied('Vous n’êtes pas autorisé à retirer cette personne de la tâche.')
+        membre = f'{instance.user.first_name} {instance.user.last_name}'.strip() or instance.user.email
+        _log_task_event(instance.task, self.request.user, f'a retiré {membre} de cette tâche.')
+        _clear_revue_override(instance.task)
         instance.delete()
 
 
@@ -1442,8 +1557,10 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
         if action not in ('demarrer', 'pause', 'reprendre', 'terminer', 'decliner'):
             raise ValidationError({'action': 'Action invalide.'})
         task = assignment.task
+        _clear_revue_override(task)
 
         def _notify_manager(verbe):
+            _log_task_event(task, user, f'a {verbe} cette tâche.')
             manager = task.equipe.manager
             if manager and manager.id != user.id:
                 membre = f'{user.first_name} {user.last_name}'.strip() or user.email

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Info, RotateCcw,
-  Search, Trash2, UserCheck, UserPlus, UserX, Users, X, XCircle,
+  Search, Star, Trash2, UserCheck, UserPlus, UserX, Users, X, XCircle,
 } from 'lucide-react'
 import { fetchMe, fetchTeams, type MeProfile, type Team, type TeamMember } from '../api/employees'
 import { fetchOrganisationEhs } from '../api/organisation'
-import { decideTask, fetchTask, fetchTasks, type Task } from '../api/tasks'
-import { createTaskAssignment, deleteTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
+import { decideTask, fetchTask, fetchTasks, taskRevueStatut, type Task } from '../api/tasks'
+import { createTaskAssignment, deleteTaskAssignment, rateTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import RatingModal from '../components/RatingModal'
 import { formatMontant } from '../utils/currency'
 import './StaffingPage.css'
 
@@ -37,7 +38,20 @@ const assigneesLabel = (task: Task): string => {
   return `${task.assignments.length} personnes`
 }
 
-type Tab = 'a_valider' | 'prete' | 'staffee'
+type Tab = 'a_valider' | 'prete' | 'staffee' | 'en_revue' | 'termine'
+
+const TAB_MESSAGES: Record<Tab, string> = {
+  a_valider: 'Ces tâches ont été envoyées à votre équipe. Acceptez-les pour pouvoir les staffer, ou refusez-les.',
+  prete: "Ces tâches ont été acceptées mais n'ont encore personne d'attribué.",
+  staffee: 'Ces tâches ont déjà au moins une personne attribuée. Vous pouvez en ajouter ou en retirer à tout moment.',
+  en_revue: 'Toutes les personnes staffées sur ces tâches ont terminé leur exécution : notez-les pour les faire passer en Terminées.',
+  termine: 'Ces tâches sont terminées et toutes les personnes staffées ont été notées.',
+}
+
+const TAB_TITLES: Record<Tab, string> = {
+  a_valider: 'Tâches à valider', prete: 'Tâches prêtes à staffer', staffee: 'Tâches déjà staffées',
+  en_revue: 'Tâches en revue', termine: 'Tâches terminées',
+}
 
 export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed }: {
   navigateTo: (page: string) => void
@@ -62,6 +76,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const [assignHeures, setAssignHeures] = useState('')
   const [assignInstructions, setAssignInstructions] = useState('')
   const [saving, setSaving] = useState(false)
+  const [ratingAssignment, setRatingAssignment] = useState<TaskAssignment | null>(null)
 
   useEffect(() => {
     Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchOrganisationEhs()])
@@ -126,20 +141,25 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
     setSelectedId(null)
     setAssignMemberId(null)
     setAssignHeures('')
+    setRatingAssignment(null)
   }
 
   const changeTab = (tab: Tab) => { setActiveTab(tab); closePanel() }
 
   const countAValider = pendingTasks.length
   const countPrete = tasks.filter((t) => t.assignments.length === 0).length
-  const countStaffee = tasks.filter((t) => t.assignments.length > 0).length
+  const countStaffee = tasks.filter((t) => t.assignments.length > 0 && taskRevueStatut(t) === 'en_cours').length
+  const countEnRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_revue').length
+  const countTermine = tasks.filter((t) => taskRevueStatut(t) === 'termine').length
 
   const projets = Array.from(new Set(allTasks.map((t) => t.project_nom).filter((p): p is string => Boolean(p))))
   const equipes = Array.from(new Set(allTasks.map((t) => t.equipe_nom)))
 
   const scoped = activeTab === 'a_valider' ? pendingTasks
     : activeTab === 'prete' ? tasks.filter((t) => t.assignments.length === 0)
-    : tasks.filter((t) => t.assignments.length > 0)
+    : activeTab === 'staffee' ? tasks.filter((t) => t.assignments.length > 0 && taskRevueStatut(t) === 'en_cours')
+    : activeTab === 'en_revue' ? tasks.filter((t) => taskRevueStatut(t) === 'en_revue')
+    : tasks.filter((t) => taskRevueStatut(t) === 'termine')
 
   const filtered = scoped.filter((t) => (
     (filterProjet === 'Tous' || t.project_nom === filterProjet)
@@ -206,11 +226,18 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
     }
   }
 
+  const handleRate = async (note: number, commentaire: string) => {
+    if (!ratingAssignment || !selected) return
+    await rateTaskAssignment(ratingAssignment.id, note, commentaire)
+    await refreshTask(selected.id)
+    setRatingAssignment(null)
+  }
+
   const KPIS = [
     { icon: Inbox, tone: 'blue', label: 'Tâches reçues', value: String(allTasks.length), sub: 'Reçues depuis Attribution des tâches' },
     { icon: Clock3, tone: 'orange', label: 'En attente de décision', value: String(countAValider), sub: 'À accepter ou refuser' },
     { icon: UserX, tone: 'indigo', label: 'Prêtes à staffer', value: String(countPrete), sub: 'Acceptées, sans personne attribuée' },
-    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Au moins une personne attribuée' },
+    { icon: CheckCircle2, tone: 'green', label: 'Déjà staffées', value: String(countStaffee), sub: 'Staffées, exécution en cours' },
     { icon: Users, tone: 'purple', label: 'Équipes managées', value: String(new Set(allTasks.map((t) => t.equipe)).size), sub: 'Concernées par ces tâches' },
   ]
 
@@ -266,6 +293,12 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                   <button className={activeTab === 'staffee' ? 'active' : ''} onClick={() => changeTab('staffee')}>
                     Déjà staffées <span className="ns-tab-count">{countStaffee}</span>
                   </button>
+                  <button className={activeTab === 'en_revue' ? 'active' : ''} onClick={() => changeTab('en_revue')}>
+                    En revue <span className="ns-tab-count">{countEnRevue}</span>
+                  </button>
+                  <button className={activeTab === 'termine' ? 'active' : ''} onClick={() => changeTab('termine')}>
+                    Terminées <span className="ns-tab-count">{countTermine}</span>
+                  </button>
                 </nav>
 
                 <div className="ns-filters">
@@ -290,11 +323,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
 
                 <div className="ns-info-banner">
                   <Info size={14} />
-                  {activeTab === 'a_valider'
-                    ? <span>Ces tâches ont été envoyées à votre équipe. Acceptez-les pour pouvoir les staffer, ou refusez-les.</span>
-                    : activeTab === 'prete'
-                      ? <span>Ces tâches ont été acceptées mais n'ont encore personne d'attribué.</span>
-                      : <span>Ces tâches ont déjà au moins une personne attribuée. Vous pouvez en ajouter ou en retirer à tout moment.</span>}
+                  <span>{TAB_MESSAGES[activeTab]}</span>
                 </div>
 
                 {actionError && <p className="ns-empty">{actionError}</p>}
@@ -302,7 +331,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                 <section className="ns-table-panel">
                   <div className="ns-table-head">
                     <h3>
-                      {activeTab === 'a_valider' ? 'Tâches à valider' : activeTab === 'prete' ? 'Tâches prêtes à staffer' : 'Tâches déjà staffées'}
+                      {TAB_TITLES[activeTab]}
                       {' '}<span className="ns-count-badge">{filtered.length}</span>
                     </h3>
                     <div className="ns-table-head-actions">
@@ -350,7 +379,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                                   <button type="button" className="ns-action-btn ns-action-btn-danger" disabled={saving} onClick={() => handleDecision(task, 'refusee')}><XCircle size={13} />Refuser</button>
                                 </div>
                               ) : (
-                                <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>{activeTab === 'staffee' ? 'Voir' : 'Staffer'}</button>
+                                <button type="button" className="ns-action-btn" onClick={() => handleSelect(task)}>{activeTab === 'prete' ? 'Staffer' : 'Voir'}</button>
                               )}
                             </td>
                           </tr>
@@ -399,6 +428,32 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                           <XCircle size={14} />Refuser
                         </button>
                       </div>
+                    </div>
+                  ) : (activeTab === 'en_revue' || activeTab === 'termine') ? (
+                    <div className="ns-detail-section">
+                      <h4>Personnes staffées</h4>
+                      <ul className="ns-affectations-list">
+                        {selected.assignments.map((a) => (
+                          <li key={a.id}>
+                            <span className="ns-employee">
+                              <span className="ns-employee-dot">{initiales(a.user_nom)}</span>
+                              <span>
+                                <strong>{a.user_nom}</strong>
+                                <small>{a.heures} h (grade {a.user_grade}) · {fmtEhs(a.ehs_consomme)} EHS · {fmtFcfa(a.montant_fcfa)} · {a.execution_statut_display}</small>
+                                {a.note != null && (
+                                  <span className="su-rating-stars" aria-label={`Note : ${a.note}/5`}>
+                                    {[1, 2, 3, 4, 5].map((v) => <Star key={v} size={13} className={v <= a.note! ? 'is-filled' : ''} />)}
+                                  </span>
+                                )}
+                                {a.note_commentaire && <small className="ns-affectation-instructions">« {a.note_commentaire} »</small>}
+                              </span>
+                            </span>
+                            <button type="button" className="ns-action-btn" onClick={() => setRatingAssignment(a)}>
+                              <Star size={12} />{a.note != null ? 'Modifier la note' : 'Noter'}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   ) : (
                     <>
@@ -495,6 +550,10 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
             </div>
           )}
         </>
+      )}
+
+      {ratingAssignment && (
+        <RatingModal assignment={ratingAssignment} onClose={() => setRatingAssignment(null)} onSubmit={handleRate} />
       )}
     </section>
   )

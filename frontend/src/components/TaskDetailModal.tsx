@@ -4,8 +4,8 @@
 // _log_task_event), et on peut y joindre des fichiers comme dans n'importe quelle discussion de
 // tâche (voir MessageComposer). Réutilise les classes globales arch-panel-view/arch-task-detail
 // (StaffingEquipesPage.tsx) pour rester visuellement cohérent avec le panneau de détail existant.
-import { useEffect, useRef, useState } from 'react'
-import { History, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronUp, History, Pencil, Users, X } from 'lucide-react'
 import {
   fetchTaskMessages, fetchTaskTyping, sendTaskMessage, sendTaskTyping, type TaskMessage,
 } from '../api/taskMessages'
@@ -33,15 +33,31 @@ const errorMessage = (error: unknown): string => {
 
 const formatDate = (value: string | null): string => value ? new Date(value).toLocaleDateString('fr-FR') : '—'
 
+/** Jours restants avant l'échéance — pour l'affichage sous forme de badge (voir joursRestants
+ * ci-dessous), pas un compteur d'exécution comme celui d'Exécuté staffing. */
+function joursRestants(task: Task): { label: string; tone: 'ok' | 'warn' | 'danger' | 'muted' } | null {
+  if (task.statut === 'refusee') return { label: 'Tâche refusée', tone: 'muted' }
+  if (!task.echeance) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(task.echeance)
+  due.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000)
+  if (diffDays < 0) return { label: `En retard de ${Math.abs(diffDays)} j`, tone: 'danger' }
+  if (diffDays === 0) return { label: 'Échéance aujourd’hui', tone: 'warn' }
+  return { label: `${diffDays} j restant${diffDays > 1 ? 's' : ''}`, tone: diffDays <= 2 ? 'warn' : 'ok' }
+}
+
 const POLL_MS = 6000
 const TYPING_POLL_MS = 2500
 
-export default function TaskDetailModal({ task, onClose, onOpenFull }: { task: Task; onClose: () => void; onOpenFull?: () => void }) {
+export default function TaskDetailModal({ task, onClose, onEdit }: { task: Task; onClose: () => void; onEdit?: () => void }) {
   const [messages, setMessages] = useState<TaskMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [typingNames, setTypingNames] = useState<string[]>([])
   const [myId, setMyId] = useState<number | null>(null)
+  const [showMoreFields, setShowMoreFields] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -81,36 +97,84 @@ export default function TaskDetailModal({ task, onClose, onOpenFull }: { task: T
     setMessages((current) => [...current, created])
   }
 
+  const restant = joursRestants(task)
+
+  const primaryFields: { label: string; value: ReactNode }[] = [
+    { label: 'Statut', value: <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span> },
+    { label: 'Manager destinataire', value: task.equipe_manager_nom ?? 'Aucun manager défini' },
+    { label: 'Échéance', value: formatDate(task.echeance) },
+    { label: 'Jours restants', value: restant ? <span className={`tdm-jours-restants tdm-jours-${restant.tone}`}>{restant.label}</span> : '—' },
+    { label: 'Priorité', value: task.priorite_display },
+  ]
+  const secondaryFields: { label: string; value: ReactNode }[] = [
+    { label: 'Projet / Nature', value: task.project_nom ? `${task.project_code} — ${task.project_nom}` : 'Transversale (aucun projet)' },
+    { label: 'Équipe destinataire', value: `${task.equipe_code} — ${task.equipe_nom}` },
+    { label: 'Ligne budgétaire', value: `${task.ligne_budgetaire_code} — ${task.ligne_budgetaire_nom}` },
+    { label: 'Sous-ligne', value: task.ligne_budgetaire_declinaison || '—' },
+    { label: 'Date de début', value: formatDate(task.date_debut) },
+    { label: 'Créée par', value: task.created_by_nom ?? '—' },
+  ]
+
   return (
     <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Détail de la tâche" onMouseDown={onClose}>
       <div className="ge-modal tdm-modal" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="ge-modal-head">
-          <h3>DÉTAIL DE LA TÂCHE</h3>
+        <div className="tdm-topbar">
+          <span className="tdm-code-chip">{task.code}</span>
           <div className="tdm-head-actions">
-            {onOpenFull && <button type="button" className="ge-btn-outline" onClick={onOpenFull}>Ouvrir dans Staffing des équipes</button>}
+            {onEdit && <button type="button" className="ge-btn-outline" onClick={onEdit}><Pencil size={13} />Modifier</button>}
             <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer"><X size={16} /></button>
           </div>
         </div>
 
         <div className="tdm-body">
-          <div className="arch-panel-view tdm-fields">
-            <div className="arch-panel-view-head">
-              <strong>{task.code}</strong>
-              <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span>
+          <div className="tdm-head">
+            <h2 className="tdm-title">{task.template_nom || 'Détail de la tâche'}</h2>
+            <div className="tdm-crumbs">
+              <span className="tdm-crumb">{task.project_code ?? 'Transversale'}</span>
+              <span className="tdm-crumb-sep">/</span>
+              <span className="tdm-crumb">{task.equipe_code} — {task.equipe_nom}</span>
             </div>
-            <h4>{task.template_nom || 'Détail de la tâche'}</h4>
-            {task.description && <p className="arch-task-detail-desc">{task.description}</p>}
-            <dl className="arch-task-detail">
-              <div><dt>Projet / Nature</dt><dd>{task.project_nom ? `${task.project_code} — ${task.project_nom}` : 'Transversale (aucun projet)'}</dd></div>
-              <div><dt>Équipe destinataire</dt><dd>{task.equipe_code} — {task.equipe_nom}</dd></div>
-              <div><dt>Manager destinataire</dt><dd>{task.equipe_manager_nom ?? 'Aucun manager défini'}</dd></div>
-              <div><dt>Ligne budgétaire</dt><dd>{task.ligne_budgetaire_code} — {task.ligne_budgetaire_nom}</dd></div>
-              <div><dt>Sous-ligne</dt><dd>{task.ligne_budgetaire_declinaison || '—'}</dd></div>
-              <div><dt>Date de début</dt><dd>{formatDate(task.date_debut)}</dd></div>
-              <div><dt>Échéance</dt><dd>{formatDate(task.echeance)}</dd></div>
-              <div><dt>Priorité</dt><dd>{task.priorite_display}</dd></div>
-              <div><dt>Créée par</dt><dd>{task.created_by_nom ?? '—'}</dd></div>
-            </dl>
+          </div>
+
+          <div className="tdm-fieldrow">
+            {primaryFields.map((f) => (
+              <div className="tdm-field-card" key={f.label}>
+                <span className="tdm-field-label">{f.label}</span>
+                <span className="tdm-field-value">{f.value}</span>
+              </div>
+            ))}
+            {showMoreFields && secondaryFields.map((f) => (
+              <div className="tdm-field-card" key={f.label}>
+                <span className="tdm-field-label">{f.label}</span>
+                <span className="tdm-field-value">{f.value}</span>
+              </div>
+            ))}
+            <button type="button" className="tdm-more-btn" onClick={() => setShowMoreFields((s) => !s)}>
+              {showMoreFields ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {showMoreFields ? 'Moins' : 'Plus'}
+            </button>
+          </div>
+
+          {task.description && (
+            <div className="tdm-description">
+              <p>{task.description}</p>
+            </div>
+          )}
+
+          <div className="tdm-assignments">
+            <h4 className="tdm-assignments-head"><Users size={14} />Qui a été staffé ({task.assignments.length})</h4>
+            {task.assignments.length === 0 ? (
+              <p className="tm-empty">Personne n’est encore staffé sur cette tâche.</p>
+            ) : (
+              <ul className="tdm-assignment-list">
+                {task.assignments.map((a) => (
+                  <li key={a.id}>
+                    <span className="tdm-assignment-nom">{a.user_nom}</span>
+                    <span className="tdm-assignment-meta">{a.heures} h · grade {a.user_grade} · {a.execution_statut_display}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="tdm-thread">

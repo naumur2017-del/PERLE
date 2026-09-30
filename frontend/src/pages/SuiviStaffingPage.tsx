@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity, CheckCircle2, Clock3, Hourglass, Info, MessageCircle, Pause, RotateCcw, Search, Star, UserCheck, X,
+  Activity, CheckCircle2, Clock3, Hourglass, Info, MessageCircle, Pause, RotateCcw, Search, Star, UserCheck,
 } from 'lucide-react'
 import { fetchTaskAssignments, rateTaskAssignment, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import RatingModal from '../components/RatingModal'
 import TaskMessagesModal from '../components/TaskMessagesModal'
 import { useUnreadMessages } from '../hooks/useUnreadMessages'
 import './SuiviStaffingPage.css'
@@ -62,70 +63,6 @@ function tempsRestantInfo(a: TaskAssignment, nowMs: number) {
   if (restantSecondes < 0) return { label, tone: 'retard' } as const
   if (alloueesSecondes > 0 && restantSecondes <= alloueesSecondes * 0.2) return { label, tone: 'urgent' } as const
   return { label, tone: 'ok' } as const
-}
-
-function RatingModal({ assignment, onClose, onSubmit }: {
-  assignment: TaskAssignment
-  onClose: () => void
-  onSubmit: (note: number, commentaire: string) => Promise<void>
-}) {
-  const [note, setNote] = useState(assignment.note ?? 0)
-  const [hovered, setHovered] = useState(0)
-  const [commentaire, setCommentaire] = useState(assignment.note_commentaire)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async () => {
-    if (note < 1) return
-    setSaving(true)
-    setError(null)
-    try {
-      await onSubmit(note, commentaire.trim())
-    } catch (err) {
-      setError(errorMessage(err))
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Noter le staffing" onMouseDown={() => { if (!saving) onClose() }}>
-      <div className="ge-modal param-modal" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="ge-modal-head">
-          <div>
-            <h3>Noter ce staffing</h3>
-            <p className="ge-modal-subtitle">{assignment.user_nom} — {assignment.task_code} · {assignment.template_nom}</p>
-          </div>
-          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
-        </div>
-
-        <div className="param-form">
-          {error && <p className="ge-form-error">{error}</p>}
-
-          <div className="su-rating-stars su-rating-stars-input">
-            {[1, 2, 3, 4, 5].map((value) => (
-              <button
-                type="button" key={value} className="su-rating-star-btn"
-                aria-label={`${value} étoile${value > 1 ? 's' : ''}`}
-                onMouseEnter={() => setHovered(value)} onMouseLeave={() => setHovered(0)}
-                onClick={() => setNote(value)}
-              >
-                <Star size={22} className={(hovered || note) >= value ? 'is-filled' : ''} />
-              </button>
-            ))}
-          </div>
-
-          <label className="param-field">Commentaire (facultatif)
-            <textarea rows={3} value={commentaire} placeholder="Retour sur la réalisation de cette tâche..." onChange={(event) => setCommentaire(event.target.value)} />
-          </label>
-
-          <div className="ge-modal-actions">
-            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
-            <button type="button" className="ge-btn-primary" disabled={note < 1 || saving} onClick={handleSubmit}>{saving ? 'Enregistrement…' : 'Enregistrer la note'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {

@@ -2,17 +2,18 @@
 // équipe et à son manager. Dès la validation, la tâche est envoyée (statut « envoyee ») et
 // apparaît immédiatement dans Nouveau staffing, onglet À valider — le workflow s'y poursuit
 // normalement (le manager l'accepte ou la refuse, puis répartit les heures).
-import { useState, useEffect, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Info, Pencil, Plus, Search, Trash2, X,
+  ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Info, Pencil, Plus, Search, Star, Trash2, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
 import { fetchProjects, type Project } from '../api/projects'
 import { fetchLignesBudgetaires, type LigneBudgetaire } from '../api/architectureMonetaire'
 import {
-  createTask, deleteTask, fetchTasks, updateTask, type Task, type TaskFormValues,
-  type TaskPriorite, type TaskStatut,
+  createTask, deleteTask, fetchTask, fetchTasks, setTaskRevueOverride, taskRevueStatut, updateTask, type Task,
+  type TaskFormValues, type TaskPriorite, type TaskStatut,
 } from '../api/tasks'
+import { rateTaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
 import TaskDetailModal from '../components/TaskDetailModal'
@@ -99,12 +100,19 @@ function TaskPanel({ mode, teams, projects, lignes, onClose, onCreated, onUpdate
   onDeleteRequest: (task: Task) => void
 }) {
   const seed = mode.kind === 'create' ? mode.from : mode.task
+  // La ligne budgétaire réelle d'une tâche (seed.ligne_budgetaire) peut être soit une ligne
+  // directement attribuée au projet (niveau « Ligne budgétaire »), soit une de ses sous-lignes
+  // (enfant dans l'arborescence — voir LigneBudgetaire.parent) sans l'être elle-même : dans ce
+  // cas le formulaire doit préselectionner son parent comme « Ligne budgétaire » et elle-même
+  // comme « Sous-ligne », sinon aucune option du select « Ligne budgétaire » ne correspond et
+  // l'édition reste bloquée (contrainte HTML « required » jamais satisfaite).
+  const seedLigne = seed ? lignes.find((l) => l.id === seed.ligne_budgetaire) : undefined
   const [description, setDescription] = useState(seed?.description ?? '')
   const [transversale, setTransversale] = useState(seed ? seed.project === null : false)
   const [projectId, setProjectId] = useState<number | null>(seed?.project ?? null)
   const [equipeId, setEquipeId] = useState<number | null>(seed?.equipe ?? null)
-  const [ligneId, setLigneId] = useState<number | null>(seed?.ligne_budgetaire ?? null)
-  const [sousLigneId, setSousLigneId] = useState<number | null>(null)
+  const [ligneId, setLigneId] = useState<number | null>(seedLigne?.parent ?? seed?.ligne_budgetaire ?? null)
+  const [sousLigneId, setSousLigneId] = useState<number | null>(seedLigne?.parent ? seedLigne.id : null)
   const [dateDebut, setDateDebut] = useState(mode.kind === 'create' ? '' : seed?.date_debut ?? '')
   const [echeance, setEcheance] = useState(mode.kind === 'create' ? '' : seed?.echeance ?? '')
   const [priorite, setPriorite] = useState<TaskPriorite>(seed?.priorite ?? 'moyenne')
@@ -288,6 +296,98 @@ function TaskPanel({ mode, teams, projects, lignes, onClose, onCreated, onUpdate
   )
 }
 
+/** Clôture de la revue d'une tâche « en revue » (toutes les personnes staffées ont terminé leur
+ * exécution) : la Direction/le Pilotage note chacune d'elles en un seul geste, ce qui fait
+ * basculer la tâche en « Terminée » — via TaskAssignment.note, le même champ que lit tout le
+ * reste du système (Nouveau staffing, Suivi des staffings, tableaux de bord), le statut change
+ * donc pour tout le monde d'un coup, pas seulement dans cette page. */
+function ReviewCloseModal({ task, onClose, onSubmit }: {
+  task: Task
+  onClose: () => void
+  onSubmit: (ratings: { assignmentId: number; note: number; commentaire: string }[]) => Promise<void>
+}) {
+  const toRate = task.assignments.filter((a) => a.note == null)
+  const [notes, setNotes] = useState<Record<number, number>>(
+    Object.fromEntries(toRate.map((a) => [a.id, 0])),
+  )
+  const [commentaires, setCommentaires] = useState<Record<number, string>>(
+    Object.fromEntries(toRate.map((a) => [a.id, ''])),
+  )
+  const [hovered, setHovered] = useState<{ id: number; value: number } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSave = toRate.length > 0 && toRate.every((a) => (notes[a.id] ?? 0) >= 1)
+
+  const handleSubmit = async () => {
+    if (!canSave) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSubmit(toRate.map((a) => ({ assignmentId: a.id, note: notes[a.id], commentaire: (commentaires[a.id] ?? '').trim() })))
+    } catch (err) {
+      setError(errorMessage(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="ge-modal-overlay" role="dialog" aria-modal="true" aria-label="Clôturer la revue" onMouseDown={() => { if (!saving) onClose() }}>
+      <div className="ge-modal param-modal se-review-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="ge-modal-head">
+          <div>
+            <h3>Clôturer la revue</h3>
+            <p className="ge-modal-subtitle">{task.code} — {task.template_nom}. Notez chaque personne staffée pour faire passer la tâche en « Terminée » pour tout le système.</p>
+          </div>
+          <button type="button" className="ge-modal-close" onClick={onClose} aria-label="Fermer" disabled={saving}><X size={16} /></button>
+        </div>
+
+        <div className="param-form">
+          {error && <p className="ge-form-error">{error}</p>}
+
+          {toRate.length === 0 ? (
+            <p className="charge-hint">Tout le monde a déjà été noté sur cette tâche.</p>
+          ) : (
+            <ul className="se-review-list">
+              {toRate.map((a) => {
+                const note = notes[a.id] ?? 0
+                return (
+                  <li key={a.id}>
+                    <span className="se-review-nom">{a.user_nom}</span>
+                    <div className="su-rating-stars su-rating-stars-input">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          type="button" key={value} className="su-rating-star-btn"
+                          aria-label={`${a.user_nom} : ${value} étoile${value > 1 ? 's' : ''}`}
+                          onMouseEnter={() => setHovered({ id: a.id, value })} onMouseLeave={() => setHovered(null)}
+                          onClick={() => setNotes((prev) => ({ ...prev, [a.id]: value }))}
+                        >
+                          <Star size={18} className={(hovered?.id === a.id ? hovered.value : note) >= value ? 'is-filled' : ''} />
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      rows={2} value={commentaires[a.id] ?? ''} placeholder="Commentaire (facultatif)"
+                      onChange={(event) => setCommentaires((prev) => ({ ...prev, [a.id]: event.target.value }))}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          <div className="ge-modal-actions">
+            <button type="button" className="ge-btn-outline" onClick={onClose} disabled={saving}>Annuler</button>
+            <button type="button" className="ge-btn-primary" disabled={!canSave || saving} onClick={handleSubmit}>
+              {saving ? 'Enregistrement…' : 'Valider et clôturer'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusConsumed }: {
   navigateTo: (page: string) => void
   focusTaskId?: number | null
@@ -302,6 +402,13 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
+  // Rubriques d'exécution (distinctes du statut de décision filtré juste en dessous) : une tâche
+  // « en revue » a fini d'être exécutée par tout le monde mais personne n'a encore été noté ;
+  // « terminée » une fois que si, sauf bascule manuelle (Task.revue_override) posée ici par la
+  // Direction/le Pilotage — voir taskRevueStatut (api/tasks.ts), les mêmes règles que les
+  // onglets homonymes de Nouveau staffing.
+  const [revueTab, setRevueTab] = useState<'tous' | 'en_cours' | 'en_revue' | 'termine'>('tous')
+  const [closingTask, setClosingTask] = useState<Task | null>(null)
   const [filterStatut, setFilterStatut] = useState<TaskStatut | 'tous'>('tous')
   const [filterEcheanceDebut, setFilterEcheanceDebut] = useState('')
   const [filterEcheanceFin, setFilterEcheanceFin] = useState('')
@@ -311,9 +418,18 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [panel, setPanel] = useState<PanelMode>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   // Tâche ouverte en détail complet (fiche + historique/discussion) depuis une navigation externe
   // (ex. l'Aperçu de l'espace, ouvert dans un nouvel onglet via ?task=<id>) — voir TaskDetailModal.
   const [detailTask, setDetailTask] = useState<Task | null>(null)
+
+  // Le panneau d'édition (TaskPanel) s'affiche en flux normal, après le tableau — pas en overlay
+  // (voir arch-panel dans ArchitecturePage.css). Après un clic sur « Modifier » depuis la fiche
+  // complète (TaskDetailModal, souvent ouverte dans un nouvel onglet sans autre contexte visible),
+  // on l'amène donc explicitement à l'écran plutôt que de le laisser hors de vue sous le tableau.
+  useEffect(() => {
+    if (panel) panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [panel])
 
   useEffect(() => {
     Promise.all([fetchTeams(), fetchTasks(), fetchProjects(), fetchLignesBudgetaires()])
@@ -341,9 +457,16 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à focusTaskId/loading/tasks
   }, [focusTaskId, loading, tasks])
 
+  const matchesRevueTab = (t: Task) => revueTab === 'tous' || taskRevueStatut(t) === revueTab
+
+  const countEnCoursRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_cours').length
+  const countEnRevueRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_revue').length
+  const countTermineRevue = tasks.filter((t) => taskRevueStatut(t) === 'termine').length
+
   const query = search.trim().toLowerCase()
   const filtered = tasks.filter((t) => (
-    (filterStatut === 'tous' || t.statut === filterStatut)
+    matchesRevueTab(t)
+    && (filterStatut === 'tous' || t.statut === filterStatut)
     && (filterEquipe === 'tous' || t.equipe === filterEquipe)
     && (filterPriorite === 'tous' || t.priorite === filterPriorite)
     && (!filterEcheanceDebut || (t.echeance ?? '') >= filterEcheanceDebut)
@@ -357,6 +480,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
   const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const changeFilter = (apply: () => void) => { apply(); setPage(1) }
+  const changeRevueTab = (tab: typeof revueTab) => changeFilter(() => setRevueTab(tab))
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -406,6 +530,27 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
       setTasks((prev) => prev.filter((t) => t.id !== task.id))
       setSelectedIds((prev) => { const next = new Set(prev); next.delete(task.id); return next })
       setPanel(null)
+    } catch (err) {
+      setActionError(errorMessage(err))
+    }
+  }
+
+  const handleReviewSubmit = async (ratings: { assignmentId: number; note: number; commentaire: string }[]) => {
+    for (const r of ratings) {
+      await rateTaskAssignment(r.assignmentId, r.note, r.commentaire)
+    }
+    if (closingTask) {
+      const updated = await fetchTask(closingTask.id)
+      setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t))
+    }
+    setClosingTask(null)
+  }
+
+  const handleOverride = async (task: Task, statut: 'en_cours' | 'termine') => {
+    setActionError(null)
+    try {
+      const updated = await setTaskRevueOverride(task.id, statut)
+      setTasks((prev) => prev.map((t) => t.id === updated.id ? updated : t))
     } catch (err) {
       setActionError(errorMessage(err))
     }
@@ -528,6 +673,27 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
       <div className="arch-attribution">
         {actionError && <p className="ge-form-error">{actionError}</p>}
 
+        <nav className="ns-tabs">
+          <button className={revueTab === 'tous' ? 'active' : ''} onClick={() => changeRevueTab('tous')}>
+            Toutes <span className="ns-tab-count">{tasks.length}</span>
+          </button>
+          <button className={revueTab === 'en_cours' ? 'active' : ''} onClick={() => changeRevueTab('en_cours')}>
+            En cours <span className="ns-tab-count">{countEnCoursRevue}</span>
+          </button>
+          <button className={revueTab === 'en_revue' ? 'active' : ''} onClick={() => changeRevueTab('en_revue')}>
+            En revue <span className="ns-tab-count">{countEnRevueRevue}</span>
+          </button>
+          <button className={revueTab === 'termine' ? 'active' : ''} onClick={() => changeRevueTab('termine')}>
+            Terminées <span className="ns-tab-count">{countTermineRevue}</span>
+          </button>
+        </nav>
+        {revueTab === 'en_revue' && (
+          <div className="ns-info-banner">
+            <Info size={14} />
+            <span>Toutes les personnes staffées ont terminé leur exécution. La Direction et le Pilotage peuvent clôturer la revue de chaque tâche (bouton <Star size={11} style={{ verticalAlign: 'middle' }} />) pour la faire passer en Terminée — pour tout le système.</span>
+          </div>
+        )}
+
         <div className="arch-toolbar-row">
           <button type="button" className="arch-btn-primary" onClick={() => setPanel({ kind: 'create' })}><Plus size={14} />Attribuer une tâche</button>
           <button type="button" className="arch-btn-outline" onClick={handleDuplicate} disabled={selectedTasks.length !== 1}><Copy size={14} />Dupliquer</button>
@@ -595,13 +761,36 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
                     <td><span className={`arch-pill arch-pill-prio-${task.priorite}`}>{task.priorite_display}</span></td>
                     <td>
                       <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span>
-                      {task.statut === 'acceptee' && (
-                        <div className="arch-staffed-hint">{staffingSummary(task)}</div>
-                      )}
+                      {task.statut === 'acceptee' && (() => {
+                        const revue = taskRevueStatut(task)
+                        return (
+                          <div className="arch-staffed-hint">
+                            {staffingSummary(task)}
+                            {revue === 'en_revue' ? (
+                              <>
+                                {' · '}
+                                <select
+                                  className="se-revue-select" value="en_revue" aria-label="Changer le statut de revue"
+                                  onChange={(event) => handleOverride(task, event.target.value as 'en_cours' | 'termine')}
+                                >
+                                  <option value="en_revue" disabled>En revue</option>
+                                  <option value="en_cours">→ En cours</option>
+                                  <option value="termine">→ Terminée</option>
+                                </select>
+                              </>
+                            ) : revue === 'termine' && (
+                              <> · <span className="arch-pill arch-pill-acceptee">Terminée</span></>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td>{formatDate(task.created_at)}</td>
                     <td>
                       <div className="arch-actions">
+                        {taskRevueStatut(task) === 'en_revue' && (
+                          <button type="button" className="arch-row-action" aria-label="Clôturer la revue" title="Clôturer la revue (noter chaque personne staffée)" onClick={() => setClosingTask(task)}><Star size={13} /></button>
+                        )}
                         <button type="button" className="arch-row-action" aria-label="Voir le détail" onClick={() => setPanel({ kind: 'view', task })}><Eye size={13} /></button>
                         <button type="button" className="arch-row-action" aria-label="Modifier" onClick={() => setPanel({ kind: 'edit', task })}><Pencil size={13} /></button>
                         <button type="button" className="arch-row-action danger" aria-label="Supprimer" onClick={() => handleDeleteRequest(task)}><Trash2 size={13} /></button>
@@ -628,20 +817,32 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
         </div>
 
         {panel && (
-          <TaskPanel
-            key={panel.kind === 'create' ? `create-${panel.from?.id ?? 'blank'}` : `${panel.kind}-${panel.task.id}`}
-            mode={panel}
-            teams={teams}
-            projects={projects}
-            lignes={lignes}
-            onClose={() => setPanel(null)}
-            onCreated={handleCreated}
-            onUpdated={handleUpdated}
-            onDeleteRequest={handleDeleteRequest}
+          <div ref={panelRef}>
+            <TaskPanel
+              key={panel.kind === 'create' ? `create-${panel.from?.id ?? 'blank'}` : `${panel.kind}-${panel.task.id}`}
+              mode={panel}
+              teams={teams}
+              projects={projects}
+              lignes={lignes}
+              onClose={() => setPanel(null)}
+              onCreated={handleCreated}
+              onUpdated={handleUpdated}
+              onDeleteRequest={handleDeleteRequest}
+            />
+          </div>
+        )}
+
+        {detailTask && (
+          <TaskDetailModal
+            task={detailTask}
+            onClose={() => setDetailTask(null)}
+            onEdit={() => { setPanel({ kind: 'edit', task: detailTask }); setDetailTask(null) }}
           />
         )}
 
-        {detailTask && <TaskDetailModal task={detailTask} onClose={() => setDetailTask(null)} />}
+        {closingTask && (
+          <ReviewCloseModal task={closingTask} onClose={() => setClosingTask(null)} onSubmit={handleReviewSubmit} />
+        )}
       </div>
     </section>
   )

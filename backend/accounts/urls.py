@@ -65,6 +65,7 @@ urlpatterns = [
     path('tasks/', views.TaskListCreateView.as_view()),
     path('tasks/<int:pk>/', views.TaskDetailView.as_view()),
     path('tasks/<int:pk>/decision/', views.TaskDecisionView.as_view()),
+    path('tasks/<int:pk>/revue-override/', views.TaskRevueOverrideView.as_view()),
     path('tasks/<int:pk>/messages/', views.TaskMessageListCreateView.as_view()),
     path('tasks/<int:pk>/messages/read/', views.TaskMessageReadView.as_view()),
     path('tasks/<int:pk>/messages/typing/', views.TaskTypingView.as_view()),

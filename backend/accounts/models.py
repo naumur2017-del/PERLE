@@ -1160,6 +1160,17 @@ class Task(models.Model):
         ('acceptee', 'Acceptée'),
         ('refusee', 'Refusée'),
     ]
+    # Bascule manuelle de la rubrique d'exécution (En cours / En revue / Terminée — voir
+    # TaskSerializer et le frontend taskRevueStatut) par la Direction/le Pilotage, depuis
+    # Staffing des équipes : vide, la rubrique reste calculée automatiquement à partir des
+    # TaskAssignment (voir isTaskFinished/isTaskReviewed côté frontend) ; sinon la valeur ici
+    # prime, pour tout le système, jusqu'à ce que le staffing de la tâche change (nouvelle
+    # attribution, retrait, changement d'exécution — voir _clear_revue_override), qui la vide.
+    REVUE_OVERRIDE_CHOICES = [
+        ('en_cours', 'En cours'),
+        ('termine', 'Terminée'),
+    ]
+    revue_override = models.CharField(max_length=10, choices=REVUE_OVERRIDE_CHOICES, blank=True)
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='tasks')
     code = models.CharField(max_length=30)
     # Orientation, pas obligation : le catalogue aide à préremplir la description et la priorité
@@ -1259,6 +1270,10 @@ class TaskMessage(models.Model):
     contenu = models.TextField(blank=True)
     attachment = models.FileField(upload_to='task_messages/%Y/%m/', null=True, blank=True)
     attachment_type = models.CharField(max_length=10, choices=MESSAGE_ATTACHMENT_TYPE_CHOICES, blank=True)
+    # Entrée générée automatiquement (créée, acceptée/refusée, staffée, démarrée/mise en pause/
+    # terminée/déclinée…) plutôt que saisie par un utilisateur — voir _log_task_event dans les
+    # vues. Affichée dans le même fil, mais distinguée visuellement d'un message de discussion.
+    est_systeme = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
 

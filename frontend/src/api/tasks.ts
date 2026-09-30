@@ -32,12 +32,37 @@ export interface Task {
   statut: TaskStatut
   statut_display: string
   statut_decide_le: string | null
+  /** Bascule manuelle de rubrique (voir TaskRevueOverrideView) : vide tant qu'aucun override
+   * n'a été posé, sinon prime sur le calcul automatique — voir taskRevueStatut. */
+  revue_override: '' | 'en_cours' | 'termine'
   assignments: TaskAssignment[]
   budget_ligne_montant: number | null
   budget_reste_fcfa: number | null
   actif: boolean
   created_by_nom: string | null
   created_at: string
+}
+
+// Catégorisation d'exécution d'une tâche staffée, utilisée par Nouveau staffing (onglets En
+// revue/Terminées) et Staffing des équipes (mêmes rubriques) : une tâche est « terminée »
+// (finished) dès que tout le monde qui y est staffé a fini son exécution (voir
+// TaskAssignment.execution_statut), puis « revue » (reviewed) une fois que chacun a été noté par
+// son manager ou, depuis Staffing des équipes, par la Direction/le Pilotage (voir
+// TaskAssignment.note) — ce même champ, lu partout, rend la revue authentique pour tout le
+// système dès qu'elle est faite à un seul endroit.
+export const isTaskFinished = (task: Task): boolean =>
+  task.assignments.length > 0 && task.assignments.every((a) => a.execution_statut === 'terminee')
+export const isTaskReviewed = (task: Task): boolean => task.assignments.every((a) => a.note != null)
+
+export type TaskRevueStatut = 'en_cours' | 'en_revue' | 'termine'
+
+/** Rubrique d'exécution effective d'une tâche : la bascule manuelle (revue_override, posée
+ * depuis Staffing des équipes par la Direction/le Pilotage) prime toujours sur le calcul
+ * automatique — voir Task.revue_override et TaskRevueOverrideView côté backend. */
+export const taskRevueStatut = (task: Task): TaskRevueStatut => {
+  if (task.revue_override) return task.revue_override
+  if (!isTaskFinished(task)) return 'en_cours'
+  return isTaskReviewed(task) ? 'termine' : 'en_revue'
 }
 
 export interface TaskFormValues {
@@ -71,3 +96,8 @@ export const deleteTask = (id: number) => apiDelete(`/tasks/${id}/`)
 
 export const decideTask = (id: number, decision: 'acceptee' | 'refusee') =>
   apiPost<Task>(`/tasks/${id}/decision/`, { decision })
+
+/** Bascule manuelle de la rubrique d'exécution (En cours / Terminée), réservée à la Direction/au
+ * Pilotage — voir TaskRevueOverrideView. S'applique pour tout le système dès l'appel. */
+export const setTaskRevueOverride = (id: number, statut: 'en_cours' | 'termine') =>
+  apiPost<Task>(`/tasks/${id}/revue-override/`, { statut })
