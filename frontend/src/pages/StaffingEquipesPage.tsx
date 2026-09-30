@@ -4,7 +4,8 @@
 // normalement (le manager l'accepte ou la refuse, puis répartit les heures).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Info, Pencil, Plus, Search, Star, Trash2, X,
+  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, Download, Eye, Filter, Info, Pencil, Plus, Search,
+  Star, Trash2, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
 import { fetchProjects, type Project } from '../api/projects'
@@ -400,6 +401,16 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  // Repliable pour laisser plus de place au tableau des tâches ; mémorisé d'une visite à l'autre
+  // (même principe que le repli de la barre latérale, voir App.tsx).
+  const [showKpis, setShowKpis] = useState(() => localStorage.getItem('se-kpis-hidden') !== '1')
+  const toggleKpis = () => {
+    setShowKpis((prev) => {
+      const next = !prev
+      localStorage.setItem('se-kpis-hidden', next ? '0' : '1')
+      return next
+    })
+  }
 
   const [search, setSearch] = useState('')
   // Rubriques d'exécution (distinctes du statut de décision filtré juste en dessous) : une tâche
@@ -615,11 +626,18 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
           <h1>Staffing des équipes <Info size={15} className="se-title-info" /></h1>
           <p>Attribuez une tâche du catalogue à une équipe et à son manager. Dès la validation, la tâche est envoyée et apparaît dans Nouveau staffing, onglet À valider, où le workflow se poursuit.</p>
         </div>
-        <button type="button" className="ge-btn-outline" onClick={() => navigateTo('staffing')}>Voir Nouveau staffing</button>
+        <div className="se-title-actions">
+          <button type="button" className="ge-btn-outline" onClick={toggleKpis}>
+            {showKpis ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showKpis ? 'Masquer les indicateurs' : 'Afficher les indicateurs'}
+          </button>
+          <button type="button" className="ge-btn-outline" onClick={() => navigateTo('staffing')}>Voir Nouveau staffing</button>
+        </div>
       </div>
 
       {loadError && <p className="ge-form-error">{loadError}</p>}
 
+      {showKpis && (
       <div className="dsh-root se-dashboard">
         <div className="dsh-kpi-grid">
           <KpiCard loading={loading} icon="▦" tone="primary" label="Projets enregistrés"
@@ -669,6 +687,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
           </Panel>
         </div>
       </div>
+      )}
 
       <div className="arch-attribution">
         {actionError && <p className="ge-form-error">{actionError}</p>}
