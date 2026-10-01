@@ -13,8 +13,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .access import (
-    can_access_config, can_manage_employee_documents, can_manage_projects, can_manage_teams,
-    is_org_supervisor,
+    can_access_config, can_create_employee, can_manage_employee_documents, can_manage_projects,
+    can_manage_teams, is_org_supervisor,
 )
 from .holidays_utils import country_is_supported, sync_public_holidays
 from .models import (
@@ -305,7 +305,7 @@ class EmployeeListView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        if self.request.user.role not in ('admin', 'directeur'):
+        if not can_create_employee(self.request.user):
             raise PermissionDenied('Vous n’êtes pas autorisé à ajouter un employé.')
         if not self.request.user.organisation_id:
             raise PermissionDenied('Votre compte n’est rattaché à aucune organisation.')

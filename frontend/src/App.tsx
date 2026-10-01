@@ -19,6 +19,7 @@ import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
 import StaffingEquipesPage from './pages/StaffingEquipesPage'
+import TaskDiscussionPage from './pages/TaskDiscussionPage'
 import SuiviStaffingPage from './pages/SuiviStaffingPage'
 import MessagingPage from './pages/MessagingPage'
 import GestionEquipesPage from './pages/GestionEquipesPage'
@@ -432,6 +433,7 @@ function App() {
       children: [
         { id: 'staffing-equipes', label: 'Staffing des équipes', feature: 'config:view' },
         { id: 'staffing', label: 'Nouveau staffing', feature: 'staffing:new' },
+        { id: 'staffing-suivi', label: 'Suivi des staffings', feature: 'staffing:new' },
         { id: 'staffing-execute', label: 'Exécuté staffing' },
       ],
     },
@@ -528,17 +530,28 @@ function App() {
             message="Cette page est réservée aux membres des équipes Direction et Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
             navigateTo={navigateTo}
           />
-      case 'staffing-equipes': return can(session, 'config:view')
-        ? <StaffingEquipesPage
+      case 'staffing-equipes': {
+        if (can(session, 'config:view')) {
+          return <StaffingEquipesPage
             navigateTo={navigateTo}
             focusTaskId={equipesFocusTaskId}
             onFocusConsumed={() => setEquipesFocusTaskId(null)}
           />
-        : <RestrictedPage
-            title="Staffing des équipes"
-            message="Cette page est réservée à la Direction et au Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
-            navigateTo={navigateTo}
-          />
+        }
+        // Pas d'accès à la gestion de l'attribution (réservée à la Direction/au Pilotage), mais
+        // un lien direct vers une tâche précise (?task=<id>) reste ouvert à son manager et aux
+        // personnes qui y sont staffées : ils doivent pouvoir en discuter ici, même sans
+        // accéder au reste de la page — voir TaskDiscussionPage et _can_access_task_messages
+        // côté backend, qui filtre réellement qui peut lire/écrire dans le fil.
+        if (equipesFocusTaskId != null) {
+          return <TaskDiscussionPage taskId={equipesFocusTaskId} navigateTo={navigateTo} />
+        }
+        return <RestrictedPage
+          title="Staffing des équipes"
+          message="Cette page est réservée à la Direction et au Pilotage. Contactez votre administrateur si vous pensez devoir y accéder."
+          navigateTo={navigateTo}
+        />
+      }
       case 'staffing': return can(session, 'staffing:new')
         ? <StaffingPage
             navigateTo={navigateTo}

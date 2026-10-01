@@ -12,6 +12,7 @@ export type Feature =
   | 'tresorerie:view' // Voir les pages Trésorerie
   | 'config:view'     // Voir / configurer les pages Architecture et Paramètres
   | 'employes:contrat' // Téléverser le contrat de travail d'un salarié (page Profil › Documents)
+  | 'employes:create'  // Ajouter un employé (page Gestion des équipes) — réservé aux Ressources
 
 export function can(session: Session | null, feature: Feature): boolean {
   return !!session && (session.permissions ?? []).includes(feature)
