@@ -3,44 +3,105 @@
 .tdm-modal.ge-modal {
   display: flex;
   flex-direction: column;
-  width: min(920px, 94vw);
-  max-width: 920px;
-  height: min(680px, 90vh);
+  width: min(760px, 94vw);
+  max-width: 760px;
+  height: min(720px, 92vh);
   padding: 0;
   overflow: hidden;
+  border-radius: 14px;
 }
 
-.tdm-modal .ge-modal-head { padding: 18px 20px; border-bottom: 1px solid #f0eef8; }
+/* Barre du haut : chip de code + actions, au-dessus du titre (façon Wrike : lien / fermer en haut,
+   titre en gros juste en dessous). */
+.tdm-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 22px 0;
+}
+.tdm-code-chip {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px; background: #f3effe; color: #6b46c1;
+  font-size: 11px; font-weight: 800; letter-spacing: .3px;
+}
 .tdm-head-actions { display: flex; align-items: center; gap: 10px; }
 
-.tdm-body { display: flex; flex: 1; min-height: 0; }
+.tdm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
 
-.tdm-fields {
-  flex: 0 0 320px;
-  padding: 18px 20px;
-  border-right: 1px solid #f0eef8;
-  overflow-y: auto;
+.tdm-head { padding: 10px 22px 0; }
+.tdm-title {
+  margin: 0; padding-bottom: 8px; border-bottom: 2px solid transparent;
+  font-size: 21px; font-weight: 700; color: #14123a; line-height: 1.3;
+  transition: border-color 120ms ease;
 }
+.tdm-title:hover { border-bottom-color: #e6e0f5; }
+.tdm-crumbs { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: #8f8fa6; }
+.tdm-crumb { color: #6c6c85; }
+.tdm-crumb-sep { color: #d3cdea; }
 
-.tdm-thread { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* Rangée de « cartes » de champs, façon panneau de détail Wrike : chaque champ est une carte
+   arrondie avec un petit libellé gris au-dessus d'une valeur en gras, alignées en ligne et
+   passant à la ligne au besoin ; un bouton « Plus »/« Moins » révèle les champs secondaires. */
+.tdm-fieldrow {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px;
+  margin: 16px 22px 0; padding: 14px 14px 14px 16px;
+  border: 1px solid #eee9fa; border-radius: 12px; background: #fbfaff;
+  box-shadow: inset 3px 0 0 #6b46c1;
+}
+.tdm-field-card {
+  display: flex; flex-direction: column; gap: 3px; min-width: 140px;
+  padding: 7px 12px; border-radius: 9px; background: #fff; border: 1px solid #eee9fa;
+}
+.tdm-field-label { font-size: 10px; font-weight: 600; color: #8f8fa6; }
+.tdm-field-value { font-size: 13px; font-weight: 700; color: #14123a; display: flex; align-items: center; gap: 6px; }
+
+.tdm-more-btn {
+  display: flex; align-items: center; gap: 4px; align-self: center;
+  padding: 7px 12px; border: 1px dashed #d3cdea; border-radius: 9px; background: none;
+  color: #6b46c1; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.tdm-more-btn:hover { background: #f3effe; }
+
+.tdm-description { margin: 14px 22px 0; padding: 12px 14px; border: 1px solid #f0eef8; border-radius: 10px; background: #fff; }
+.tdm-description p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #3a3a52; white-space: pre-wrap; }
+
+/* Badge « Jours restants », dans une carte de .tdm-fieldrow — même palette que les statuts
+   d'exécution (Suivi des staffings) : vert si confortable, orange si proche, rouge en retard. */
+.tdm-jours-restants { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.tdm-jours-ok { background: #e6f6ec; color: #1c8a4e; }
+.tdm-jours-warn { background: #fff2df; color: #b4620f; }
+.tdm-jours-danger { background: #fdecea; color: #c62828; }
+.tdm-jours-muted { background: #f0eef8; color: #8f8fa6; }
+
+.tdm-assignments { margin: 14px 22px 0; padding: 12px 14px; border: 1px solid #f0eef8; border-radius: 10px; background: #fff; }
+.tdm-assignments-head { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px; }
+.tdm-assignment-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tdm-assignment-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: #faf9fe; }
+.tdm-assignment-nom { font-size: 12.5px; font-weight: 700; color: #14123a; }
+.tdm-assignment-meta { font-size: 11px; color: #6c6c85; white-space: nowrap; }
+
+.tdm-thread { flex: 1; min-height: 260px; display: flex; flex-direction: column; margin-top: 16px; }
 .tdm-thread-head {
   display: flex; align-items: center; gap: 7px;
-  margin: 0; padding: 14px 20px; border-bottom: 1px solid #f0eef8;
+  margin: 0; padding: 12px 22px; border-top: 1px solid #f0eef8; border-bottom: 1px solid #f0eef8;
   font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px;
+  background: #faf9fe;
 }
 
-.tdm-list { flex: 1; }
+.tdm-list { flex: 1; padding: 12px 22px; }
 
 .tdm-system-entry {
   display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
-  margin: 0; padding: 6px 10px; border-radius: 8px; background: #f7f5ff; align-self: center;
-  max-width: 90%; color: #6c6c85; font-size: 11px; text-align: center;
+  margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #f7f5ff;
+  max-width: 90%; color: #6c6c85; font-size: 11px;
 }
 .tdm-system-entry span { font-weight: 700; color: #4a2f8f; }
 .tdm-system-entry time { margin-left: 4px; color: #a8a8bd; font-size: 10px; }
 
+.tdm-thread .mc-composer { margin: 0 22px 16px; }
+.tdm-thread .typing-indicator { margin: 0 22px; }
+
 @media (max-width: 720px) {
-  .tdm-modal { width: 96vw; height: 92vh; }
-  .tdm-body { flex-direction: column; overflow-y: auto; }
-  .tdm-fields { flex: 0 0 auto; border-right: none; border-bottom: 1px solid #f0eef8; }
+  .tdm-modal { width: 96vw; height: 94vh; }
+  .tdm-fieldrow { margin: 14px 16px 0; }
+  .tdm-description, .tdm-assignments { margin: 12px 16px 0; }
+  .tdm-thread-head, .tdm-list { padding-left: 16px; padding-right: 16px; }
 }

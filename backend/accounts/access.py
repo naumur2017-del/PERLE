@@ -138,6 +138,22 @@ def can_manage_employee_documents(user):
     return _in_protected_team(user, RESOURCES_NIVEAUX)
 
 
+def can_create_employee(user):
+    """Ajouter un employé (page Gestion des équipes, bouton « Ajouter un employé »).
+
+    Réservé aux membres de l'équipe Ressources (membre ou manager) : la Direction (rôle
+    directeur, équipe Direction Générale) n'y a plus accès — seules les Ressources créent
+    désormais un compte salarié depuis cette page. L'Administrateur PERLE (rôle plateforme,
+    hors organisation) garde l'accès pour l'assistance et l'amorçage d'une nouvelle
+    organisation avant qu'elle n'ait de membre dans Ressources ; en pratique, un nouveau
+    salarié peut de toute façon toujours s'inscrire lui-même (voir RegisterMemberView)."""
+    if not _authenticated(user):
+        return False
+    if user.role == 'admin':
+        return True
+    return _in_protected_team(user, RESOURCES_NIVEAUX)
+
+
 FEATURE_CHECKS = {
     'projets:create': can_manage_projects,
     'staffing:new': can_access_new_staffing,
@@ -145,6 +161,7 @@ FEATURE_CHECKS = {
     'tresorerie:view': can_view_treasury,
     'config:view': can_access_config,
     'employes:contrat': can_manage_employee_documents,
+    'employes:create': can_create_employee,
 }
 
 

@@ -143,6 +143,29 @@ const statutClass = (statut: StatutLabel) => {
   return 'inactif'
 }
 
+/** Minuscules sans accents ni ponctuation, pour composer l'email professionnel suggéré
+ * (prénomnom@organisation.com — voir CreateEmployeeModal). */
+const slugify = (text: string) =>
+  text.normalize('NFKD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+function exportEmployeesCsv(employes: Employe[]) {
+  const header = ['ID Employé', 'Nom', 'Email', 'Statut', 'Équipe', 'Rôle', 'Fonction', 'Grade', 'Manager', 'Téléphone', 'Matricule', "Date d'embauche"]
+  const rows = employes.map((e) => [
+    e.displayId, e.nom, e.email, e.statut, e.equipeNom, e.role, e.fonction, `G${e.grade}`, e.manager, e.telephone, e.matricule, e.dateEmbauche,
+  ])
+  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
+  const bom = String.fromCharCode(0xfeff)
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `employes-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'grade' | 'dateEmbauche'
 
 const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
@@ -698,7 +721,7 @@ type CreateEmployeeFiles = {
 type Credentials = { name: string; email: string; password: string }
 
 const EMPTY_CREATE_FORM: CreateEmployeeForm = {
-  first_name: '', last_name: '', email: '', password: '', phone: '', fonction: '', matricule: '', sexe: '',
+  first_name: '', last_name: '', email: '', password: '12345678', phone: '', fonction: '', matricule: '', sexe: '',
   date_naissance: '', pays: '', pays_code: '', region: '', ville: '', statut: 'actif', motif_statut: '', grade: '0', team_id: '', date_embauche: '',
   type_contrat: '', periode_essai: '', temps_travail: '', competences_principales: '',
   competences_secondaires: '', cnps: '', contribuable: '', banque: '', compte_bancaire: '',
@@ -743,9 +766,10 @@ const employeeToForm = (employee: Employee): CreateEmployeeForm => ({
   assurance_sante: employee.assurance_sante,
 })
 
-function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }: {
+function CreateEmployeeModal({ teams, employee, organisationName, onClose, onCreated, onUpdated }: {
   teams: Team[]
   employee?: Employee | null
+  organisationName: string
   onClose: () => void
   onCreated?: (employee: Employee, credentials: Credentials) => void
   onUpdated?: (employee: Employee) => void
@@ -756,9 +780,20 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
   const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Email suggéré tant que la personne ne l'a pas modifié à la main (prénomnom@organisation.com) —
+  // jamais en modification, où l'adresse existante ne doit pas être écrasée malgré elle.
+  const [emailTouched, setEmailTouched] = useState(isEdit)
+  const emailDomain = slugify(organisationName) || 'organisation'
 
   const handleChange = (field: keyof CreateEmployeeForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm((previous) => ({ ...previous, [field]: event.target.value }))
+    if (field === 'email') setEmailTouched(true)
+    setForm((previous) => {
+      const next = { ...previous, [field]: event.target.value }
+      if (!isEdit && !emailTouched && (field === 'first_name' || field === 'last_name')) {
+        next.email = `${slugify(next.first_name)}${slugify(next.last_name)}@${emailDomain}.com`
+      }
+      return next
+    })
   }
 
   const handleDateChange = (field: keyof CreateEmployeeForm) => (value: string) => {
@@ -846,19 +881,20 @@ function CreateEmployeeModal({ teams, employee, onClose, onCreated, onUpdated }:
                 </select>
               </label>
               <DatePicker label="Date de naissance" value={form.date_naissance} onChange={handleDateChange('date_naissance')} />
-              {/* Lieu de résidence = Ville, Région, Pays. La ville dépend de la région choisie,
-                  qui dépend elle-même du pays (voir CitySelect/RegionSelect). */}
-              <CitySelect
-                name="ville" label="Ville" countryCode={form.pays_code || null} regionName={form.region || null} value={form.ville}
-                onChange={(v) => setForm((previous) => ({ ...previous, ville: v }))}
+              {/* Lieu de résidence = Pays, Région, Ville, dans cet ordre de dépendance : la
+                  région dépend du pays choisi, et la ville de la région (voir CountrySelect/
+                  RegionSelect/CitySelect). */}
+              <CountrySelect
+                name="pays" label="Pays" value={form.pays_code || null}
+                onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '', region: '', ville: '' }))}
               />
               <RegionSelect
                 name="region" label="Région" countryCode={form.pays_code || null} value={form.region}
                 onChange={(v) => setForm((previous) => ({ ...previous, region: v, ville: '' }))}
               />
-              <CountrySelect
-                name="pays" label="Pays" value={form.pays_code || null}
-                onChange={(c) => setForm((previous) => ({ ...previous, pays: c?.name ?? '', pays_code: c?.isoCode ?? '', region: '', ville: '' }))}
+              <CitySelect
+                name="ville" label="Ville" countryCode={form.pays_code || null} regionName={form.region || null} value={form.ville}
+                onChange={(v) => setForm((previous) => ({ ...previous, ville: v }))}
               />
               <label>Photo de profil<input type="file" accept="image/*" onChange={handleFile('profile_photo')} /></label>
             </div>
@@ -1259,6 +1295,9 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
   // Demandes de changement de grade en attente — seule la Direction générale (admin/directeur)
   // peut les valider ou les rejeter, voir « Demandes des employés » (GradeChangeRequestReviewView).
   const isDirection = session?.role === 'admin' || session?.role === 'directeur'
+  // Ajouter un employé est réservé aux Ressources (voir can_create_employee côté backend) : la
+  // Direction n'y a plus accès.
+  const canCreateEmployee = can(session, 'employes:create')
   const [gradeRequests, setGradeRequests] = useState<GradeChangeRequest[]>([])
 
   useEffect(() => {
@@ -1355,8 +1394,10 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
               {gradeRequests.length > 0 && <span className="ge-header-badge">{gradeRequests.length}</span>}
             </button>
           )}
-          <button type="button" className="ge-btn-primary" onClick={() => setCreateModalOpen(true)}><Plus size={14} />Ajouter un employé</button>
-          <button type="button" className="ge-btn-outline"><Download size={14} />Exporter</button>
+          {canCreateEmployee && (
+            <button type="button" className="ge-btn-primary" onClick={() => setCreateModalOpen(true)}><Plus size={14} />Ajouter un employé</button>
+          )}
+          <button type="button" className="ge-btn-outline" onClick={() => exportEmployeesCsv(filtered)} disabled={filtered.length === 0}><Download size={14} />Exporter</button>
         </div>
       </div>
 
@@ -1507,13 +1548,17 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
       )}
 
       {createModalOpen && (
-        <CreateEmployeeModal teams={teams} onClose={() => setCreateModalOpen(false)} onCreated={handleEmployeeCreated} />
+        <CreateEmployeeModal
+          teams={teams} organisationName={session?.organisationName ?? ''}
+          onClose={() => setCreateModalOpen(false)} onCreated={handleEmployeeCreated}
+        />
       )}
 
       {employeeBeingEdited && (
         <CreateEmployeeModal
           teams={teams}
           employee={employeeBeingEdited}
+          organisationName={session?.organisationName ?? ''}
           onClose={() => setEditEmployeeId(null)}
           onUpdated={handleEmployeeUpdated}
         />
