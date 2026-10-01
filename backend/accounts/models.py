@@ -1161,13 +1161,17 @@ class Task(models.Model):
         ('refusee', 'Refusée'),
     ]
     # Bascule manuelle de la rubrique d'exécution (En cours / En revue / Terminée — voir
-    # TaskSerializer et le frontend taskRevueStatut) par la Direction/le Pilotage, depuis
-    # Staffing des équipes : vide, la rubrique reste calculée automatiquement à partir des
-    # TaskAssignment (voir isTaskFinished/isTaskReviewed côté frontend) ; sinon la valeur ici
-    # prime, pour tout le système, jusqu'à ce que le staffing de la tâche change (nouvelle
-    # attribution, retrait, changement d'exécution — voir _clear_revue_override), qui la vide.
+    # TaskSerializer et le frontend taskRevueStatut) : vide, la rubrique reste calculée
+    # automatiquement à partir des TaskAssignment (voir isTaskFinished/isTaskReviewed côté
+    # frontend) ; sinon la valeur ici prime, pour tout le système, jusqu'à ce que le staffing de
+    # la tâche change (nouvelle attribution, retrait, changement d'exécution — voir
+    # _clear_revue_override), qui la vide. Le manager de l'équipe destinataire peut poser
+    # « en_revue » (il juge le travail fait, prêt pour la revue) ; seules la Direction/le
+    # Pilotage peuvent ensuite trancher « en_cours » (renvoi) ou « termine » (clôture effective)
+    # — voir TaskRevueOverrideView.
     REVUE_OVERRIDE_CHOICES = [
         ('en_cours', 'En cours'),
+        ('en_revue', 'En revue'),
         ('termine', 'Terminée'),
     ]
     revue_override = models.CharField(max_length=10, choices=REVUE_OVERRIDE_CHOICES, blank=True)

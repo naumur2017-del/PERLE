@@ -87,12 +87,6 @@ export default function DatePicker({ name, value, onChange, min, max, required, 
     setViewMonth(next.getMonth())
   }
 
-  const goToday = () => {
-    setSlideDir(viewYear === today.getFullYear() && viewMonth === today.getMonth() ? 'none' : (viewYear * 12 + viewMonth < today.getFullYear() * 12 + today.getMonth() ? 'next' : 'prev'))
-    setViewYear(today.getFullYear())
-    setViewMonth(today.getMonth())
-  }
-
   const isDisabled = (date: Date) => (minDate !== null && date < minDate) || (maxDate !== null && date > maxDate)
 
   const select = (date: Date) => {
@@ -101,6 +95,17 @@ export default function DatePicker({ name, value, onChange, min, max, required, 
     setInternalValue(iso)
     onChange?.(iso)
     setOpen(false)
+  }
+
+  // « Aujourd'hui » doit vraiment sélectionner la date du jour (comme cliquer sur sa case),
+  // pas seulement faire défiler le panneau jusqu'à son mois — sauf si elle est hors bornes
+  // (min/max), où l'on se contente alors de l'amener à l'écran pour expliquer pourquoi elle est
+  // désactivée.
+  const goToday = () => {
+    setSlideDir(viewYear === today.getFullYear() && viewMonth === today.getMonth() ? 'none' : (viewYear * 12 + viewMonth < today.getFullYear() * 12 + today.getMonth() ? 'next' : 'prev'))
+    setViewYear(today.getFullYear())
+    setViewMonth(today.getMonth())
+    select(today)
   }
 
   const displayLabel = selectedDate

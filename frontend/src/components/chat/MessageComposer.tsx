@@ -22,7 +22,7 @@ interface MessageComposerProps {
   onSend: (contenu: string, attachment?: File) => Promise<void>
   placeholder?: string
   /** Appelé à chaque frappe (pas throttlé ici — c'est à l'appelant de limiter la fréquence des
-   * appels réseau réels, voir TaskMessagesModal/MessagingPage) pour signaler « en train
+   * appels réseau réels, voir TaskDetailModal/MessagingPage) pour signaler « en train
    * d'écrire » aux autres participants du fil. */
   onTyping?: () => void
 }

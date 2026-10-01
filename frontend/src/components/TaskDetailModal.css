@@ -86,6 +86,14 @@
   background: #faf9fe;
 }
 
+/* .tm-empty/.tm-list sont les classes génériques d'un fil de discussion de tâche (chargement,
+   vide, liste des bulles) — utilisées ici comme dans tout composant affichant ce même fil (voir
+   TaskDetailByIdModal, qui réutilise aussi .tm-empty pour son propre état de chargement). */
+.tm-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 24px; color: #a8a8bd; font-size: 12px; text-align: center;
+}
+.tm-list { flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 .tdm-list { flex: 1; padding: 12px 22px; }
 
 .tdm-system-entry {

@@ -40,12 +40,20 @@ export interface TaskAssignment {
   project_code: string | null
   equipe_nom: string
   equipe_code: string
+  /** Id de l'équipe PORTEUSE de la tâche (task.equipe), pas celle du collaborateur staffé — pour
+   * comparer à MeProfile.managed_teams et savoir si la personne connectée gère cette tâche (voir
+   * Suivi des staffings, bouton « Marquer en revue »). */
+  task_equipe: number
   ligne_budgetaire_nom: string
   ligne_budgetaire_code: string
   task_date_debut: string | null
   echeance: string | null
   priorite_display: string
   task_created_by_nom: string | null
+  /** Bascule manuelle de rubrique de la TÂCHE portée (voir Task.revue_override) — pour calculer
+   * la rubrique effective d'un regroupement d'attributions sans requête séparée (voir
+   * taskRevueStatut, Suivi des staffings). */
+  task_revue_override: Task['revue_override']
 }
 
 export const fetchTaskAssignments = (params?: { task?: number; user?: number }) => {

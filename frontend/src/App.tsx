@@ -39,7 +39,7 @@ import { clearSession, getSession, saveSession, type Session } from './auth/sess
 import { can, type Feature } from './auth/permissions'
 import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment } from './api/taskAssignments'
 import { fetchMe, sendHeartbeat } from './api/employees'
-import TaskMessagesModal from './components/TaskMessagesModal'
+import TaskDetailByIdModal from './components/TaskDetailByIdModal'
 import { useUnreadMessages } from './hooks/useUnreadMessages'
 import { useSystemNotifications } from './hooks/useSystemNotifications'
 
@@ -226,7 +226,7 @@ function App() {
   // Clic sur un message de tâche non lu dans la cloche : ouvre directement son fil, sans
   // dépendre de la page actuellement affichée (une tâche notifiée n'est pas forcément dans « mes »
   // attributions — ex. un manager notifié pour une tâche qu'il a créée sans y être lui-même staffé).
-  const [notificationTaskModal, setNotificationTaskModal] = useState<{ id: number; title: string } | null>(null)
+  const [notificationTaskModal, setNotificationTaskModal] = useState<number | null>(null)
   // Clic sur une conversation non lue dans la cloche : ouvre directement la Messagerie sur cette
   // conversation précise (1:1 ou groupe).
   const [messagingFocusConversationId, setMessagingFocusConversationId] = useState<number | null>(null)
@@ -805,7 +805,7 @@ function App() {
                         <li
                           key={`task-${task.id}`}
                           className="notification-link"
-                          onClick={() => { setNotificationTaskModal({ id: task.id, title: `${task.code} — ${task.nom}` }); setNotificationsOpen(false) }}
+                          onClick={() => { setNotificationTaskModal(task.id); setNotificationsOpen(false) }}
                         >
                           <span>💬 Nouveau message — {task.code} · {task.nom}</span>
                         </li>
@@ -946,12 +946,11 @@ function App() {
         )
       )}
 
-      {notificationTaskModal && (
-        <TaskMessagesModal
-          taskId={notificationTaskModal.id}
-          title={notificationTaskModal.title}
+      {notificationTaskModal != null && (
+        <TaskDetailByIdModal
+          taskId={notificationTaskModal}
           onClose={() => setNotificationTaskModal(null)}
-          onRead={() => markBellTaskReadLocally(notificationTaskModal.id)}
+          onRead={markBellTaskReadLocally}
         />
       )}
     </>

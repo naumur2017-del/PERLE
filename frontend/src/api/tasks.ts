@@ -34,7 +34,7 @@ export interface Task {
   statut_decide_le: string | null
   /** Bascule manuelle de rubrique (voir TaskRevueOverrideView) : vide tant qu'aucun override
    * n'a été posé, sinon prime sur le calcul automatique — voir taskRevueStatut. */
-  revue_override: '' | 'en_cours' | 'termine'
+  revue_override: '' | 'en_cours' | 'en_revue' | 'termine'
   assignments: TaskAssignment[]
   budget_ligne_montant: number | null
   budget_reste_fcfa: number | null
@@ -44,22 +44,30 @@ export interface Task {
 }
 
 // Catégorisation d'exécution d'une tâche staffée, utilisée par Nouveau staffing (onglets En
-// revue/Terminées) et Staffing des équipes (mêmes rubriques) : une tâche est « terminée »
-// (finished) dès que tout le monde qui y est staffé a fini son exécution (voir
-// TaskAssignment.execution_statut), puis « revue » (reviewed) une fois que chacun a été noté par
-// son manager ou, depuis Staffing des équipes, par la Direction/le Pilotage (voir
-// TaskAssignment.note) — ce même champ, lu partout, rend la revue authentique pour tout le
-// système dès qu'elle est faite à un seul endroit.
-export const isTaskFinished = (task: Task): boolean =>
+// revue/Terminées), Staffing des équipes et Suivi des staffings (mêmes rubriques, ce dernier
+// regroupant ses attributions par tâche) : une tâche est « terminée » (finished) dès que tout le
+// monde qui y est staffé a fini son exécution (voir TaskAssignment.execution_statut), puis
+// « revue » (reviewed) une fois que chacun a été noté par son manager ou, depuis Staffing des
+// équipes, par la Direction/le Pilotage (voir TaskAssignment.note) — ce même champ, lu partout,
+// rend la revue authentique pour tout le système dès qu'elle est faite à un seul endroit.
+// Prennent une forme structurelle minimale (pas forcément un `Task` complet) pour être
+// réutilisables sur un simple regroupement d'attributions, comme dans Suivi des staffings.
+interface RevueStatutInput {
+  revue_override: Task['revue_override']
+  assignments: { execution_statut: TaskAssignment['execution_statut']; note: number | null }[]
+}
+
+export const isTaskFinished = (task: RevueStatutInput): boolean =>
   task.assignments.length > 0 && task.assignments.every((a) => a.execution_statut === 'terminee')
-export const isTaskReviewed = (task: Task): boolean => task.assignments.every((a) => a.note != null)
+export const isTaskReviewed = (task: RevueStatutInput): boolean => task.assignments.every((a) => a.note != null)
 
 export type TaskRevueStatut = 'en_cours' | 'en_revue' | 'termine'
 
-/** Rubrique d'exécution effective d'une tâche : la bascule manuelle (revue_override, posée
- * depuis Staffing des équipes par la Direction/le Pilotage) prime toujours sur le calcul
- * automatique — voir Task.revue_override et TaskRevueOverrideView côté backend. */
-export const taskRevueStatut = (task: Task): TaskRevueStatut => {
+/** Rubrique d'exécution effective d'une tâche : la bascule manuelle (revue_override — posée par
+ * le manager pour « en_revue », par la Direction/le Pilotage pour « en_cours »/« termine ») prime
+ * toujours sur le calcul automatique — voir Task.revue_override et TaskRevueOverrideView côté
+ * backend. */
+export const taskRevueStatut = (task: RevueStatutInput): TaskRevueStatut => {
   if (task.revue_override) return task.revue_override
   if (!isTaskFinished(task)) return 'en_cours'
   return isTaskReviewed(task) ? 'termine' : 'en_revue'
@@ -97,7 +105,8 @@ export const deleteTask = (id: number) => apiDelete(`/tasks/${id}/`)
 export const decideTask = (id: number, decision: 'acceptee' | 'refusee') =>
   apiPost<Task>(`/tasks/${id}/decision/`, { decision })
 
-/** Bascule manuelle de la rubrique d'exécution (En cours / Terminée), réservée à la Direction/au
- * Pilotage — voir TaskRevueOverrideView. S'applique pour tout le système dès l'appel. */
-export const setTaskRevueOverride = (id: number, statut: 'en_cours' | 'termine') =>
+/** Bascule manuelle de la rubrique d'exécution — voir TaskRevueOverrideView. « en_revue » est
+ * ouvert au manager de l'équipe destinataire ; « en_cours »/« termine » sont réservés à la
+ * Direction/au Pilotage. S'applique pour tout le système dès l'appel. */
+export const setTaskRevueOverride = (id: number, statut: 'en_cours' | 'en_revue' | 'termine') =>
   apiPost<Task>(`/tasks/${id}/revue-override/`, { statut })

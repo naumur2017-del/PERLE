@@ -3,7 +3,7 @@ import {
   Activity, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Inbox, Info, RotateCcw,
   Search, Star, Trash2, UserCheck, UserPlus, UserX, Users, X, XCircle,
 } from 'lucide-react'
-import { fetchMe, fetchTeams, type MeProfile, type Team, type TeamMember } from '../api/employees'
+import { fetchEmployees, fetchMe, fetchTeams, type Employee, type MeProfile, type Team, type TeamMember } from '../api/employees'
 import { fetchOrganisationEhs } from '../api/organisation'
 import { decideTask, fetchTask, fetchTasks, taskRevueStatut, type Task } from '../api/tasks'
 import { createTaskAssignment, deleteTaskAssignment, rateTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
@@ -62,6 +62,10 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const [pendingTasks, setPendingTasks] = useState<Task[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [me, setMe] = useState<MeProfile | null>(null)
+  // Pour pouvoir staffer n'importe quel employé de l'organisation sur une tâche, pas seulement
+  // un membre de l'équipe destinataire (ex. renfort ponctuel d'une autre équipe) — voir
+  // selectableMembers.
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
   const [ehsRate, setEhsRate] = useState(150)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -79,13 +83,14 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const [ratingAssignment, setRatingAssignment] = useState<TaskAssignment | null>(null)
 
   useEffect(() => {
-    Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchOrganisationEhs()])
-      .then(([tasksData, pendingData, teamsData, meData, ehsData]) => {
+    Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchOrganisationEhs(), fetchEmployees()])
+      .then(([tasksData, pendingData, teamsData, meData, ehsData, employeesData]) => {
         setTasks(tasksData)
         setPendingTasks(pendingData)
         setTeams(teamsData)
         setMe(meData)
         setEhsRate(ehsData.taux_ehs_fcfa)
+        setAllEmployees(employeesData)
       })
       .catch(() => setLoadError('Impossible de charger les tâches à staffer.'))
       .finally(() => setLoading(false))
@@ -109,17 +114,19 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
     ? pendingTasks.find((t) => t.id === selectedId) ?? null
     : tasks.find((t) => t.id === selectedId) ?? null
   const selectedTeam = selected ? teams.find((t) => t.id === selected.equipe) ?? null : null
-  // Le backend n'autorise le staffing que si la personne est le manager de l'équipe ou l'un de
-  // ses membres (voir TaskAssignmentSerializer.validate).
-  const meCanSelfAssign = me !== null && selectedTeam !== null
-    && (selectedTeam.manager?.id === me.id || me.team?.id === selectedTeam.id)
   const alreadyAssignedIds = new Set(selected?.assignments.map((a) => a.user) ?? [])
   // Une personne en congé ou inactive ne peut pas être staffée (contrôle aussi côté backend,
   // voir TaskAssignmentSerializer.validate) : elle reste visible mais désactivée dans la liste.
   const statutLabel = (statut: string) => statut === 'conge' ? ' — en congé' : statut === 'inactif' ? ' — inactif' : ''
-  const selectableMembers: (TeamMember | MeProfile)[] = [
-    ...(me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) ? [me] : []),
+  // Le manager peut staffer n'importe quel employé de l'organisation sur sa tâche, pas seulement
+  // un membre de l'équipe destinataire (renfort ponctuel d'une autre équipe) — voir
+  // TaskAssignmentSerializer.validate, qui ne vérifie plus que l'appartenance à l'organisation.
+  const teamMemberIds = new Set((selectedTeam?.members ?? []).map((m) => m.id))
+  const otherEmployees = allEmployees.filter((e) => e.id !== me?.id && !teamMemberIds.has(e.id) && !alreadyAssignedIds.has(e.id))
+  const selectableMembers: (TeamMember | MeProfile | Employee)[] = [
+    ...(me && !alreadyAssignedIds.has(me.id) ? [me] : []),
     ...(selectedTeam?.members.filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id)) ?? []),
+    ...otherEmployees,
   ]
   const availableMembers = selectableMembers.filter((m) => m.statut === 'actif')
   const assignMember = availableMembers.find((m) => m.id === assignMemberId) ?? null
@@ -488,12 +495,25 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                           Personne *
                           <select value={assignMemberId ?? ''} onChange={(e) => setAssignMemberId(e.target.value === '' ? null : Number(e.target.value))}>
                             <option value="">{availableMembers.length === 0 ? 'Personne disponible' : 'Sélectionner'}</option>
-                            {me && meCanSelfAssign && !alreadyAssignedIds.has(me.id) && (
+                            {me && !alreadyAssignedIds.has(me.id) && (
                               <option value={me.id} disabled={me.statut !== 'actif'}>Moi-même — {me.first_name} {me.last_name} (grade {me.grade}){statutLabel(me.statut)}</option>
                             )}
-                            {selectedTeam?.members
-                              .filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id))
-                              .map((m) => <option key={m.id} value={m.id} disabled={m.statut !== 'actif'}>{m.first_name} {m.last_name} (grade {m.grade}){statutLabel(m.statut)}</option>)}
+                            {selectedTeam && selectedTeam.members.filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id)).length > 0 && (
+                              <optgroup label={`Équipe ${selectedTeam.name}`}>
+                                {selectedTeam.members
+                                  .filter((m) => m.id !== me?.id && !alreadyAssignedIds.has(m.id))
+                                  .map((m) => <option key={m.id} value={m.id} disabled={m.statut !== 'actif'}>{m.first_name} {m.last_name} (grade {m.grade}){statutLabel(m.statut)}</option>)}
+                              </optgroup>
+                            )}
+                            {otherEmployees.length > 0 && (
+                              <optgroup label="Autres employés de l’organisation">
+                                {otherEmployees.map((e) => (
+                                  <option key={e.id} value={e.id} disabled={e.statut !== 'actif'}>
+                                    {e.first_name} {e.last_name} (grade {e.grade}){e.team ? ` — ${e.team.name}` : ''}{statutLabel(e.statut)}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
                           </select>
                         </label>
                         <label className="ns-detail-field">
@@ -515,7 +535,6 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                             <div className="ns-predict-card">
                               <span className="ns-predict-card-label"><Activity size={11} />Consommation de cette attribution</span>
                               <strong className="ns-predict-card-value">{fmtEhs(ehsPreview)} EHS</strong>
-                              <span className="ns-predict-card-sub">{fmtFcfa(montantPreview)}</span>
                               <span className="ns-predict-card-sub">{assignMember.grade} EHS/h × {assignHeuresNumber} h · ≈ {(assignHeuresNumber / JOUR_HEURES).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} jour(s) de 8h</span>
                             </div>
 

@@ -1427,11 +1427,12 @@ class TaskDecisionView(generics.GenericAPIView):
 
 
 class TaskRevueOverrideView(generics.GenericAPIView):
-    """Bascule manuelle de la rubrique d'exécution d'une tâche « en revue » vers « En cours » ou
-    « Terminée » (Staffing des équipes), réservée à la Direction/au Pilotage — voir
-    Task.revue_override. Le champ est lu par tout le système (Nouveau staffing, Staffing des
-    équipes) pour catégoriser la tâche : le changement s'applique donc partout, immédiatement.
-    Réinitialisé automatiquement dès que le staffing de la tâche change (voir
+    """Bascule manuelle de la rubrique d'exécution d'une tâche — voir Task.revue_override. Le
+    manager de l'équipe destinataire peut poser « en_revue » (il juge le travail fait, prêt pour
+    la revue) ; seules la Direction/le Pilotage peuvent ensuite trancher « en_cours » (renvoi) ou
+    « termine » (clôture effective). Le champ est lu par tout le système (Nouveau staffing,
+    Staffing des équipes) pour catégoriser la tâche : le changement s'applique donc partout,
+    immédiatement. Réinitialisé automatiquement dès que le staffing de la tâche change (voir
     _clear_revue_override), pour ne jamais rester périmé."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
@@ -1443,15 +1444,18 @@ class TaskRevueOverrideView(generics.GenericAPIView):
         return Task.objects.filter(organisation=organisation)
 
     def post(self, request, pk):
-        if not can_access_config(request.user):
-            raise PermissionDenied('Vous n’êtes pas autorisé à changer le statut de cette tâche.')
         task = get_object_or_404(self.get_queryset(), pk=pk)
         statut = request.data.get('statut')
-        if statut not in ('en_cours', 'termine'):
-            raise ValidationError({'statut': 'Statut invalide (« en_cours » ou « termine » attendu).'})
+        if statut not in ('en_cours', 'en_revue', 'termine'):
+            raise ValidationError({'statut': 'Statut invalide (« en_cours », « en_revue » ou « termine » attendu).'})
+        if statut == 'en_revue':
+            if not _can_manage_task(request.user, task):
+                raise PermissionDenied('Vous n’êtes pas autorisé à changer le statut de cette tâche.')
+        elif not can_access_config(request.user):
+            raise PermissionDenied('Vous n’êtes pas autorisé à changer le statut de cette tâche.')
         task.revue_override = statut
         task.save(update_fields=['revue_override'])
-        label = 'En cours' if statut == 'en_cours' else 'Terminée'
+        label = {'en_cours': 'En cours', 'en_revue': 'En revue', 'termine': 'Terminée'}[statut]
         _log_task_event(task, request.user, f'a changé le statut de revue de cette tâche pour « {label} ».')
         return Response(TaskSerializer(task, context=self.get_serializer_context()).data)
 
@@ -1477,6 +1481,11 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(task_id=task_id)
         if user_id:
             qs = qs.filter(user_id=user_id)
+        elif not task_id and not is_org_supervisor(self.request.user):
+            # Sans filtre explicite (Suivi des staffings) : le back-office (Direction/Pilotage/
+            # Ressources) voit le staffing de toute l'organisation, un manager d'équipe « simple »
+            # ne voit que celui des équipes qu'il gère.
+            qs = qs.filter(task__equipe__manager_id=self.request.user.id)
         return qs
 
     def perform_create(self, serializer):

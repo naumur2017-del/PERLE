@@ -1568,6 +1568,11 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     project_code = serializers.CharField(source='task.project.code', read_only=True, default=None)
     equipe_nom = serializers.CharField(source='task.equipe.name', read_only=True)
     equipe_code = serializers.CharField(source='task.equipe.code', read_only=True)
+    # Id de l'équipe PORTEUSE de la tâche (task.equipe) — pas celle du collaborateur staffé, qui
+    # peut différer depuis le staffing inter-équipes. Permet au frontend de savoir si la
+    # personne connectée gère cette tâche (comparaison à MeProfile.managed_teams) sans requête
+    # supplémentaire — voir Suivi des staffings, bouton « Marquer en revue ».
+    task_equipe = serializers.IntegerField(source='task.equipe_id', read_only=True)
     ligne_budgetaire_nom = serializers.CharField(source='task.ligne_budgetaire.nom', read_only=True)
     ligne_budgetaire_code = serializers.CharField(source='task.ligne_budgetaire.code', read_only=True)
     task_date_debut = serializers.DateField(source='task.date_debut', read_only=True)
@@ -1575,6 +1580,9 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     priorite_display = serializers.CharField(source='task.get_priorite_display', read_only=True)
     task_created_by_nom = serializers.SerializerMethodField()
     notee_par_nom = serializers.SerializerMethodField()
+    # Pour que Suivi des staffings puisse regrouper ses attributions par tâche et en calculer la
+    # rubrique effective (voir taskRevueStatut, api/tasks.ts) sans un appel séparé par tâche.
+    task_revue_override = serializers.CharField(source='task.revue_override', read_only=True)
 
     class Meta:
         model = TaskAssignment
@@ -1588,9 +1596,9 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
             'temps_travaille_secondes', 'note', 'note_commentaire', 'notee_le', 'notee_par_nom',
             'created_by_nom', 'created_at',
             'task_code', 'task_description', 'template_nom', 'template_code',
-            'project_nom', 'project_code', 'equipe_nom', 'equipe_code',
+            'project_nom', 'project_code', 'equipe_nom', 'equipe_code', 'task_equipe',
             'ligne_budgetaire_nom', 'ligne_budgetaire_code', 'task_date_debut', 'echeance', 'priorite_display',
-            'task_created_by_nom',
+            'task_created_by_nom', 'task_revue_override',
         ]
         read_only_fields = [
             'id', 'ehs_consomme', 'montant_fcfa', 'execution_statut', 'demarree_le', 'terminee_le',
@@ -1653,11 +1661,10 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         user = attrs.get('user', getattr(self.instance, 'user', None))
         heures = attrs.get('heures', getattr(self.instance, 'heures', None))
         if task and user:
-            equipe = task.equipe
-            # Le manager peut se staffer lui-même, même s'il n'est pas lui-même membre de
-            # l'équipe, ou staffer un membre réel de l'équipe.
-            if user.id != equipe.manager_id and user.team_id != equipe.id:
-                raise serializers.ValidationError({'user': 'Ce membre doit être le manager de l’équipe ou l’un de ses membres.'})
+            # Le manager peut staffer n'importe quel employé de l'organisation sur sa tâche — pas
+            # seulement un membre de l'équipe destinataire ou lui-même (ex. renfort ponctuel d'une
+            # autre équipe) ; validate_user vérifie déjà que la personne appartient bien à
+            # l'organisation.
             # Une personne en congé (congé individuel ou fermeture technique) ou inactive ne peut
             # pas être nouvellement staffée tant qu'elle n'est pas revenue.
             if self.instance is None and user.statut == 'conge':

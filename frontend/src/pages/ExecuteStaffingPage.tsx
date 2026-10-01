@@ -5,7 +5,7 @@ import {
   UserCheck, X, XCircle,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
-import TaskMessagesModal from '../components/TaskMessagesModal'
+import TaskDetailByIdModal from '../components/TaskDetailByIdModal'
 import { executeTaskAssignmentAction, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
@@ -100,12 +100,13 @@ function echeanceDepassee(echeance: string | null, exec: TaskExecutionStatut, no
 
 const DETAIL_CLOSE_MS = 220
 
-type StaffColumnId = 'projet' | 'tache' | 'attribueePar' | 'ligneBudgetaire' | 'heures' | 'dateDebut' | 'echeance' | 'tempsRestant' | 'statutExecution'
+type StaffColumnId = 'projet' | 'tache' | 'attribueePar' | 'instructions' | 'ligneBudgetaire' | 'heures' | 'dateDebut' | 'echeance' | 'tempsRestant' | 'statutExecution'
 
 const STAFF_COLUMNS: ColumnDef<StaffColumnId>[] = [
   { id: 'projet', label: 'Projet' },
   { id: 'tache', label: 'Tâche' },
   { id: 'attribueePar', label: 'Attribuée par' },
+  { id: 'instructions', label: 'Instructions' },
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
   { id: 'heures', label: 'Heures' },
   { id: 'dateDebut', label: 'Date de début' },
@@ -118,13 +119,18 @@ const STAFF_CELL_DEFS: Record<StaffColumnId, { className?: string; render: (a: T
   projet: { render: (a) => <span className="es-projet-cell"><Folder size={13} />{a.project_nom ?? 'Transversale'}</span> },
   tache: { className: 'es-name', render: (a) => <><strong>{a.template_nom}</strong><small>{a.task_code}</small></> },
   attribueePar: {
+    // C'est le manager qui a staffé CETTE personne sur la tâche (TaskAssignment.created_by) —
+    // pas qui a créé la tâche elle-même (Task.created_by, généralement Pilotage/Direction depuis
+    // Staffing des équipes), sans quoi la même personne apparaîtrait partout quel que soit qui a
+    // réellement fait l'attribution.
     render: (a) => (
       <span className="es-employee">
-        <span className="es-employee-dot">{a.task_created_by_nom ? a.task_created_by_nom.split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase() : '—'}</span>
-        <span><strong>{a.task_created_by_nom ?? '—'}</strong><small>{a.equipe_nom}</small></span>
+        <span className="es-employee-dot">{a.created_by_nom ? a.created_by_nom.split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase() : '—'}</span>
+        <span><strong>{a.created_by_nom ?? '—'}</strong><small>{a.equipe_nom}</small></span>
       </span>
     ),
   },
+  instructions: { className: 'es-instructions', render: (a) => a.instructions || '—' },
   ligneBudgetaire: { render: (a) => `${a.ligne_budgetaire_code} — ${a.ligne_budgetaire_nom}` },
   heures: { render: (a) => `${a.heures} h` },
   dateDebut: { render: (a) => formatDate(a.task_date_debut) },
@@ -164,8 +170,9 @@ export default function ExecuteStaffingPage({
   const [acting, setActing] = useState(false)
   // La discussion est un espace partagé par TÂCHE (pas par attribution individuelle) : toutes les
   // personnes staffées sur la même tâche, plus le manager qui l'a attribuée, y échangent au même
-  // endroit — voir TaskMessagesModal. Identifiée par l'id de l'attribution (pas par `selected`) :
-  // on peut l'ouvrir directement depuis une ligne du tableau, sans passer par le panneau de détail.
+  // endroit — même fiche que Staffing des équipes, voir TaskDetailByIdModal. Identifiée par l'id
+  // de l'attribution (pas par `selected`) : on peut l'ouvrir directement depuis une ligne du
+  // tableau, sans passer par le panneau de détail.
   const [messagesAssignmentId, setMessagesAssignmentId] = useState<number | null>(null)
   const { unreadTaskIds, markTaskReadLocally } = useUnreadMessages()
 
@@ -487,7 +494,7 @@ export default function ExecuteStaffingPage({
                       <dd>{selected.instructions}</dd>
                     </div>
                   )}
-                  <div><dt>Attribuée par</dt><dd>{selected.task_created_by_nom ?? '—'}</dd></div>
+                  <div><dt>Attribuée par</dt><dd>{selected.created_by_nom ?? '—'}</dd></div>
                   <div><dt>Équipe</dt><dd>{selected.equipe_code} — {selected.equipe_nom}</dd></div>
                   <div><dt>Ligne budgétaire</dt><dd>{selected.ligne_budgetaire_code} — {selected.ligne_budgetaire_nom}</dd></div>
                   <div><dt>Date de début</dt><dd>{formatDate(selected.task_date_debut)}</dd></div>
@@ -503,7 +510,7 @@ export default function ExecuteStaffingPage({
                 </dl>
 
                 <button type="button" className="es-contact-link" onClick={() => setMessagesAssignmentId(selected.id)}>
-                  <MessageCircle size={13} />Discussion de la tâche{selected.task_created_by_nom ? ` avec ${selected.task_created_by_nom} et l'équipe` : ''}
+                  <MessageCircle size={13} />Discussion de la tâche{selected.created_by_nom ? ` avec ${selected.created_by_nom} et l'équipe` : ''}
                   {unreadTaskIds.has(selected.task) && <span className="es-message-dot" />}
                 </button>
 
@@ -561,10 +568,8 @@ export default function ExecuteStaffingPage({
       )}
 
       {messagesAssignment && (
-        <TaskMessagesModal
+        <TaskDetailByIdModal
           taskId={messagesAssignment.task}
-          title={`${messagesAssignment.task_code} — ${messagesAssignment.template_nom}`}
-          subtitle={messagesAssignment.project_nom ?? 'Transversale'}
           onClose={() => setMessagesAssignmentId(null)}
           onRead={markTaskReadLocally}
         />

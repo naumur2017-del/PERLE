@@ -147,6 +147,31 @@
   50% { transform: scale(1.3); }
 }
 
+/* =============== REGROUPEMENT PAR TÂCHE =============== */
+.su-expand-btn { display: grid; place-items: center; width: 24px; height: 24px; border: none; border-radius: 6px; background: none; color: #6c6c85; cursor: pointer; }
+.su-expand-btn:hover { background: #f0eef8; color: #6b46c1; }
+
+.su-employee-stack { display: flex; align-items: center; gap: 4px; }
+.su-employee-stack .su-employee-dot:not(:first-child) { margin-left: -8px; border: 1.5px solid #ffffff; }
+.su-employee-count { color: #6c6c85; font-weight: 600; font-size: 10.5px; white-space: nowrap; margin-left: 4px; }
+
+.su-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+.su-revue-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 999px;
+  background: #ffffff; color: #6b46c1; font-size: 10px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.su-revue-btn:hover { background: #f4f1ff; }
+
+.su-action-error { color: #b91c1c; }
+
+.su-detail-row td { background: #faf9ff; padding: 10px 12px 14px; }
+.su-subtable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.su-subtable th, .su-subtable td { padding: 7px 10px; border-bottom: 1px solid #efedf8; text-align: left; white-space: nowrap; }
+.su-subtable thead th { color: #8f8fa6; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+.su-subtable tbody tr:last-child td { border-bottom: none; }
+
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1300px) {
   .su-kpis { grid-template-columns: repeat(2, 1fr); }

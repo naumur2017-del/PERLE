@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
-  Activity, CheckCircle2, Clock3, Hourglass, Info, MessageCircle, Pause, RotateCcw, Search, Star, UserCheck,
+  Activity, CheckCircle2, ChevronDown, ChevronRight, Clock3, Flag, Hourglass, Info, MessageCircle, Pause,
+  RotateCcw, Search, Star, UserCheck,
 } from 'lucide-react'
 import { fetchTaskAssignments, rateTaskAssignment, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
+import { setTaskRevueOverride, taskRevueStatut, type TaskRevueStatut } from '../api/tasks'
+import { fetchMe, type MeProfile } from '../api/employees'
 import { ApiError } from '../api/client'
 import RatingModal from '../components/RatingModal'
-import TaskMessagesModal from '../components/TaskMessagesModal'
+import TaskDetailByIdModal from '../components/TaskDetailByIdModal'
 import { useUnreadMessages } from '../hooks/useUnreadMessages'
 import './SuiviStaffingPage.css'
 
@@ -25,6 +28,9 @@ const errorMessage = (error: unknown): string => {
 const STATUT_CLASS: Record<TaskExecutionStatut, string> = {
   a_demarrer: 'orange', en_cours: 'blue', en_pause: 'orange', terminee: 'green',
 }
+
+const REVUE_TONE: Record<TaskRevueStatut, string> = { en_cours: 'blue', en_revue: 'orange', termine: 'green' }
+const REVUE_LABEL: Record<TaskRevueStatut, string> = { en_cours: 'En cours', en_revue: 'En revue', termine: 'Terminée' }
 
 const initiales = (nom: string) => nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 const fmtHeures = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -65,10 +71,23 @@ function tempsRestantInfo(a: TaskAssignment, nowMs: number) {
   return { label, tone: 'ok' } as const
 }
 
+interface TaskGroup {
+  taskId: number
+  task_code: string
+  template_nom: string
+  project_nom: string | null
+  equipe_code: string
+  equipe_nom: string
+  task_equipe: number
+  assignments: TaskAssignment[]
+}
+
 export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [assignments, setAssignments] = useState<TaskAssignment[]>([])
+  const [me, setMe] = useState<MeProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const [filterProjet, setFilterProjet] = useState('Tous')
   const [filterCollaborateur, setFilterCollaborateur] = useState('Tous')
@@ -76,15 +95,17 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
   const [search, setSearch] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [ratingId, setRatingId] = useState<number | null>(null)
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set())
   // La discussion est un espace partagé par TÂCHE : toutes les personnes staffées dessus, plus le
-  // manager qui l'a attribuée, y échangent au même endroit — voir TaskMessagesModal.
-  const [messagesAssignmentId, setMessagesAssignmentId] = useState<number | null>(null)
+  // manager qui l'a attribuée, y échangent au même endroit — même fiche que Staffing des
+  // équipes, voir TaskDetailByIdModal.
+  const [discussionTaskId, setDiscussionTaskId] = useState<number | null>(null)
   const { unreadTaskIds, markTaskReadLocally } = useUnreadMessages()
 
   useEffect(() => {
     let cancelled = false
-    fetchTaskAssignments()
-      .then((data) => { if (!cancelled) setAssignments(data) })
+    Promise.all([fetchTaskAssignments(), fetchMe()])
+      .then(([data, meData]) => { if (!cancelled) { setAssignments(data); setMe(meData) } })
       .catch((err) => { if (!cancelled) setLoadError(errorMessage(err)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -95,6 +116,9 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
     const interval = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(interval)
   }, [])
+
+  const managedTeamIds = useMemo(() => new Set((me?.managed_teams ?? []).map((t) => t.id)), [me])
+  const canOverrideAnyTeam = me?.permissions.includes('config:view') ?? false
 
   const projets = useMemo(
     () => Array.from(new Set(assignments.map((a) => a.project_nom).filter((p): p is string => !!p))),
@@ -109,20 +133,53 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
     && (search.trim() === '' || `${a.task_code} ${a.template_nom} ${a.user_nom}`.toLowerCase().includes(search.trim().toLowerCase()))
   ))
 
+  // Une même tâche distribuée à plusieurs personnes — de la même équipe ou d'équipes
+  // différentes depuis le staffing inter-équipes — ne doit apparaître qu'une seule fois ici.
+  const groups = useMemo(() => {
+    const map = new Map<number, TaskGroup>()
+    for (const a of filtered) {
+      let group = map.get(a.task)
+      if (!group) {
+        group = {
+          taskId: a.task, task_code: a.task_code, template_nom: a.template_nom, project_nom: a.project_nom,
+          equipe_code: a.equipe_code, equipe_nom: a.equipe_nom, task_equipe: a.task_equipe, assignments: [],
+        }
+        map.set(a.task, group)
+      }
+      group.assignments.push(a)
+    }
+    return Array.from(map.values())
+  }, [filtered])
+
   const resetFiltres = () => {
     setFilterProjet('Tous'); setFilterCollaborateur('Tous'); setFilterStatut('Tous'); setSearch('')
   }
 
   const countByStatut = (statut: TaskExecutionStatut) => assignments.filter((a) => a.execution_statut === statut).length
 
+  const toggleExpand = (taskId: number) => setExpandedTaskIds((prev) => {
+    const next = new Set(prev)
+    if (next.has(taskId)) next.delete(taskId); else next.add(taskId)
+    return next
+  })
+
   const ratingAssignment = assignments.find((a) => a.id === ratingId) ?? null
-  const messagesAssignment = assignments.find((a) => a.id === messagesAssignmentId) ?? null
 
   const handleRate = async (note: number, commentaire: string) => {
     if (ratingId === null) return
     const updated = await rateTaskAssignment(ratingId, note, commentaire)
     setAssignments((list) => list.map((a) => a.id === updated.id ? updated : a))
     setRatingId(null)
+  }
+
+  const handleMarkEnRevue = async (taskId: number) => {
+    setActionError(null)
+    try {
+      const updated = await setTaskRevueOverride(taskId, 'en_revue')
+      setAssignments((list) => list.map((a) => a.task === taskId ? { ...a, task_revue_override: updated.revue_override } : a))
+    } catch (err) {
+      setActionError(errorMessage(err))
+    }
   }
 
   const KPIS = [
@@ -196,61 +253,127 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
 
           <div className="su-info-banner">
             <Info size={14} />
-            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing » — retrouvez ici la progression de toute l'équipe.</span>
+            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing » — retrouvez ici la progression de toute l'équipe, tâche par tâche.</span>
           </div>
+
+          {actionError && <p className="ge-detail-empty su-action-error">{actionError}</p>}
 
           <section className="su-table-panel">
             <div className="su-table-head">
-              <h3>Staffings <span className="su-count-badge">{filtered.length}</span></h3>
+              <h3>Tâches staffées <span className="su-count-badge">{groups.length}</span></h3>
             </div>
             <div className="su-table-wrap">
               <table className="su-table">
                 <thead>
                   <tr>
-                    <th>Tâche</th><th>Projet</th><th>Équipe</th><th>Collaborateur</th>
-                    <th>Heures</th><th>Date de début</th><th>Staffé le</th><th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th><th>Statut</th><th>Note</th><th></th>
+                    <th></th><th>Tâche</th><th>Projet</th><th>Équipe</th><th>Collaborateur(s)</th>
+                    <th>Heures</th><th>Exécution</th><th>Revue</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 && (
-                    <tr><td colSpan={11} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
+                  {groups.length === 0 && (
+                    <tr><td colSpan={9} className="su-empty">Aucun staffing ne correspond à ces filtres.</td></tr>
                   )}
-                  {filtered.map((a) => {
-                    const info = tempsRestantInfo(a, nowMs)
+                  {groups.map((g) => {
+                    const revue = taskRevueStatut({
+                      revue_override: g.assignments[0].task_revue_override,
+                      assignments: g.assignments,
+                    })
+                    const doneCount = g.assignments.filter((a) => a.execution_statut === 'terminee').length
+                    const total = g.assignments.length
+                    const execTone = doneCount === total ? 'green' : g.assignments.some((a) => a.execution_statut === 'en_cours') ? 'blue' : 'orange'
+                    const totalHeures = g.assignments.reduce((sum, a) => sum + a.heures, 0)
+                    const expanded = expandedTaskIds.has(g.taskId)
+                    const canMarkEnRevue = revue === 'en_cours' && (managedTeamIds.has(g.task_equipe) || canOverrideAnyTeam)
                     return (
-                      <tr key={a.id}>
-                        <td className="su-name">{a.task_code} — {a.template_nom}</td>
-                        <td>{a.project_nom ?? 'Transversale'}</td>
-                        <td>{a.equipe_code} — {a.equipe_nom}</td>
-                        <td>
-                          <span className="su-employee">
-                            <span className="su-employee-dot">{initiales(a.user_nom)}</span>
-                            <span><strong>{a.user_nom}</strong></span>
-                          </span>
-                        </td>
-                        <td>{fmtHeures(a.heures)} h</td>
-                        <td>{fmtDate(a.task_date_debut)}</td>
-                        <td>{fmtDate(a.created_at)}</td>
-                        <td><span className={`su-temps-restant su-temps-restant-${info.tone}`}>{info.label}</span></td>
-                        <td><span className={`su-statut-pill su-statut-${STATUT_CLASS[a.execution_statut]}`}>{a.execution_statut_display}</span></td>
-                        <td>
-                          {a.note !== null ? (
-                            <button type="button" className="su-rating-stars" title={a.note_commentaire || undefined} onClick={() => setRatingId(a.id)}>
-                              {[1, 2, 3, 4, 5].map((value) => <Star key={value} size={13} className={value <= a.note! ? 'is-filled' : ''} />)}
+                      <Fragment key={g.taskId}>
+                        <tr className="su-group-row">
+                          <td>
+                            <button type="button" className="su-expand-btn" onClick={() => toggleExpand(g.taskId)} aria-label={expanded ? 'Réduire' : 'Détailler'} aria-expanded={expanded}>
+                              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
-                          ) : a.execution_statut === 'terminee' ? (
-                            <button type="button" className="su-rate-btn" onClick={() => setRatingId(a.id)}><Star size={12} />Noter</button>
-                          ) : (
-                            <span className="su-rating-none">—</span>
-                          )}
-                        </td>
-                        <td>
-                          <button type="button" className="su-message-btn" title="Discussion de la tâche" aria-label="Discussion de la tâche" onClick={() => setMessagesAssignmentId(a.id)}>
-                            <MessageCircle size={14} />
-                            {unreadTaskIds.has(a.task) && <span className="su-message-dot" />}
-                          </button>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="su-name">{g.task_code} — {g.template_nom}</td>
+                          <td>{g.project_nom ?? 'Transversale'}</td>
+                          <td>{g.equipe_code} — {g.equipe_nom}</td>
+                          <td>
+                            {total === 1 ? (
+                              <span className="su-employee">
+                                <span className="su-employee-dot">{initiales(g.assignments[0].user_nom)}</span>
+                                <span><strong>{g.assignments[0].user_nom}</strong></span>
+                              </span>
+                            ) : (
+                              <span className="su-employee-stack" title={g.assignments.map((a) => a.user_nom).join(', ')}>
+                                {g.assignments.slice(0, 3).map((a) => <span key={a.id} className="su-employee-dot">{initiales(a.user_nom)}</span>)}
+                                <span className="su-employee-count">{total} collaborateurs</span>
+                              </span>
+                            )}
+                          </td>
+                          <td>{fmtHeures(totalHeures)} h</td>
+                          <td><span className={`su-statut-pill su-statut-${execTone}`}>{doneCount}/{total} terminé{total > 1 ? 's' : ''}</span></td>
+                          <td><span className={`su-statut-pill su-statut-${REVUE_TONE[revue]}`}>{REVUE_LABEL[revue]}</span></td>
+                          <td>
+                            <div className="su-row-actions">
+                              {canMarkEnRevue && (
+                                <button type="button" className="su-revue-btn" title="Marquer cette tâche en revue" onClick={() => handleMarkEnRevue(g.taskId)}>
+                                  <Flag size={12} />Marquer en revue
+                                </button>
+                              )}
+                              <button type="button" className="su-message-btn" title="Discussion de la tâche" aria-label="Discussion de la tâche" onClick={() => setDiscussionTaskId(g.taskId)}>
+                                <MessageCircle size={14} />
+                                {unreadTaskIds.has(g.taskId) && <span className="su-message-dot" />}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expanded && (
+                          <tr className="su-detail-row">
+                            <td></td>
+                            <td colSpan={8}>
+                              <table className="su-subtable">
+                                <thead>
+                                  <tr>
+                                    <th>Collaborateur</th><th>Heures</th><th>Date de début</th><th>Staffé le</th>
+                                    <th title="Temps restant à la personne pour terminer sa tâche (heures attribuées − temps déjà travaillé)">Temps restant</th>
+                                    <th>Statut</th><th>Note</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {g.assignments.map((a) => {
+                                    const info = tempsRestantInfo(a, nowMs)
+                                    return (
+                                      <tr key={a.id}>
+                                        <td>
+                                          <span className="su-employee">
+                                            <span className="su-employee-dot">{initiales(a.user_nom)}</span>
+                                            <span><strong>{a.user_nom}</strong></span>
+                                          </span>
+                                        </td>
+                                        <td>{fmtHeures(a.heures)} h</td>
+                                        <td>{fmtDate(a.task_date_debut)}</td>
+                                        <td>{fmtDate(a.created_at)}</td>
+                                        <td><span className={`su-temps-restant su-temps-restant-${info.tone}`}>{info.label}</span></td>
+                                        <td><span className={`su-statut-pill su-statut-${STATUT_CLASS[a.execution_statut]}`}>{a.execution_statut_display}</span></td>
+                                        <td>
+                                          {a.note !== null ? (
+                                            <button type="button" className="su-rating-stars" title={a.note_commentaire || undefined} onClick={() => setRatingId(a.id)}>
+                                              {[1, 2, 3, 4, 5].map((value) => <Star key={value} size={13} className={value <= a.note! ? 'is-filled' : ''} />)}
+                                            </button>
+                                          ) : a.execution_statut === 'terminee' ? (
+                                            <button type="button" className="su-rate-btn" onClick={() => setRatingId(a.id)}><Star size={12} />Noter</button>
+                                          ) : (
+                                            <span className="su-rating-none">—</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
@@ -264,12 +387,10 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
         <RatingModal assignment={ratingAssignment} onClose={() => setRatingId(null)} onSubmit={handleRate} />
       )}
 
-      {messagesAssignment && (
-        <TaskMessagesModal
-          taskId={messagesAssignment.task}
-          title={`${messagesAssignment.task_code} — ${messagesAssignment.template_nom}`}
-          subtitle={messagesAssignment.user_nom}
-          onClose={() => setMessagesAssignmentId(null)}
+      {discussionTaskId != null && (
+        <TaskDetailByIdModal
+          taskId={discussionTaskId}
+          onClose={() => setDiscussionTaskId(null)}
           onRead={markTaskReadLocally}
         />
       )}

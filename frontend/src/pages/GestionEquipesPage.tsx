@@ -169,7 +169,7 @@ function exportEmployeesCsv(employes: Employe[]) {
 type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'grade' | 'dateEmbauche'
 
 const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
-  { id: 'id', label: 'ID Employé' },
+  { id: 'id', label: 'Matricule' },
   { id: 'employe', label: 'Employé' },
   { id: 'statut', label: 'Statut' },
   { id: 'equipe', label: 'Équipe' },
@@ -179,7 +179,7 @@ const EMPLOYE_COLUMNS: ColumnDef<EmployeColumnId>[] = [
 ]
 
 const EMPLOYE_CELL_DEFS: Record<EmployeColumnId, { className?: string; render: (e: Employe) => ReactNode }> = {
-  id: { className: 'ge-code', render: (e) => e.displayId },
+  id: { className: 'ge-code', render: (e) => e.matricule },
   employe: {
     render: (e) => (
       <div className="ge-employe-cell">

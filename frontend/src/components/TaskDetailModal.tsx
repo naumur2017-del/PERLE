@@ -7,7 +7,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, History, Pencil, Users, X } from 'lucide-react'
 import {
-  fetchTaskMessages, fetchTaskTyping, sendTaskMessage, sendTaskTyping, type TaskMessage,
+  deleteTaskMessage, editTaskMessage, fetchTaskMessages, fetchTaskTyping, markTaskMessagesRead,
+  sendTaskMessage, sendTaskTyping, type TaskMessage,
 } from '../api/taskMessages'
 import { fetchMe } from '../api/employees'
 import type { Task } from '../api/tasks'
@@ -51,14 +52,26 @@ function joursRestants(task: Task): { label: string; tone: 'ok' | 'warn' | 'dang
 const POLL_MS = 6000
 const TYPING_POLL_MS = 2500
 
-export default function TaskDetailModal({ task, onClose, onEdit }: { task: Task; onClose: () => void; onEdit?: () => void }) {
+export default function TaskDetailModal({ task, onClose, onEdit, onRead }: {
+  task: Task
+  onClose: () => void
+  onEdit?: () => void
+  /** Appelé une fois le fil marqué comme lu, pour que l'appelant efface immédiatement son propre
+   * voyant « non lu » (cloche de notifications, bouton Discussion…) sans attendre le prochain
+   * sondage. */
+  onRead?: (taskId: number) => void
+}) {
   const [messages, setMessages] = useState<TaskMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [typingNames, setTypingNames] = useState<string[]>([])
   const [myId, setMyId] = useState<number | null>(null)
   const [showMoreFields, setShowMoreFields] = useState(false)
+  // Le dernier message reçu (pas de moi) est brièvement mis en évidence à l'ouverture — le
+  // message entrant qu'on venait chercher en cliquant depuis la cloche de notifications.
+  const [highlightId, setHighlightId] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const highlightedRef = useRef(false)
 
   useEffect(() => {
     fetchMe().then((me) => setMyId(me.id)).catch(() => {})
@@ -66,16 +79,28 @@ export default function TaskDetailModal({ task, onClose, onEdit }: { task: Task;
 
   useEffect(() => {
     let cancelled = false
+    highlightedRef.current = false
     const load = (silent: boolean) => {
       if (!silent) setLoading(true)
       fetchTaskMessages(task.id)
-        .then((data) => { if (!cancelled) { setMessages(data); setLoadError(null) } })
+        .then((data) => {
+          if (cancelled) return
+          setMessages(data)
+          setLoadError(null)
+          if (!highlightedRef.current) {
+            highlightedRef.current = true
+            const lastIncoming = [...data].reverse().find((m) => m.auteur !== null)
+            if (lastIncoming) setHighlightId(lastIncoming.id)
+          }
+        })
         .catch((err) => { if (!cancelled && !silent) setLoadError(errorMessage(err)) })
         .finally(() => { if (!cancelled && !silent) setLoading(false) })
     }
     load(false)
+    markTaskMessagesRead(task.id).then(() => { if (!cancelled) onRead?.(task.id) }).catch(() => {})
     const interval = window.setInterval(() => load(true), POLL_MS)
     return () => { cancelled = true; window.clearInterval(interval) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit se relancer que si on ouvre une autre tâche ; onRead est stable pour l'appelant
   }, [task.id])
 
   useEffect(() => {
@@ -95,6 +120,16 @@ export default function TaskDetailModal({ task, onClose, onEdit }: { task: Task;
   const handleSend = async (contenu: string, attachment?: File) => {
     const created = await sendTaskMessage(task.id, contenu, attachment)
     setMessages((current) => [...current, created])
+  }
+
+  const handleEditMessage = async (id: number, contenu: string) => {
+    const updated = await editTaskMessage(id, contenu)
+    setMessages((current) => current.map((m) => m.id === id ? updated : m))
+  }
+
+  const handleDeleteMessage = async (id: number) => {
+    await deleteTaskMessage(id)
+    setMessages((current) => current.filter((m) => m.id !== id))
   }
 
   const restant = joursRestants(task)
@@ -189,14 +224,25 @@ export default function TaskDetailModal({ task, onClose, onEdit }: { task: Task;
                 {messages.length === 0 && (
                   <p className="tm-empty">Aucun événement pour l’instant.</p>
                 )}
-                {messages.map((m) => m.est_systeme ? (
-                  <p key={m.id} className="tdm-system-entry">
-                    <span>{m.auteur_nom ?? 'Quelqu’un'}</span> {m.contenu}
-                    <time>{new Date(m.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                  </p>
-                ) : (
-                  <MessageBubble key={m.id} message={m} mine={m.auteur !== null && m.auteur === myId} showAuthor />
-                ))}
+                {messages.map((m) => {
+                  if (m.est_systeme) {
+                    return (
+                      <p key={m.id} className="tdm-system-entry">
+                        <span>{m.auteur_nom ?? 'Quelqu’un'}</span> {m.contenu}
+                        <time>{new Date(m.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                      </p>
+                    )
+                  }
+                  const mine = m.auteur !== null && m.auteur === myId
+                  return (
+                    <MessageBubble
+                      key={m.id} message={m} mine={mine} showAuthor
+                      highlighted={m.id === highlightId}
+                      onEdit={mine ? (contenu) => handleEditMessage(m.id, contenu) : undefined}
+                      onDelete={mine ? () => handleDeleteMessage(m.id) : undefined}
+                    />
+                  )
+                })}
               </div>
             )}
 
