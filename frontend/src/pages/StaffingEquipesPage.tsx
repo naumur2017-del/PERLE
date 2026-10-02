@@ -468,11 +468,15 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit réagir qu'à focusTaskId/loading/tasks
   }, [focusTaskId, loading, tasks])
 
-  const matchesRevueTab = (t: Task) => revueTab === 'tous' || taskRevueStatut(t) === revueTab
+  // Le Pilotage n'a rien à faire d'une tâche « en attente » (terminée par les employés, mais pas
+  // encore validée par son manager — voir taskRevueStatut) : elle reste dans la rubrique « En
+  // cours » tant que cette validation n'a pas eu lieu, voir le repère visuel posé plus bas.
+  const pilotageBucket = (t: Task) => { const r = taskRevueStatut(t); return r === 'en_attente' ? 'en_cours' : r }
+  const matchesRevueTab = (t: Task) => revueTab === 'tous' || pilotageBucket(t) === revueTab
 
-  const countEnCoursRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_cours').length
-  const countEnRevueRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_revue').length
-  const countTermineRevue = tasks.filter((t) => taskRevueStatut(t) === 'termine').length
+  const countEnCoursRevue = tasks.filter((t) => pilotageBucket(t) === 'en_cours').length
+  const countEnRevueRevue = tasks.filter((t) => pilotageBucket(t) === 'en_revue').length
+  const countTermineRevue = tasks.filter((t) => pilotageBucket(t) === 'termine').length
 
   const query = search.trim().toLowerCase()
   const filtered = tasks.filter((t) => (
@@ -797,8 +801,10 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
                                   <option value="termine">→ Terminée</option>
                                 </select>
                               </>
-                            ) : revue === 'termine' && (
+                            ) : revue === 'termine' ? (
                               <> · <span className="arch-pill arch-pill-acceptee">Terminée</span></>
+                            ) : revue === 'en_attente' && (
+                              <> · <span className="arch-pill arch-pill-attente" title="Tout le monde a terminé son exécution — en attente de validation par le manager">En attente (manager)</span></>
                             )}
                           </div>
                         )

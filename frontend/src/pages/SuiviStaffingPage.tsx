@@ -29,8 +29,8 @@ const STATUT_CLASS: Record<TaskExecutionStatut, string> = {
   a_demarrer: 'orange', en_cours: 'blue', en_pause: 'orange', terminee: 'green',
 }
 
-const REVUE_TONE: Record<TaskRevueStatut, string> = { en_cours: 'blue', en_revue: 'orange', termine: 'green' }
-const REVUE_LABEL: Record<TaskRevueStatut, string> = { en_cours: 'En cours', en_revue: 'En revue', termine: 'Terminée' }
+const REVUE_TONE: Record<TaskRevueStatut, string> = { en_cours: 'blue', en_attente: 'orange', en_revue: 'purple', termine: 'green' }
+const REVUE_LABEL: Record<TaskRevueStatut, string> = { en_cours: 'En cours', en_attente: 'En attente', en_revue: 'En revue', termine: 'Terminée' }
 
 const initiales = (nom: string) => nom.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 const fmtHeures = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -253,7 +253,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
 
           <div className="su-info-banner">
             <Info size={14} />
-            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing » — retrouvez ici la progression de toute l'équipe, tâche par tâche.</span>
+            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing ». Une fois tout le monde terminé, la tâche passe « En attente » : validez-la pour l'envoyer en revue au Pilotage, qui la clôturera définitivement depuis Staffing des équipes.</span>
           </div>
 
           {actionError && <p className="ge-detail-empty su-action-error">{actionError}</p>}
@@ -284,7 +284,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                     const execTone = doneCount === total ? 'green' : g.assignments.some((a) => a.execution_statut === 'en_cours') ? 'blue' : 'orange'
                     const totalHeures = g.assignments.reduce((sum, a) => sum + a.heures, 0)
                     const expanded = expandedTaskIds.has(g.taskId)
-                    const canMarkEnRevue = revue === 'en_cours' && (managedTeamIds.has(g.task_equipe) || canOverrideAnyTeam)
+                    const canMarkEnRevue = (revue === 'en_cours' || revue === 'en_attente') && (managedTeamIds.has(g.task_equipe) || canOverrideAnyTeam)
                     return (
                       <Fragment key={g.taskId}>
                         <tr className="su-group-row">
@@ -315,8 +315,12 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                           <td>
                             <div className="su-row-actions">
                               {canMarkEnRevue && (
-                                <button type="button" className="su-revue-btn" title="Marquer cette tâche en revue" onClick={() => handleMarkEnRevue(g.taskId)}>
-                                  <Flag size={12} />Marquer en revue
+                                <button
+                                  type="button" className={`su-revue-btn ${revue === 'en_attente' ? 'su-revue-btn-primary' : ''}`}
+                                  title={revue === 'en_attente' ? 'Valider cette tâche et l’envoyer en revue au Pilotage' : 'Envoyer cette tâche en revue avant même la fin de l’exécution'}
+                                  onClick={() => handleMarkEnRevue(g.taskId)}
+                                >
+                                  <Flag size={12} />{revue === 'en_attente' ? 'Valider' : 'Marquer en revue'}
                                 </button>
                               )}
                               <button type="button" className="su-message-btn" title="Discussion de la tâche" aria-label="Discussion de la tâche" onClick={() => setDiscussionTaskId(g.taskId)}>

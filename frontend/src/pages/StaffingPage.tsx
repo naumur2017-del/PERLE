@@ -156,7 +156,12 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const countAValider = pendingTasks.length
   const countPrete = tasks.filter((t) => t.assignments.length === 0).length
   const countStaffee = tasks.filter((t) => t.assignments.length > 0 && taskRevueStatut(t) === 'en_cours').length
-  const countEnRevue = tasks.filter((t) => taskRevueStatut(t) === 'en_revue').length
+  // « En revue » regroupe ici à la fois les tâches terminées par les employés et en attente de
+  // validation du manager (en_attente) et celles déjà validées, en attente de clôture par le
+  // Pilotage (en_revue) — le manager n'a plus rien à faire dans les deux cas tant qu'il ne les a
+  // pas lui-même validées (voir Suivi des staffings), donc un seul onglet suffit ici.
+  const isEnRevue = (t: Task) => taskRevueStatut(t) === 'en_attente' || taskRevueStatut(t) === 'en_revue'
+  const countEnRevue = tasks.filter(isEnRevue).length
   const countTermine = tasks.filter((t) => taskRevueStatut(t) === 'termine').length
 
   const projets = Array.from(new Set(allTasks.map((t) => t.project_nom).filter((p): p is string => Boolean(p))))
@@ -165,7 +170,7 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const scoped = activeTab === 'a_valider' ? pendingTasks
     : activeTab === 'prete' ? tasks.filter((t) => t.assignments.length === 0)
     : activeTab === 'staffee' ? tasks.filter((t) => t.assignments.length > 0 && taskRevueStatut(t) === 'en_cours')
-    : activeTab === 'en_revue' ? tasks.filter((t) => taskRevueStatut(t) === 'en_revue')
+    : activeTab === 'en_revue' ? tasks.filter(isEnRevue)
     : tasks.filter((t) => taskRevueStatut(t) === 'termine')
 
   const filtered = scoped.filter((t) => (

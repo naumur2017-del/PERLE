@@ -3,9 +3,9 @@
 .tdm-modal.ge-modal {
   display: flex;
   flex-direction: column;
-  width: min(760px, 94vw);
-  max-width: 760px;
-  height: min(720px, 92vh);
+  width: min(960px, 96vw);
+  max-width: 960px;
+  height: min(880px, 94vh);
   padding: 0;
   overflow: hidden;
   border-radius: 14px;
@@ -24,7 +24,11 @@
 }
 .tdm-head-actions { display: flex; align-items: center; gap: 10px; }
 
-.tdm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+/* Les informations de la tâche (tdm-fixed) restent figées pendant qu'on fait défiler les
+ * échanges : seul .tdm-thread (via .tm-list) défile, .tdm-body lui-même ne défile jamais. */
+.tdm-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+.tdm-fixed { flex: 0 0 auto; overflow-y: auto; max-height: 46%; }
 
 .tdm-head { padding: 10px 22px 0; }
 .tdm-title {
@@ -73,12 +77,12 @@
 
 .tdm-assignments { margin: 14px 22px 0; padding: 12px 14px; border: 1px solid #f0eef8; border-radius: 10px; background: #fff; }
 .tdm-assignments-head { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px; }
-.tdm-assignment-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tdm-assignment-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto; }
 .tdm-assignment-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: #faf9fe; }
 .tdm-assignment-nom { font-size: 12.5px; font-weight: 700; color: #14123a; }
 .tdm-assignment-meta { font-size: 11px; color: #6c6c85; white-space: nowrap; }
 
-.tdm-thread { flex: 1; min-height: 260px; display: flex; flex-direction: column; margin-top: 16px; }
+.tdm-thread { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .tdm-thread-head {
   display: flex; align-items: center; gap: 7px;
   margin: 0; padding: 12px 22px; border-top: 1px solid #f0eef8; border-bottom: 1px solid #f0eef8;

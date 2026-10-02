@@ -15,6 +15,7 @@ import ComptesOperationsPage from './pages/ComptesOperationsPage'
 import JournalTresoreriePage from './pages/JournalTresoreriePage'
 import MercurialesPage from './pages/MercurialesPage'
 import GuidePage from './pages/GuidePage'
+import GuideStaffingPage from './pages/GuideStaffingPage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
@@ -40,6 +41,7 @@ import { can, type Feature } from './auth/permissions'
 import { executeTaskAssignmentAction, fetchTaskAssignments, type TaskAssignment } from './api/taskAssignments'
 import { fetchMe, sendHeartbeat } from './api/employees'
 import TaskDetailByIdModal from './components/TaskDetailByIdModal'
+import NotificationsPanel from './components/NotificationsPanel'
 import { useUnreadMessages } from './hooks/useUnreadMessages'
 import { useSystemNotifications } from './hooks/useSystemNotifications'
 
@@ -626,7 +628,7 @@ function App() {
       case 'aide-tickets': return <ModulePage title={pageConfig['aide-tickets'].title} description={pageConfig['aide-tickets'].description} icon={icons.aide} />
       case 'guide': return <GuidePage navigateTo={navigateTo} />
       case 'guide-pilotage': return <ModulePage title={pageConfig['guide-pilotage'].title} description={pageConfig['guide-pilotage'].description} icon={icons.guide} />
-      case 'guide-staffing': return <ModulePage title={pageConfig['guide-staffing'].title} description={pageConfig['guide-staffing'].description} icon={icons.guide} />
+      case 'guide-staffing': return <GuideStaffingPage navigateTo={navigateTo} />
       case 'guide-gestion': return <ModulePage title={pageConfig['guide-gestion'].title} description={pageConfig['guide-gestion'].description} icon={icons.guide} />
       case 'guide-tresorerie': return <ModulePage title={pageConfig['guide-tresorerie'].title} description={pageConfig['guide-tresorerie'].description} icon={icons.guide} />
       case 'guide-salarie': return <ModulePage title={pageConfig['guide-salarie'].title} description={pageConfig['guide-salarie'].description} icon={icons.guide} />
@@ -800,57 +802,31 @@ function App() {
                     {(notifications.length + bellTotal) > 0 && <span className="notification-badge">{notifications.length + bellTotal}</span>}
                   </button>
                   {notificationsOpen && (
-                    <ul className="notification-dropdown" onMouseLeave={() => setNotificationsOpen(false)}>
-                      {unreadTasks.map((task) => (
-                        <li
-                          key={`task-${task.id}`}
-                          className="notification-link"
-                          onClick={() => { setNotificationTaskModal(task.id); setNotificationsOpen(false) }}
-                        >
-                          <span>💬 Nouveau message — {task.code} · {task.nom}</span>
-                        </li>
-                      ))}
-                      {unreadConversations.map((conversation) => (
-                        <li
-                          key={`conv-${conversation.id}`}
-                          className="notification-link"
-                          onClick={() => { setMessagingFocusConversationId(conversation.id); markBellConversationReadLocally(conversation.id); navigateTo('messagerie'); setNotificationsOpen(false) }}
-                        >
-                          <span>💬 Nouveau message de {conversation.nom}</span>
-                        </li>
-                      ))}
-                      {systemNotifications.map((notification) => (
-                        <li
-                          key={`sys-${notification.id}`}
-                          className="notification-link"
-                          onClick={() => {
-                            if (notification.cible_type === 'task' && notification.cible_id != null) {
-                              setExecuteFocusTaskId(notification.cible_id)
-                              navigateTo('staffing-execute')
-                            } else if (notification.cible_type === 'task_envoyee' && notification.cible_id != null) {
-                              setStaffingFocusTaskId(notification.cible_id)
-                              navigateTo('staffing')
-                            } else if (notification.cible_type === 'grade_demande') {
-                              navigateTo('gestion-demandes')
-                            } else {
-                              navigateTo('salarie')
-                            }
-                            setNotificationsOpen(false)
-                          }}
-                        >
-                          <span>🔔 {notification.message}</span>
-                          <small>{new Date(notification.created_at).toLocaleString('fr-FR')}</small>
-                        </li>
-                      ))}
-                      {notifications.length === 0 && bellTotal === 0 && systemNotifications.length === 0 ? (
-                        <li className="notification-empty">Aucune notification</li>
-                      ) : notifications.map((notification) => (
-                        <li key={notification.id}>
-                          <span>{notification.message}</span>
-                          <small>{notification.date}</small>
-                        </li>
-                      ))}
-                    </ul>
+                    <NotificationsPanel
+                      onClose={() => setNotificationsOpen(false)}
+                      unreadTasks={unreadTasks}
+                      unreadConversations={unreadConversations}
+                      systemNotifications={systemNotifications}
+                      localAlerts={notifications}
+                      onOpenTask={(taskId) => { setNotificationTaskModal(taskId); setNotificationsOpen(false) }}
+                      onOpenConversation={(conversationId) => { setMessagingFocusConversationId(conversationId); markBellConversationReadLocally(conversationId); navigateTo('messagerie'); setNotificationsOpen(false) }}
+                      onOpenSystemNotification={(notification) => {
+                        if (notification.cible_type === 'task_mention' && notification.cible_id != null) {
+                          setNotificationTaskModal(notification.cible_id)
+                        } else if (notification.cible_type === 'task' && notification.cible_id != null) {
+                          setExecuteFocusTaskId(notification.cible_id)
+                          navigateTo('staffing-execute')
+                        } else if (notification.cible_type === 'task_envoyee' && notification.cible_id != null) {
+                          setStaffingFocusTaskId(notification.cible_id)
+                          navigateTo('staffing')
+                        } else if (notification.cible_type === 'grade_demande') {
+                          navigateTo('gestion-demandes')
+                        } else {
+                          navigateTo('salarie')
+                        }
+                        setNotificationsOpen(false)
+                      }}
+                    />
                   )}
                 </div>
                 <div className="user-profile">

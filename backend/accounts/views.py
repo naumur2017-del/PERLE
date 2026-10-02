@@ -797,6 +797,36 @@ def _log_task_event(task, user, texte):
     TaskMessage.objects.create(task=task, auteur=user, contenu=texte, est_systeme=True)
 
 
+def _task_participants(task):
+    """Personnes engagées sur une tâche — son manager, qui l'a créée et toute personne qui y est
+    staffée (TaskAssignment) — les mêmes qui ont accès à sa discussion (voir
+    _can_access_task_messages) : seules elles peuvent raisonnablement y être taguées."""
+    people = {a.user for a in task.assignments.select_related('user').all()}
+    if task.equipe.manager_id:
+        people.add(task.equipe.manager)
+    if task.created_by_id:
+        people.add(task.created_by)
+    return people
+
+
+def _notify_task_mentions(task, author, contenu):
+    """Repère les mentions « @Prénom Nom » d'un message de discussion de tâche et notifie (voir
+    _notify) chaque personne engagée sur la tâche ainsi taguée — jamais l'auteur lui-même. Détection
+    textuelle simple (pas d'identifiant stocké) : suffisant ici, la liste des personnes taguables
+    étant restreinte à celles qui ont accès à cette même discussion."""
+    if '@' not in contenu:
+        return
+    for person in _task_participants(task):
+        if person.id == author.id:
+            continue
+        full_name = f'{person.first_name} {person.last_name}'.strip()
+        if full_name and f'@{full_name}' in contenu:
+            _notify(
+                person, f'{author.first_name} {author.last_name} vous a mentionné dans « {_task_libelle(task)} ».',
+                cible_type='task_mention', cible_id=task.id,
+            )
+
+
 def _clear_revue_override(task):
     """Invalide la bascule manuelle de rubrique (Task.revue_override, voir TaskRevueOverrideView)
     dès que le staffing réel de la tâche change (nouvelle attribution, retrait, changement
@@ -1643,7 +1673,10 @@ class TaskMessageListCreateView(generics.ListCreateAPIView):
         return TaskMessage.objects.filter(task=self.get_task()).select_related('auteur')
 
     def perform_create(self, serializer):
-        serializer.save(task=self.get_task(), auteur=self.request.user)
+        task = self.get_task()
+        message = serializer.save(task=task, auteur=self.request.user)
+        if message.contenu:
+            _notify_task_mentions(task, self.request.user, message.contenu)
 
 
 class TaskMessageDetailView(generics.RetrieveUpdateDestroyAPIView):

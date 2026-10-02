@@ -282,6 +282,7 @@
 .arch-pill-envoyee { background: #dbeafe; color: #1d4ed8; }
 .arch-pill-acceptee { background: #dcfce7; color: #15803d; }
 .arch-pill-refusee { background: #fee2e2; color: #b91c1c; }
+.arch-pill-attente { background: #fef1d8; color: #b45309; }
 .arch-pill-prio-haute { background: #fee2e2; color: #b91c1c; }
 .arch-pill-prio-moyenne { background: #fef1d8; color: #b45309; }
 .arch-pill-prio-basse { background: #e0e7ff; color: #4338ca; }

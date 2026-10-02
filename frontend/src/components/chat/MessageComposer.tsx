@@ -25,6 +25,22 @@ interface MessageComposerProps {
    * appels réseau réels, voir TaskDetailModal/MessagingPage) pour signaler « en train
    * d'écrire » aux autres participants du fil. */
   onTyping?: () => void
+  /** Noms complets qu'on peut taguer avec « @ » dans ce fil (ex. les personnes engagées sur la
+   * tâche, voir TaskDetailModal) — absent (donc `undefined`) là où le tag n'a pas de sens, comme
+   * la Messagerie 1-à-1 (MessagingPage), qui n'en passe pas. */
+  mentionCandidates?: string[]
+}
+
+/** Fragment en cours de frappe après le dernier « @ » précédant le curseur, et sa position dans
+ * le texte — `null` si le curseur n'est pas dans un tag en cours (pas de « @ » avant lui sur la
+ * même ligne, ou fragment trop long pour être un nom). */
+function activeMentionFragment(text: string, caret: number): { start: number; fragment: string } | null {
+  const uptoCaret = text.slice(0, caret)
+  const atIndex = uptoCaret.lastIndexOf('@')
+  if (atIndex === -1) return null
+  const fragment = uptoCaret.slice(atIndex + 1)
+  if (fragment.includes('\n') || fragment.length > 40) return null
+  return { start: atIndex, fragment }
 }
 
 const fmtRecordTime = (totalSeconds: number) =>
@@ -33,8 +49,14 @@ const fmtRecordTime = (totalSeconds: number) =>
 /** Composeur de message partagé par la discussion de tâche et la Messagerie : texte, pièce
  * jointe image/vidéo avec prévisualisation avant envoi, et note vocale enregistrée directement
  * dans le navigateur (MediaRecorder) — même design et mêmes animations aux deux endroits. */
-export function MessageComposer({ onSend, placeholder, onTyping }: MessageComposerProps) {
+export function MessageComposer({ onSend, placeholder, onTyping, mentionCandidates }: MessageComposerProps) {
   const [draft, setDraft] = useState('')
+  // Tag « @Prénom Nom » en cours de frappe : `mentionStart` est la position du « @ » dans `draft`,
+  // `mentionMatches` la liste filtrée affichée dans le menu, `mentionIndex` l'entrée surlignée
+  // (flèches haut/bas) — `null`/vide tant qu'on n'est pas en train d'en taper un.
+  const [mentionStart, setMentionStart] = useState<number | null>(null)
+  const [mentionMatches, setMentionMatches] = useState<string[]>([])
+  const [mentionIndex, setMentionIndex] = useState(0)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null)
@@ -123,11 +145,43 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
     if (recordIntervalRef.current) { window.clearInterval(recordIntervalRef.current); recordIntervalRef.current = null }
   }
 
+  const closeMentionMenu = () => { setMentionStart(null); setMentionMatches([]); setMentionIndex(0) }
+
   const handleDraftChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    setDraft(event.target.value)
+    const value = event.target.value
+    setDraft(value)
     onTyping?.()
     const el = textareaRef.current
     if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 120)}px` }
+
+    if (mentionCandidates && mentionCandidates.length > 0) {
+      const active = activeMentionFragment(value, event.target.selectionStart)
+      const matches = active
+        ? mentionCandidates.filter((name) => name.toLowerCase().startsWith(active.fragment.toLowerCase()))
+        : []
+      if (active && matches.length > 0) {
+        setMentionStart(active.start)
+        setMentionMatches(matches)
+        setMentionIndex(0)
+      } else {
+        closeMentionMenu()
+      }
+    }
+  }
+
+  const selectMention = (name: string) => {
+    if (mentionStart === null) return
+    const caret = textareaRef.current?.selectionStart ?? draft.length
+    const next = `${draft.slice(0, mentionStart)}@${name} ${draft.slice(caret)}`
+    setDraft(next)
+    closeMentionMenu()
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      const pos = mentionStart + name.length + 2
+      el.setSelectionRange(pos, pos)
+    })
   }
 
   const handleSend = async () => {
@@ -139,6 +193,7 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
     try {
       await onSend(contenu, pendingFile ?? undefined)
       setDraft('')
+      closeMentionMenu()
       clearPending()
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
     } catch (err) {
@@ -149,6 +204,12 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionStart !== null && mentionMatches.length > 0) {
+      if (event.key === 'ArrowDown') { event.preventDefault(); setMentionIndex((i) => (i + 1) % mentionMatches.length); return }
+      if (event.key === 'ArrowUp') { event.preventDefault(); setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length); return }
+      if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); selectMention(mentionMatches[mentionIndex]); return }
+      if (event.key === 'Escape') { event.preventDefault(); closeMentionMenu(); return }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       void handleSend()
@@ -158,6 +219,21 @@ export function MessageComposer({ onSend, placeholder, onTyping }: MessageCompos
   return (
     <div className="mc-composer">
       {error && <p className="mc-error">{error}</p>}
+
+      {mentionStart !== null && mentionMatches.length > 0 && (
+        <ul className="mc-mention-menu" role="listbox">
+          {mentionMatches.map((name, index) => (
+            <li
+              key={name} role="option" aria-selected={index === mentionIndex}
+              className={index === mentionIndex ? 'is-active' : ''}
+              onMouseEnter={() => setMentionIndex(index)}
+              onMouseDown={(event) => { event.preventDefault(); selectMention(name) }}
+            >
+              @{name}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {previewUrl && previewKind && (
         <div className="mc-preview">

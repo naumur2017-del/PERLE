@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Folder, Info,
+  AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Folder, Hourglass, Info,
   ListChecks, MessageCircle, MoreVertical, Pause, Play, RotateCcw, Search, SlidersHorizontal,
   UserCheck, X, XCircle,
 } from 'lucide-react'
@@ -25,14 +25,26 @@ const errorMessage = (error: unknown): string => {
   return 'Impossible de contacter le serveur.'
 }
 
-type Tab = 'a_demarrer' | 'en_cours' | 'en_pause' | 'terminee'
+type Tab = 'a_demarrer' | 'en_cours' | 'en_pause' | 'en_attente' | 'terminee'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'a_demarrer', label: 'À démarrer' },
   { key: 'en_cours', label: 'En cours' },
   { key: 'en_pause', label: 'En pause' },
-  { key: 'terminee', label: 'Terminer' },
+  { key: 'en_attente', label: 'En attente' },
+  { key: 'terminee', label: 'Terminée' },
 ]
+
+/** Rubrique affichée pour CETTE attribution — distincte de son seul execution_statut une fois
+ * l'exécution terminée : le travail de la personne est fini, mais la tâche elle-même ne quitte
+ * « En attente » pour « Terminée » qu'une fois son manager puis le Pilotage l'ont validée/clôturée
+ * (voir Task.revue_override, Suivi des staffings et Staffing des équipes) — pour tout le système,
+ * donc aussi ici chez l'employé comme chez son manager. */
+function displayTab(a: TaskAssignment): Tab {
+  if (a.task_revue_override === 'termine') return 'terminee'
+  if (a.execution_statut === 'terminee') return 'en_attente'
+  return a.execution_statut
+}
 
 const STATUT_EXECUTION_CLASS: Record<TaskExecutionStatut, string> = {
   a_demarrer: 'orange', en_cours: 'blue', en_pause: 'orange', terminee: 'green',
@@ -200,12 +212,12 @@ export default function ExecuteStaffingPage({
   const selected = assignments.find((a) => a.id === selectedId) ?? null
   const messagesAssignment = assignments.find((a) => a.id === messagesAssignmentId) ?? null
 
-  const counts: Record<Tab, number> = { a_demarrer: 0, en_cours: 0, en_pause: 0, terminee: 0 }
-  assignments.forEach((a) => { counts[a.execution_statut] += 1 })
+  const counts: Record<Tab, number> = { a_demarrer: 0, en_cours: 0, en_pause: 0, en_attente: 0, terminee: 0 }
+  assignments.forEach((a) => { counts[displayTab(a)] += 1 })
 
   const filtered = assignments
     .filter((a) => (
-      a.execution_statut === activeTab
+      displayTab(a) === activeTab
       && (filterProjet === 'Tous' || (a.project_nom ?? 'Transversale') === filterProjet)
       && (filterEquipe === 'Toutes' || a.equipe_nom === filterEquipe)
       && (search.trim() === '' || `${a.task_code} ${a.template_nom} ${a.project_nom ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
@@ -234,7 +246,7 @@ export default function ExecuteStaffingPage({
     if (assignment) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (focusCode/focusTaskId), pas dérivé du rendu
       setPageTab('mes-taches')
-      setActiveTab(assignment.execution_statut)
+      setActiveTab(displayTab(assignment))
       handleSelect(assignment)
     }
     onFocusConsumed?.()
@@ -276,7 +288,8 @@ export default function ExecuteStaffingPage({
     { icon: ListChecks, tone: 'purple', label: 'À démarrer', value: counts.a_demarrer, sub: 'En attente de votre réponse' },
     { icon: Play, tone: 'blue', label: 'En cours', value: counts.en_cours, sub: "Tâches en cours d'exécution" },
     { icon: Pause, tone: 'orange', label: 'En pause', value: counts.en_pause, sub: 'Tâches temporairement suspendues' },
-    { icon: CheckCircle2, tone: 'green', label: 'Terminer', value: counts.terminee, sub: 'Tâches à clôturer' },
+    { icon: Hourglass, tone: 'orange', label: 'En attente', value: counts.en_attente, sub: 'Terminées, en attente de validation' },
+    { icon: CheckCircle2, tone: 'green', label: 'Terminée', value: counts.terminee, sub: 'Clôturées par le Pilotage' },
   ]
 
   if (loading) return <section className="es-page"><p className="es-empty">Chargement…</p></section>
@@ -427,6 +440,7 @@ export default function ExecuteStaffingPage({
                     <span><i className="dot orange" />À démarrer</span>
                     <span><i className="dot blue" />En cours</span>
                     <span><i className="dot amber" />En pause</span>
+                    <span><i className="dot purple" />En attente</span>
                     <span><i className="dot teal" />Terminée</span>
                   </div>
 
@@ -555,10 +569,17 @@ export default function ExecuteStaffingPage({
                   </>
                 )}
 
-                {selected.execution_statut === 'terminee' && (
+                {selected.execution_statut === 'terminee' && selected.task_revue_override !== 'termine' && (
+                  <div className="es-response-box pending">
+                    <span><Clock3 size={13} />En attente de validation</span>
+                    <p>Vous avez terminé votre part de cette tâche. Elle est en attente de validation par votre manager, puis de clôture par le Pilotage, avant de passer dans l'onglet « Terminée ».</p>
+                  </div>
+                )}
+
+                {selected.task_revue_override === 'termine' && (
                   <div className="es-response-box done">
                     <span><CheckCircle2 size={13} />Tâche terminée</span>
-                    <p>Cette tâche a été clôturée. Retrouvez-la dans l'onglet « Historique ».</p>
+                    <p>Cette tâche a été clôturée par le Pilotage. Retrouvez-la dans l'onglet « Terminée ».</p>
                   </div>
                 )}
               </aside>

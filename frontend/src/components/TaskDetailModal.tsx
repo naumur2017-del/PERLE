@@ -134,6 +134,15 @@ export default function TaskDetailModal({ task, onClose, onEdit, onRead }: {
 
   const restant = joursRestants(task)
 
+  // Personnes qu'on peut taguer avec « @ » dans cette discussion — celles qui sont engagées sur
+  // la tâche (voir _task_participants côté backend, qui notifie la bonne personne à la détection
+  // d'une mention) : staffées, manager destinataire, et qui l'a créée.
+  const mentionCandidates = Array.from(new Set([
+    ...task.assignments.map((a) => a.user_nom),
+    ...(task.equipe_manager_nom ? [task.equipe_manager_nom] : []),
+    ...(task.created_by_nom ? [task.created_by_nom] : []),
+  ]))
+
   const primaryFields: { label: string; value: ReactNode }[] = [
     { label: 'Statut', value: <span className={`arch-pill arch-pill-${task.statut}`}>{task.statut_display}</span> },
     { label: 'Manager destinataire', value: task.equipe_manager_nom ?? 'Aucun manager défini' },
@@ -162,54 +171,56 @@ export default function TaskDetailModal({ task, onClose, onEdit, onRead }: {
         </div>
 
         <div className="tdm-body">
-          <div className="tdm-head">
-            <h2 className="tdm-title">{task.template_nom || 'Détail de la tâche'}</h2>
-            <div className="tdm-crumbs">
-              <span className="tdm-crumb">{task.project_code ?? 'Transversale'}</span>
-              <span className="tdm-crumb-sep">/</span>
-              <span className="tdm-crumb">{task.equipe_code} — {task.equipe_nom}</span>
-            </div>
-          </div>
-
-          <div className="tdm-fieldrow">
-            {primaryFields.map((f) => (
-              <div className="tdm-field-card" key={f.label}>
-                <span className="tdm-field-label">{f.label}</span>
-                <span className="tdm-field-value">{f.value}</span>
+          <div className="tdm-fixed">
+            <div className="tdm-head">
+              <h2 className="tdm-title">{task.template_nom || 'Détail de la tâche'}</h2>
+              <div className="tdm-crumbs">
+                <span className="tdm-crumb">{task.project_code ?? 'Transversale'}</span>
+                <span className="tdm-crumb-sep">/</span>
+                <span className="tdm-crumb">{task.equipe_code} — {task.equipe_nom}</span>
               </div>
-            ))}
-            {showMoreFields && secondaryFields.map((f) => (
-              <div className="tdm-field-card" key={f.label}>
-                <span className="tdm-field-label">{f.label}</span>
-                <span className="tdm-field-value">{f.value}</span>
-              </div>
-            ))}
-            <button type="button" className="tdm-more-btn" onClick={() => setShowMoreFields((s) => !s)}>
-              {showMoreFields ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              {showMoreFields ? 'Moins' : 'Plus'}
-            </button>
-          </div>
-
-          {task.description && (
-            <div className="tdm-description">
-              <p>{task.description}</p>
             </div>
-          )}
 
-          <div className="tdm-assignments">
-            <h4 className="tdm-assignments-head"><Users size={14} />Qui a été staffé ({task.assignments.length})</h4>
-            {task.assignments.length === 0 ? (
-              <p className="tm-empty">Personne n’est encore staffé sur cette tâche.</p>
-            ) : (
-              <ul className="tdm-assignment-list">
-                {task.assignments.map((a) => (
-                  <li key={a.id}>
-                    <span className="tdm-assignment-nom">{a.user_nom}</span>
-                    <span className="tdm-assignment-meta">{a.heures} h · grade {a.user_grade} · {a.execution_statut_display}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="tdm-fieldrow">
+              {primaryFields.map((f) => (
+                <div className="tdm-field-card" key={f.label}>
+                  <span className="tdm-field-label">{f.label}</span>
+                  <span className="tdm-field-value">{f.value}</span>
+                </div>
+              ))}
+              {showMoreFields && secondaryFields.map((f) => (
+                <div className="tdm-field-card" key={f.label}>
+                  <span className="tdm-field-label">{f.label}</span>
+                  <span className="tdm-field-value">{f.value}</span>
+                </div>
+              ))}
+              <button type="button" className="tdm-more-btn" onClick={() => setShowMoreFields((s) => !s)}>
+                {showMoreFields ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                {showMoreFields ? 'Moins' : 'Plus'}
+              </button>
+            </div>
+
+            {task.description && (
+              <div className="tdm-description">
+                <p>{task.description}</p>
+              </div>
             )}
+
+            <div className="tdm-assignments">
+              <h4 className="tdm-assignments-head"><Users size={14} />Qui a été staffé ({task.assignments.length})</h4>
+              {task.assignments.length === 0 ? (
+                <p className="tm-empty">Personne n’est encore staffé sur cette tâche.</p>
+              ) : (
+                <ul className="tdm-assignment-list">
+                  {task.assignments.map((a) => (
+                    <li key={a.id}>
+                      <span className="tdm-assignment-nom">{a.user_nom}</span>
+                      <span className="tdm-assignment-meta">{a.heures} h · grade {a.user_grade} · {a.execution_statut_display}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div className="tdm-thread">
@@ -240,6 +251,7 @@ export default function TaskDetailModal({ task, onClose, onEdit, onRead }: {
                       highlighted={m.id === highlightId}
                       onEdit={mine ? (contenu) => handleEditMessage(m.id, contenu) : undefined}
                       onDelete={mine ? () => handleDeleteMessage(m.id) : undefined}
+                      mentionCandidates={mentionCandidates}
                     />
                   )
                 })}
@@ -247,7 +259,11 @@ export default function TaskDetailModal({ task, onClose, onEdit, onRead }: {
             )}
 
             <TypingIndicator names={typingNames} />
-            <MessageComposer onSend={handleSend} onTyping={triggerTyping} placeholder="Ajouter un commentaire ou un fichier concernant cette tâche…" />
+            <MessageComposer
+              onSend={handleSend} onTyping={triggerTyping}
+              placeholder="Ajouter un commentaire ou un fichier concernant cette tâche… (@ pour mentionner quelqu’un)"
+              mentionCandidates={mentionCandidates}
+            />
           </div>
         </div>
       </div>
