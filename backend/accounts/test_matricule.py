@@ -58,7 +58,8 @@ class EmployeeMatriculeEndpointTests(APITestCase):
     def test_matricule_is_auto_generated_and_manual_input_ignored(self):
         response = self.client.post('/api/employees/', {
             'first_name': 'Amina', 'last_name': 'Njoya', 'email': 'amina@naumur.test',
-            'password': 'EmployeePass!42', 'date_embauche': '2026-08-26',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-08-26',
             'matricule': 'JE-CHOISIS-MOI-MEME',
         }, format='multipart')
         self.assertEqual(response.status_code, 201, response.data)
@@ -67,11 +68,13 @@ class EmployeeMatriculeEndpointTests(APITestCase):
     def test_matricule_increments_for_second_employee_same_year(self):
         self.client.post('/api/employees/', {
             'first_name': 'Amina', 'last_name': 'Njoya', 'email': 'amina@naumur.test',
-            'password': 'EmployeePass!42', 'date_embauche': '2026-08-26',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-08-26',
         }, format='multipart')
         response = self.client.post('/api/employees/', {
             'first_name': 'Bello', 'last_name': 'Tanko', 'email': 'bello@naumur.test',
-            'password': 'EmployeePass!42', 'date_embauche': '2026-09-01',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-09-01',
         }, format='multipart')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data['matricule'], 'NAU-2026-002')
@@ -79,7 +82,8 @@ class EmployeeMatriculeEndpointTests(APITestCase):
     def test_admin_can_edit_matricule_after_creation(self):
         created = self.client.post('/api/employees/', {
             'first_name': 'Amina', 'last_name': 'Njoya', 'email': 'amina@naumur.test',
-            'password': 'EmployeePass!42', 'date_embauche': '2026-08-26',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-08-26',
         }, format='multipart').data
         response = self.client.patch(f"/api/employees/{created['id']}/edit/", {'matricule': 'NAU-2026-999'}, format='multipart')
         self.assertEqual(response.status_code, 200, response.data)
@@ -88,7 +92,8 @@ class EmployeeMatriculeEndpointTests(APITestCase):
     def test_employee_cannot_edit_own_matricule(self):
         created = self.client.post('/api/employees/', {
             'first_name': 'Amina', 'last_name': 'Njoya', 'email': 'amina@naumur.test',
-            'password': 'EmployeePass!42', 'date_embauche': '2026-08-26',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-08-26',
         }, format='multipart').data
         employee = User.objects.get(pk=created['id'])
         token = Token.objects.create(user=employee)
@@ -102,7 +107,9 @@ class EmployeeMatriculeEndpointTests(APITestCase):
     def test_region_and_ville_are_distinct_fields(self):
         response = self.client.post('/api/employees/', {
             'first_name': 'Amina', 'last_name': 'Njoya', 'email': 'amina@naumur.test',
-            'password': 'EmployeePass!42', 'pays': 'Cameroun', 'region': 'Littoral', 'ville': 'Douala',
+            'password': 'EmployeePass!42', 'fonction': 'Analyste', 'grade': 1, 'statut': 'actif',
+            'type_contrat': 'cdi', 'date_embauche': '2026-08-26',
+            'pays': 'Cameroun', 'region': 'Littoral', 'ville': 'Douala',
         }, format='multipart')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data['region'], 'Littoral')

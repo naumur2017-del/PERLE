@@ -27,6 +27,7 @@ class EmployeeCreationTests(APITestCase):
             'phone': '+237611111111',
             'fonction': 'Analyste',
             'grade': 2,
+            'statut': 'actif',
             'date_embauche': '2026-08-26',
             'type_contrat': 'cdi',
             'temps_travail': 'temps_plein',
