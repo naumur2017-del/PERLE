@@ -1553,8 +1553,6 @@ class TaskAssignmentListCreateView(generics.ListCreateAPIView):
                 f'Une tâche vous a été attribuée : {assignment.task.code} — {_task_libelle(assignment.task)}.',
                 cible_type='task', cible_id=assignment.task_id,
             )
-        assignee_nom = f'{assignee.first_name} {assignee.last_name}'.strip() or assignee.email
-        _log_task_event(assignment.task, self.request.user, f'a affecté {assignee_nom} à cette tâche ({assignment.heures} h).')
 
 
 class TaskAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1627,7 +1625,6 @@ class TaskAssignmentExecutionView(generics.GenericAPIView):
         _clear_revue_override(task)
 
         def _notify_manager(verbe):
-            _log_task_event(task, user, f'a {verbe} cette tâche.')
             manager = task.equipe.manager
             if manager and manager.id != user.id:
                 membre = f'{user.first_name} {user.last_name}'.strip() or user.email
