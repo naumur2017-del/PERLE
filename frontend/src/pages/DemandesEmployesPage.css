@@ -11,7 +11,7 @@
   border-radius: 999px;
   background: #dc2626;
   color: #ffffff;
-  font-size: 9.5px;
+  font-size: 12.5px;
   font-weight: 800;
 }
 
@@ -34,7 +34,7 @@
   border-radius: 6px;
   background: none;
   color: #6c6c85;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -51,7 +51,7 @@
   border-radius: 999px;
   background: #eae7f6;
   color: #6c6c85;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 800;
 }
 .de-section-tabs button.active .de-section-count { background: #ede8fb; color: #6b46c1; }
@@ -80,16 +80,16 @@
 .de-refuse:hover:not(:disabled) { background: #fecaca; }
 .de-approve:disabled, .de-refuse:disabled { opacity: .5; cursor: not-allowed; }
 
-.de-code { color: #6c6c85; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.de-grade-change { padding: 2px 8px; border-radius: 20px; background: #efe9fd; color: #6b46c1; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
+.de-code { color: #6c6c85; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.de-grade-change { padding: 2px 8px; border-radius: 20px; background: #efe9fd; color: #6b46c1; font-size: 13.5px; font-weight: 800; white-space: nowrap; }
 .de-row-clickable { cursor: pointer; }
 .de-row-clickable:hover { background: #faf9fe; }
-.de-open-hint { color: #6b46c1; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.de-open-hint { color: #6b46c1; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
 
 .de-technique-form { padding: 16px; border: 1px solid #eae7f6; border-radius: 10px; background: #faf9fe; }
 .de-technique-exceptions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .de-technique-exceptions > div { display: flex; flex-direction: column; gap: 6px; }
-.de-technique-exceptions strong { font-size: 12px; color: #35335c; }
+.de-technique-exceptions strong { font-size: 15px; color: #35335c; }
 .de-technique-hint { margin: 0 0 2px; }
 .de-technique-checklist {
   display: flex;
@@ -102,7 +102,7 @@
   border-radius: 7px;
   background: #ffffff;
 }
-.de-technique-checklist label { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; color: #35335c; }
+.de-technique-checklist label { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 600; color: #35335c; }
 .de-technique-checklist input[type="checkbox"] { width: 14px; height: 14px; accent-color: #6b46c1; }
 
 @media (max-width: 760px) {

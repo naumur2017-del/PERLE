@@ -12,7 +12,7 @@
   border-radius: 8px;
   background: var(--dsh-surface);
   color: var(--dsh-text);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 .mgr-team-select:focus-visible { outline: 2px solid var(--dsh-primary); outline-offset: 1px; }

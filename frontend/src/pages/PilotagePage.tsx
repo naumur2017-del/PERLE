@@ -9,6 +9,8 @@ import { fetchTaskAssignments, type TaskAssignment } from '../api/taskAssignment
 import { fetchOrganisationEhs } from '../api/organisation'
 import { ApiError } from '../api/client'
 import { currencySuffix } from '../utils/currency'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './PilotagePage.css'
 
 const MONETAIRE_LABEL = `Total Monétaire (${currencySuffix()})`
@@ -446,6 +448,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
     { icon: <Gauge size={18} />, tone: 'indigo', label: 'PROGRESSION OPÉRATIONNELLE', value: `${kpiProgOperationnelle}%`, sub: 'Taux global opérationnel', pct: kpiProgOperationnelle },
   ]
   const KPI_COLORS: Record<string, string> = { purple: '#6b46c1', blue: '#3b82f6', teal: '#0d9488', green: '#16a34a', slate: '#4c3a8f', indigo: '#4338ca' }
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('pil-kpis-hidden')
 
   return (
     <section className="pil-page">
@@ -456,6 +459,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
       </nav>
 
       <div className="pil-toolbar">
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
         <div className="pil-export-wrap">
           <button type="button" className="pil-btn-primary" onClick={() => setExportOpen((open) => !open)}>
             <Download size={14} />Exporter<ChevronDown size={12} />
@@ -475,6 +479,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
 
       {!loading && !loadError && (
         <>
+          {showKpis && (
           <div className="pil-kpis">
             {KPIS.map((kpi) => (
               <article key={kpi.label} className={`pil-kpi pil-kpi-${kpi.tone}`}>
@@ -489,6 +494,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
               </article>
             ))}
           </div>
+          )}
 
           <div className="pil-filters">
             <label>Créé par

@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react'
 import './ManagerDashboard.css'
 import { ChartTable, KpiCard, Panel, type PanelState } from '../components/dashboard/DashboardUI'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { downloadCsv } from '../components/dashboard/chartTools'
 import {
   EhsTrendChart, TaskSplitChart, TasksTrendChart, WorkloadChart,
@@ -33,6 +35,7 @@ export default function ManagerDashboard({ session, navigateTo }: { session: Ses
   const [data, setData] = useState<ManagerData | null>(null)
   const [refreshedAt, setRefreshedAt] = useState(clock())
   const [reloadKey, setReloadKey] = useState(0)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('mgr-dsh-kpis-hidden')
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +90,7 @@ export default function ManagerDashboard({ session, navigateTo }: { session: Ses
         <button type="button" className="dsh-btn dsh-btn-primary" onClick={refresh} disabled={loading}>
           {loading ? '⟳ Actualisation…' : '⟳ Actualiser'}
         </button>
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
       </div>
     </div>
 
@@ -95,6 +99,7 @@ export default function ManagerDashboard({ session, navigateTo }: { session: Ses
       <button type="button" className="dsh-btn" onClick={refresh}>Réessayer</button>
     </div>}
 
+    {showKpis && (
     <div className="dsh-kpi-grid">
       <KpiCard loading={loading} icon="☰" tone="primary" label="Effectif de l’équipe"
         value={String(kpi?.members ?? 0)}
@@ -136,6 +141,7 @@ export default function ManagerDashboard({ session, navigateTo }: { session: Ses
         details="Voir le détail plus bas"
         onOpen={() => navigateTo('pilotage')} />
     </div>
+    )}
 
     <div className="dsh-grid">
       <Panel className="dsh-col-6" title="Exécution des tâches" subtitle="Répartition des attributions de l’équipe"

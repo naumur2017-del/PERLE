@@ -24,6 +24,8 @@ import RegionSelect from '../components/RegionSelect'
 import CitySelect from '../components/CitySelect'
 import PhoneInput from '../components/PhoneInput'
 import DatePicker from '../components/DatePicker'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './GestionEquipesPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -1353,6 +1355,8 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
   const isFiltered = search.trim() !== '' || statutFiltre !== 'Tous' || equipeFiltre !== 'Tous'
   const selected = employes.find((employe) => employe.id === selectedId) ?? null
 
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('ge-kpis-hidden')
+
   const kpis = [
     { icon: Users, tone: 'purple', label: 'Total employés', value: String(employes.length), sub: 'Dans l’organisation' },
     { icon: Users2, tone: 'pink', label: 'Employés actifs', value: String(employes.filter((e) => e.statut === 'Actif').length), sub: 'Statut actif' },
@@ -1388,6 +1392,7 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
           <button onClick={() => navigateTo('gestion-organigramme')}><Network size={14} />Organigramme</button>
         </nav>
         <div className="ge-header-actions">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           {isDirection && (
             <button type="button" className="ge-btn-outline ge-btn-outline-badged" onClick={() => navigateTo('gestion-demandes')}>
               Demandes de grade
@@ -1401,18 +1406,20 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
         </div>
       </div>
 
-      <div className="ge-kpis">
-        {kpis.map((kpi) => (
-          <article key={kpi.label} className={`ge-kpi ge-kpi-${kpi.tone}`}>
-            <span className="ge-kpi-icon"><kpi.icon size={18} /></span>
-            <div>
-              <strong>{kpi.value}</strong>
-              <span>{kpi.label}</span>
-              <small>{kpi.sub}</small>
-            </div>
-          </article>
-        ))}
-      </div>
+      {showKpis && (
+        <div className="ge-kpis">
+          {kpis.map((kpi) => (
+            <article key={kpi.label} className={`ge-kpi ge-kpi-${kpi.tone}`}>
+              <span className="ge-kpi-icon"><kpi.icon size={18} /></span>
+              <div>
+                <strong>{kpi.value}</strong>
+                <span>{kpi.label}</span>
+                <small>{kpi.sub}</small>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
 
       <div className="ge-filters">
         <label className="ge-search">

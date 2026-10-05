@@ -6,7 +6,7 @@
   border-radius: 7px;
   background: #fff;
   color: #5d3bc5;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -35,7 +35,7 @@
   border-left: 3px solid #6b46c1;
   background: #f7f4ff;
   color: #5b5f88;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -45,7 +45,7 @@
   align-items: flex-start;
   gap: 10px;
   color: #5b5f88;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -73,7 +73,7 @@
   padding-top: 12px;
   border-top: 3px solid #e6e3f5;
   color: #9a9db8;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   transition: color .3s ease, border-color .35s ease;
 }
@@ -87,7 +87,7 @@
   border-radius: 50%;
   background: #e6e3f5;
   color: #8d8fae;
-  font-size: 11px;
+  font-size: 14px;
   transition: background .3s ease, color .3s ease, box-shadow .3s ease;
 }
 
@@ -163,7 +163,7 @@
   outline: 0;
   background: #fff;
   color: #20255f;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .login-field select:focus {
@@ -195,7 +195,7 @@
   border-radius: 9px;
   background: #ece7ff;
   color: #5b37d3;
-  font-size: 18px;
+  font-size: 21px;
   font-style: normal;
 }
 
@@ -206,12 +206,12 @@
 }
 
 .selected-type strong {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .selected-type small {
   color: #727697;
-  font-size: 11px;
+  font-size: 14px;
   word-break: break-word;
 }
 
@@ -219,7 +219,7 @@
   border: 0;
   background: none;
   color: #6040ce;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -243,19 +243,19 @@
   border-radius: 50%;
   background: #ece7ff;
   color: #5b37d3;
-  font-size: 20px;
+  font-size: 23px;
   font-style: normal;
   font-weight: 800;
 }
 
 .registration-success h3 {
   color: #20255f;
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .registration-success p {
   color: #5b5f88;
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -404,7 +404,7 @@
 }
 
 .type-eyebrow {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: .18em;
   text-transform: uppercase;
@@ -414,12 +414,12 @@
 .type-panel h2 {
   margin: 12px 0 10px;
   color: #fff;
-  font-size: 32px;
+  font-size: 35px;
 }
 
 .type-panel > p {
   margin-bottom: 38px;
-  font-size: 15px;
+  font-size: 18px;
   opacity: .8;
 }
 
@@ -469,7 +469,7 @@
   place-items: center;
   border-radius: 22px;
   background: rgba(255, 255, 255, .18);
-  font-size: 32px;
+  font-size: 35px;
   font-style: normal;
   transition: transform .3s cubic-bezier(.2, .8, .2, 1.2), background .25s ease;
 }
@@ -481,19 +481,19 @@
 }
 
 .type-card strong {
-  font-size: 19px;
+  font-size: 22px;
   line-height: 1.35;
 }
 
 .type-card small {
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
   opacity: .82;
 }
 
 .type-card em {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 15px;
   font-style: normal;
   font-weight: 700;
   letter-spacing: .06em;
@@ -553,7 +553,7 @@
 }
 
 .org-search i {
-  font-size: 24px;
+  font-size: 27px;
   font-style: normal;
   opacity: .8;
 }
@@ -565,7 +565,7 @@
   outline: 0;
   background: none;
   color: #fff;
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .org-search input::placeholder {
@@ -642,7 +642,7 @@
   place-items: center;
   border-radius: 12px;
   background: rgba(255, 255, 255, .2);
-  font-size: 15px;
+  font-size: 18px;
   font-style: normal;
   font-weight: 800;
   letter-spacing: .06em;
@@ -656,12 +656,12 @@
 }
 
 .org-result strong {
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .org-result small {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 15px;
   opacity: .78;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -669,7 +669,7 @@
 
 .org-result em {
   flex: none;
-  font-size: 11px;
+  font-size: 14px;
   font-style: normal;
   font-weight: 700;
   opacity: .7;
@@ -683,7 +683,7 @@
 .org-empty,
 .org-hint {
   padding: 20px 4px;
-  font-size: 13px;
+  font-size: 16px;
   opacity: .72;
   text-align: center;
 }
@@ -707,7 +707,7 @@
   background: #fff;
   color: #4a2ea8;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 800;
   box-shadow: 0 14px 30px rgba(20, 10, 60, .3);
   transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease;
@@ -730,7 +730,7 @@
   border-radius: 999px;
   background: none;
   color: #fff;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   transition: background .2s ease;
 }
@@ -745,7 +745,7 @@
   }
 
   .type-panel h2 {
-    font-size: 24px;
+    font-size: 27px;
   }
 
   .type-panel > p {
@@ -767,16 +767,16 @@
     width: 52px;
     height: 52px;
     border-radius: 16px;
-    font-size: 22px;
+    font-size: 25px;
   }
 
   .type-card strong {
-    font-size: 16px;
+    font-size: 19px;
   }
 
   .org-search input {
     height: 56px;
-    font-size: 15px;
+    font-size: 18px;
   }
 
   .org-results {

@@ -3,19 +3,19 @@
 
 /* Onglets */
 .salarie-tabs { display: flex; gap: 28px; padding: 0 4px; border-bottom: 1px solid #e5e3f5; background: #fff; }
-.salarie-tabs button { position: relative; display: flex; align-items: center; gap: 7px; height: 44px; border: 0; background: none; color: #4b4f75; font-size: 13px; font-weight: 600; cursor: pointer; }
+.salarie-tabs button { position: relative; display: flex; align-items: center; gap: 7px; height: 44px; border: 0; background: none; color: #4b4f75; font-size: 16px; font-weight: 600; cursor: pointer; }
 .salarie-tabs button.active { color: #5b21b6; }
 .salarie-tabs button.active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #5b21b6; }
 
 .salarie-soon { display: grid; place-items: center; gap: 6px; min-height: 260px; margin-top: 16px; border: 1px dashed #dcd6f5; border-radius: 12px; background: #faf9ff; color: #6b6f95; text-align: center; }
 .salarie-soon svg { color: #8b7ee0; margin-bottom: 4px; }
-.salarie-soon strong { color: #2b2560; font-size: 15px; }
-.salarie-soon p { margin: 0; max-width: 320px; font-size: 12px; }
+.salarie-soon strong { color: #2b2560; font-size: 18px; }
+.salarie-soon p { margin: 0; max-width: 320px; font-size: 15px; }
 
 /* En-tête */
 .salarie-demandes { display: flex; flex-direction: column; gap: 18px; margin-top: 16px; }
-.salarie-heading h2 { margin: 0 0 4px; color: #1a1a2e; font-size: 20px; }
-.salarie-heading p { margin: 0; color: #6b6f8f; font-size: 12px; }
+.salarie-heading h2 { margin: 0 0 4px; color: #1a1a2e; font-size: 23px; }
+.salarie-heading p { margin: 0; color: #6b6f8f; font-size: 15px; }
 
 /* Cartes de synthèse — les 3 KPI (congés, avances, cumul de congés) partagent la même rangée,
    avec le sélecteur de mois compact (voir .salarie-period-badge) juste au-dessus. */
@@ -25,13 +25,13 @@
 .salarie-summary-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 50%; }
 .salarie-summary-icon.conge { background: #ede9fe; color: #5b21b6; }
 .salarie-summary-icon.avance { background: #dcfce7; color: #15803d; }
-.salarie-summary-main h4 { margin: 0 0 2px; color: #3a3d63; font-size: 12px; font-weight: 700; }
-.salarie-summary-main strong { display: block; color: #1a1a2e; font-size: 24px; line-height: 1.2; }
-.salarie-summary-main small { color: #8286a8; font-size: 10px; }
+.salarie-summary-main h4 { margin: 0 0 2px; color: #3a3d63; font-size: 15px; font-weight: 700; }
+.salarie-summary-main strong { display: block; color: #1a1a2e; font-size: 27px; line-height: 1.2; }
+.salarie-summary-main small { color: #8286a8; font-size: 13px; }
 .salarie-summary-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
 .salarie-summary-breakdown div { display: flex; flex-direction: column; gap: 4px; }
-.salarie-summary-breakdown strong { color: #1a1a2e; font-size: 18px; }
-.salarie-summary-breakdown small { font-size: 10px; font-weight: 700; }
+.salarie-summary-breakdown strong { color: #1a1a2e; font-size: 21px; }
+.salarie-summary-breakdown small { font-size: 13px; font-weight: 700; }
 .salarie-summary-breakdown small.attente { color: #b45309; }
 .salarie-summary-breakdown small.approuvee { color: #15803d; }
 .salarie-summary-breakdown small.refusee { color: #dc2626; }
@@ -43,9 +43,9 @@
 .salarie-panel-icon { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: 50%; }
 .salarie-panel-icon.conge { background: #ede9fe; color: #5b21b6; }
 .salarie-panel-icon.avance { background: #dcfce7; color: #15803d; }
-.salarie-panel-title h3 { margin: 0; color: #1a1a2e; font-size: 15px; }
+.salarie-panel-title h3 { margin: 0; color: #1a1a2e; font-size: 18px; }
 .salarie-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.salarie-filter { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #6b6f8f; font-size: 11px; font-weight: 500; }
+.salarie-filter { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #6b6f8f; font-size: 14px; font-weight: 500; }
 .salarie-filter b { color: #1a1a2e; }
 .salarie-filter svg { color: #8286a8; flex: 0 0 auto; }
 .salarie-filter-periode { cursor: pointer; }
@@ -54,14 +54,14 @@
    type de congé sur une 3e rangée, sous l'icône/total et le triptyque Acquis/Consommé/Reste. */
 .salarie-solde-panel { align-items: start; row-gap: 12px; }
 .salarie-solde-total { display: flex; align-items: baseline; gap: 6px; }
-.salarie-solde-total strong { font-size: 22px; color: #1a1a2e; }
-.salarie-solde-total span { font-size: 11px; color: #8286a8; font-weight: 600; }
+.salarie-solde-total strong { font-size: 25px; color: #1a1a2e; }
+.salarie-solde-total span { font-size: 14px; color: #8286a8; font-weight: 600; }
 .salarie-solde-grid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding-top: 12px; border-top: 1px solid #ececf4; }
 .salarie-solde-item { display: flex; flex-direction: column; gap: 6px; }
-.salarie-solde-item strong { font-size: 12px; color: #1a1a2e; }
+.salarie-solde-item strong { font-size: 15px; color: #1a1a2e; }
 .salarie-solde-bar { height: 6px; border-radius: 999px; background: #ede9fe; overflow: hidden; }
 .salarie-solde-bar-fill { height: 100%; border-radius: inherit; background: #6b46c1; }
-.salarie-solde-item small { font-size: 10.5px; color: #8286a8; }
+.salarie-solde-item small { font-size: 13.5px; color: #8286a8; }
 .salarie-solde-item small b { color: #3a3d63; }
 .salarie-filter-periode select { border: none; background: none; padding: 0; margin: 0; color: #1a1a2e; font: inherit; font-weight: 700; cursor: pointer; }
 .salarie-filter-periode select:focus { outline: none; }
@@ -75,26 +75,26 @@
   gap: 8px;
 }
 .salarie-period-badge .salarie-filter-periode { background: #f4f2fd; border-color: #e0d9fa; }
-.salarie-primary-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: #5b21b6; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
+.salarie-primary-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: #5b21b6; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
 .salarie-primary-btn:hover { background: #6d28d9; transform: translateY(-1px); }
-.salarie-danger-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid #fbdada; border-radius: 6px; background: #fff; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
+.salarie-danger-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid #fbdada; border-radius: 6px; background: #fff; color: #dc2626; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 160ms ease; }
 .salarie-danger-btn:hover { background: #fef2f2; transform: translateY(-1px); }
 
 .salarie-table-wrap { overflow-x: auto; }
-.salarie-table-wrap table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 11px; }
+.salarie-table-wrap table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 14px; }
 .salarie-table-wrap th, .salarie-table-wrap td { padding: 12px 14px; border-bottom: 1px solid #ececf4; text-align: left; white-space: nowrap; }
-.salarie-table-wrap th { background: #faf9ff; color: #4b4f75; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+.salarie-table-wrap th { background: #faf9ff; color: #4b4f75; font-size: 13px; text-transform: uppercase; letter-spacing: .03em; }
 .salarie-table-wrap td strong { display: block; color: #1a1a2e; }
-.salarie-table-wrap td small { display: block; margin-top: 2px; color: #8286a8; font-size: 10px; }
+.salarie-table-wrap td small { display: block; margin-top: 2px; color: #8286a8; font-size: 13px; }
 .salarie-table-wrap tbody tr:last-child td { border-bottom: 0; }
 
-.salarie-pill { display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.salarie-pill { display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .salarie-pill.attente { background: #fef3c7; color: #b45309; }
 .salarie-pill.approuvee { background: #dcfce7; color: #15803d; }
 .salarie-pill.refusee { background: #fee2e2; color: #dc2626; }
 
 .salarie-actions { display: flex; gap: 6px; }
-.salarie-actions button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; font-size: 12px; cursor: pointer; }
+.salarie-actions button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; font-size: 15px; cursor: pointer; }
 .salarie-actions button.danger { border-color: #fbdada; color: #dc2626; }
 .salarie-actions button:hover { background: #f5f3ff; }
 .salarie-actions button.danger:hover { background: #fef2f2; }
@@ -108,23 +108,23 @@
   border-color: #bbf7d0;
   background: #dcfce7;
   color: #15803d;
-  font-size: 10.5px;
+  font-size: 13.5px;
   font-weight: 700;
   white-space: nowrap;
 }
 .salarie-actions .salarie-dispo-btn:hover { background: #bbf7d0; }
 
-.salarie-table-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; color: #6b6f8f; font-size: 11px; }
+.salarie-table-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; color: #6b6f8f; font-size: 14px; }
 .salarie-pagination { display: flex; gap: 6px; }
-.salarie-pagination button { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid #e0ddf2; border-radius: 5px; background: #fff; color: #4b4f75; font-size: 11px; cursor: pointer; }
+.salarie-pagination button { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid #e0ddf2; border-radius: 5px; background: #fff; color: #4b4f75; font-size: 14px; cursor: pointer; }
 .salarie-pagination button.active { border-color: #5b21b6; background: #5b21b6; color: #fff; font-weight: 700; }
 .salarie-pagination button:disabled { color: #c3c6dc; cursor: default; }
 
 /* Bandeau d’information */
 .salarie-info { display: flex; gap: 12px; padding: 16px 18px; border-radius: 10px; background: #f0edff; color: #5b21b6; }
 .salarie-info > svg { flex: 0 0 auto; margin-top: 1px; }
-.salarie-info strong { display: block; margin-bottom: 6px; color: #3a2185; font-size: 13px; }
-.salarie-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #5c4fa0; font-size: 11px; line-height: 1.5; }
+.salarie-info strong { display: block; margin-bottom: 6px; color: #3a2185; font-size: 16px; }
+.salarie-info ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #5c4fa0; font-size: 14px; line-height: 1.5; }
 
 .salarie-info-technique { background: #fff4e6; color: #9a5b00; }
 .salarie-info-technique strong { color: #7a4600; }
@@ -150,29 +150,29 @@
 
 /* Onglet Mon profil */
 .salarie-profil { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
-.salarie-profil-empty { margin-top: 16px; padding: 20px; border-radius: 10px; background: #f7f6fd; color: #6b6f8f; font-size: 12px; text-align: center; }
+.salarie-profil-empty { margin-top: 16px; padding: 20px; border-radius: 10px; background: #f7f6fd; color: #6b6f8f; font-size: 15px; text-align: center; }
 .salarie-profil-card { padding: 20px; }
-.salarie-profil-card h3 { margin: 0 0 16px; color: #1a1a2e; font-size: 15px; }
-.salarie-profil-card h4 { margin: 0 0 10px; color: #3a3d63; font-size: 11px; font-weight: 700; }
+.salarie-profil-card h3 { margin: 0 0 16px; color: #1a1a2e; font-size: 18px; }
+.salarie-profil-card h4 { margin: 0 0 10px; color: #3a3d63; font-size: 14px; font-weight: 700; }
 
 .salarie-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .salarie-card-head h3 { margin: 0; }
 
-.salarie-info-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f2f1fa; font-size: 11.5px; }
+.salarie-info-row { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f2f1fa; font-size: 14.5px; }
 .salarie-info-row:last-child { border-bottom: 0; }
 .salarie-info-row span { flex: 0 0 150px; color: #8286a8; }
 .salarie-info-row b { flex: 1; color: #1a1a2e; font-weight: 600; line-height: 1.5; }
 
 .salarie-note { display: flex; gap: 8px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #f7f6fd; color: #6b6f8f; }
 .salarie-note svg { flex: 0 0 auto; color: #8b7ee0; margin-top: 1px; }
-.salarie-note p { margin: 0; font-size: 10.5px; line-height: 1.5; }
+.salarie-note p { margin: 0; font-size: 13.5px; line-height: 1.5; }
 
 /* Informations personnelles */
 .salarie-personal-body { display: flex; gap: 24px; }
 .salarie-avatar-block { display: flex; flex: 0 0 160px; flex-direction: column; align-items: center; gap: 12px; }
-.salarie-avatar { display: grid; width: 96px; height: 96px; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: #fff; font-size: 28px; font-weight: 700; }
+.salarie-avatar { display: grid; width: 96px; height: 96px; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: #fff; font-size: 31px; font-weight: 700; }
 .salarie-avatar-photo { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 3px solid #ede9fe; }
-.salarie-ghost-btn { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; font-size: 10.5px; font-weight: 600; cursor: pointer; }
+.salarie-ghost-btn { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 .salarie-ghost-btn:hover { background: #f5f3ff; }
 .salarie-photo-upload { position: relative; }
 .salarie-info-columns { display: grid; grid-template-columns: 1fr 1fr; flex: 1; gap: 0 24px; }
@@ -183,7 +183,7 @@
 .salarie-document-thumb { display: grid; width: 68px; height: 68px; flex: 0 0 68px; place-items: center; border-radius: 10px; background: #ede9fe; color: #5b21b6; }
 .salarie-document-photo { width: 60px; height: 80px; flex: 0 0 60px; border-radius: 8px; object-fit: cover; border: 1px solid #ececf4; }
 .salarie-document-body { flex: 1; min-width: 0; }
-.salarie-document-body strong { display: block; margin-bottom: 4px; color: #1a1a2e; font-size: 12px; }
+.salarie-document-body strong { display: block; margin-bottom: 4px; color: #1a1a2e; font-size: 15px; }
 .salarie-document-body .salarie-info-row span { flex-basis: 120px; }
 .salarie-document .salarie-actions { flex: 0 0 auto; align-self: flex-start; }
 
@@ -192,31 +192,31 @@
 .salarie-upload-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .salarie-download-btn { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #5b21b6; text-decoration: none; }
 .salarie-download-btn:hover { background: #f5f3ff; }
-.salarie-doc-pending-hint { align-self: center; color: #8a8fa8; font-size: 10.5px; font-style: italic; text-align: right; max-width: 90px; }
+.salarie-doc-pending-hint { align-self: center; color: #8a8fa8; font-size: 13.5px; font-style: italic; text-align: right; max-width: 90px; }
 
 /* Informations professionnelles */
 .salarie-professional-body { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
 .salarie-skills { display: flex; flex-direction: column; gap: 18px; }
 .salarie-skills ul { display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 0; list-style: none; }
-.salarie-skills li { display: flex; align-items: center; gap: 8px; color: #6b6f8f; font-size: 11.5px; }
+.salarie-skills li { display: flex; align-items: center; gap: 8px; color: #6b6f8f; font-size: 14.5px; }
 .salarie-skills li.checked { color: #1a1a2e; }
 .salarie-skills li.checked svg { color: #15803d; }
 .salarie-skills li:not(.checked) svg { color: #c3c6dc; }
-.salarie-empty-hint { margin: 0; color: #a5a8c2; font-size: 11px; font-style: italic; }
-.salarie-note-inline { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f7f6fd; color: #6b6f8f; font-size: 10.5px; font-weight: 500; }
+.salarie-empty-hint { margin: 0; color: #a5a8c2; font-size: 14px; font-style: italic; }
+.salarie-note-inline { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f7f6fd; color: #6b6f8f; font-size: 13.5px; font-weight: 500; }
 
 /* CV à jour */
 .salarie-cv-file { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #ececf4; border-radius: 10px; }
 .salarie-cv-icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 8px; background: #fee2e2; color: #dc2626; }
 .salarie-cv-file > div { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
-.salarie-cv-file strong { color: #1a1a2e; font-size: 12px; overflow-wrap: anywhere; }
-.salarie-cv-file small { color: #8286a8; font-size: 10px; }
+.salarie-cv-file strong { color: #1a1a2e; font-size: 15px; overflow-wrap: anywhere; }
+.salarie-cv-file small { color: #8286a8; font-size: 13px; }
 .salarie-dropzone { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; padding: 22px 16px; border: 1.5px dashed #d7d1f2; border-radius: 10px; background: #faf9ff; color: #6b6f95; text-align: center; }
 .salarie-dropzone svg { color: #8b7ee0; margin-bottom: 4px; }
-.salarie-dropzone strong { color: #2b2560; font-size: 12.5px; }
-.salarie-dropzone span { font-size: 10.5px; }
+.salarie-dropzone strong { color: #2b2560; font-size: 15.5px; }
+.salarie-dropzone span { font-size: 13.5px; }
 .salarie-dropzone .salarie-primary-btn { margin: 6px 0 2px; }
-.salarie-dropzone small { color: #8286a8; font-size: 9.5px; }
+.salarie-dropzone small { color: #8286a8; font-size: 12.5px; }
 
 /* Aperçu (lightbox) */
 .salarie-lightbox-overlay { display: grid; position: fixed; inset: 0; place-items: center; z-index: 100; padding: 24px; background: rgba(26, 22, 56, .55); animation: salarie-fade-in 160ms ease-out; }
@@ -224,23 +224,23 @@
 .salarie-lightbox.salarie-lightbox-wide { max-width: 760px; }
 .salarie-pdf-frame { width: 100%; height: 70vh; border: 1px solid #ececf4; border-radius: 8px; }
 .salarie-lightbox-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #ececf4; }
-.salarie-lightbox-head h3 { margin: 0; color: #1a1a2e; font-size: 14px; }
+.salarie-lightbox-head h3 { margin: 0; color: #1a1a2e; font-size: 17px; }
 .salarie-lightbox-head button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 1px solid #e0ddf2; border-radius: 6px; background: #fff; color: #6b6f8f; cursor: pointer; }
 .salarie-lightbox-head button:hover { background: #f5f3ff; }
 .salarie-lightbox-body { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
 .salarie-lightbox-image { width: 100%; border-radius: 8px; object-fit: contain; }
 .salarie-lightbox-placeholder { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed #dcd6f5; border-radius: 10px; background: #faf9ff; color: #6b6f95; text-align: center; }
 .salarie-lightbox-placeholder svg { color: #8b7ee0; }
-.salarie-lightbox-placeholder p { margin: 0; font-size: 11.5px; line-height: 1.5; }
+.salarie-lightbox-placeholder p { margin: 0; font-size: 14.5px; line-height: 1.5; }
 
 @keyframes salarie-fade-in { from { opacity: 0; } }
 
 /* Formulaires (modales de création) */
 .salarie-form { display: flex; flex-direction: column; gap: 14px; }
-.salarie-form label { display: flex; flex-direction: column; gap: 6px; color: #3a3d63; font-size: 11px; font-weight: 700; }
+.salarie-form label { display: flex; flex-direction: column; gap: 6px; color: #3a3d63; font-size: 14px; font-weight: 700; }
 .salarie-form input,
 .salarie-form select,
-.salarie-form textarea { border: 1px solid #e0ddf2; border-radius: 7px; padding: 9px 11px; color: #1a1a2e; font: inherit; font-size: 11.5px; font-weight: 500; outline: none; }
+.salarie-form textarea { border: 1px solid #e0ddf2; border-radius: 7px; padding: 9px 11px; color: #1a1a2e; font: inherit; font-size: 14.5px; font-weight: 500; outline: none; }
 .salarie-form input:disabled,
 .salarie-form select:disabled { background: #f5f4fa; color: #8286a8; cursor: not-allowed; }
 .salarie-form input:focus,
@@ -271,8 +271,8 @@
 .salarie-country-trigger:hover:not(:disabled) { border-color: #c7bdf0; }
 .salarie-country-trigger:disabled { background: #f5f4fa; cursor: not-allowed; }
 .salarie-country-trigger svg { flex: 0 0 auto; color: #8286a8; }
-.salarie-country-flag { font-size: 22px; flex: 0 0 auto; border-radius: 3px; box-shadow: 0 0 0 1px rgba(20, 15, 60, .08); }
-.salarie-country-placeholder { font-size: 11.5px; font-weight: 500; color: #a5a8c2; }
+.salarie-country-flag { font-size: 25px; flex: 0 0 auto; border-radius: 3px; box-shadow: 0 0 0 1px rgba(20, 15, 60, .08); }
+.salarie-country-placeholder { font-size: 14.5px; font-weight: 500; color: #a5a8c2; }
 
 .salarie-country-list {
   position: absolute;
@@ -300,7 +300,7 @@
   border-radius: 7px;
   background: none;
   color: #1a1a2e;
-  font-size: 11.5px;
+  font-size: 14.5px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -308,7 +308,7 @@
 .salarie-country-list li button:hover,
 .salarie-country-list li button.is-selected { background: #f5f3ff; }
 .salarie-country-list li button.is-selected { color: #5b21b6; font-weight: 700; }
-.salarie-country-list .salarie-country-flag { font-size: 18px; }
+.salarie-country-list .salarie-country-flag { font-size: 21px; }
 .salarie-form-actions .salarie-ghost-btn { padding: 10px 16px; }
 .salarie-form-actions .salarie-primary-btn { padding: 0 16px; height: 36px; }
 
@@ -318,8 +318,8 @@
 .salarie-dash-greeting { display: flex; align-items: center; gap: 20px; min-height: 128px; padding: 24px 28px; border-radius: 14px; background: linear-gradient(135deg, #f3f0ff, #ece5ff); }
 .salarie-dash-wave { display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; border-radius: 50%; background: #fff; box-shadow: 0 4px 14px rgba(91, 33, 182, .12); color: #f0a500; }
 .salarie-dash-greeting-text { flex: 1; }
-.salarie-dash-greeting-text h3 { margin: 0 0 8px; color: #1a1a2e; font-size: 18px; }
-.salarie-dash-greeting-text p { margin: 0; color: #4b4f75; font-size: 12.5px; line-height: 1.8; }
+.salarie-dash-greeting-text h3 { margin: 0 0 8px; color: #1a1a2e; font-size: 21px; }
+.salarie-dash-greeting-text p { margin: 0; color: #4b4f75; font-size: 15.5px; line-height: 1.8; }
 .salarie-dash-greeting-text strong { color: #1a1a2e; }
 .salarie-dash-illustration { display: grid; width: 180px; height: 100%; min-height: 96px; flex: 0 0 180px; place-items: center; border-radius: 16px; background: linear-gradient(135deg, #ede9fe, #dcfce7); color: #5b21b6; }
 .salarie-dash-illustration img { width: 100%; height: 100%; object-fit: contain; }
@@ -339,42 +339,42 @@
 .salarie-dash-stat-icon.sanction { background: #fee2e2; color: #dc2626; }
 .salarie-dash-stat-icon.avance { background: #dbeafe; color: #256abf; }
 .salarie-dash-stat > div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
-.salarie-dash-stat-label { color: #6b6f8f; font-size: 10.5px; font-weight: 600; line-height: 1.35; }
-.salarie-dash-stat strong { color: #1a1a2e; font-size: 20px; }
-.salarie-dash-stat strong small { color: #8286a8; font-size: 11px; font-weight: 600; }
-.salarie-dash-stat-sub { color: #8286a8; font-size: 10px; }
-.salarie-dash-stat-link { display: flex; align-items: center; gap: 4px; border: 0; background: none; color: #5b21b6; font-size: 10px; font-weight: 700; cursor: pointer; }
+.salarie-dash-stat-label { color: #6b6f8f; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.salarie-dash-stat strong { color: #1a1a2e; font-size: 23px; }
+.salarie-dash-stat strong small { color: #8286a8; font-size: 14px; font-weight: 600; }
+.salarie-dash-stat-sub { color: #8286a8; font-size: 13px; }
+.salarie-dash-stat-link { display: flex; align-items: center; gap: 4px; border: 0; background: none; color: #5b21b6; font-size: 13px; font-weight: 700; cursor: pointer; }
 .salarie-dash-progress { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .salarie-dash-progress-track { display: block; height: 5px; flex: 1; border-radius: 4px; background: #ece9f9; overflow: hidden; }
 .salarie-dash-progress-track i { display: block; height: 100%; border-radius: inherit; background: #5b21b6; }
-.salarie-dash-progress b { color: #6b6f8f; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.salarie-dash-progress b { color: #6b6f8f; font-size: 12px; font-weight: 700; white-space: nowrap; }
 
 .salarie-dash-panels { display: grid; grid-template-columns: 1.6fr 1.3fr 1fr; gap: 14px; align-items: stretch; }
 .salarie-dash-chart-card,
 .salarie-dash-donut-card,
 .salarie-dash-notifications { padding: 18px; }
 .salarie-dash-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-.salarie-dash-panel-heading h3 { margin: 0; color: #1a1a2e; font-size: 13px; }
-.salarie-dash-panel-heading a { border: 0; background: none; color: #5b21b6; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.salarie-dash-panel-heading h3 { margin: 0; color: #1a1a2e; font-size: 16px; }
+.salarie-dash-panel-heading a { border: 0; background: none; color: #5b21b6; font-size: 13.5px; font-weight: 700; cursor: pointer; }
 
 .salarie-linechart { width: 100%; height: auto; overflow: visible; }
 .salarie-chart-grid { stroke: #ececf4; stroke-width: 1; }
-.salarie-chart-axis { fill: #8286a8; font-size: 9px; }
+.salarie-chart-axis { fill: #8286a8; font-size: 12px; }
 .salarie-chart-area { fill: rgba(37, 106, 191, .1); stroke: none; }
 .salarie-chart-line { fill: none; stroke: #256abf; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .salarie-chart-dot { fill: #256abf; stroke: #fff; stroke-width: 2; }
-.salarie-chart-value { fill: #3a3d63; font-size: 9px; font-weight: 700; }
+.salarie-chart-value { fill: #3a3d63; font-size: 12px; font-weight: 700; }
 
 .salarie-donut-wrap { display: flex; align-items: center; gap: 18px; }
 .salarie-donut { width: 140px; flex: 0 0 140px; }
-.salarie-donut-label { fill: #8286a8; font-size: 8.5px; font-weight: 600; }
-.salarie-donut-total { fill: #1a1a2e; font-size: 16px; font-weight: 700; }
+.salarie-donut-label { fill: #8286a8; font-size: 11.5px; font-weight: 600; }
+.salarie-donut-total { fill: #1a1a2e; font-size: 19px; font-weight: 700; }
 .salarie-donut-legend { display: flex; flex: 1; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .salarie-donut-legend li { display: flex; align-items: flex-start; gap: 8px; }
 .salarie-donut-legend li > span { width: 10px; height: 10px; flex: 0 0 10px; margin-top: 3px; border-radius: 3px; }
 .salarie-donut-legend li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.salarie-donut-legend strong { color: #1a1a2e; font-size: 10.5px; }
-.salarie-donut-legend small { color: #8286a8; font-size: 9.5px; }
+.salarie-donut-legend strong { color: #1a1a2e; font-size: 13.5px; }
+.salarie-donut-legend small { color: #8286a8; font-size: 12.5px; }
 
 .salarie-notif-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .salarie-notif-list li { display: flex; gap: 10px; }
@@ -384,14 +384,14 @@
 .salarie-notif-icon.paie { background: #ede9fe; color: #5b21b6; }
 .salarie-notif-icon.sanction { background: #fee2e2; color: #dc2626; }
 .salarie-notif-icon.rappel { background: #f1f0fa; color: #6b6f8f; }
-.salarie-notif-list p { margin: 0; color: #2b2560; font-size: 10.5px; line-height: 1.5; }
-.salarie-notif-list small { color: #a3a6c2; font-size: 9px; }
+.salarie-notif-list p { margin: 0; color: #2b2560; font-size: 13.5px; line-height: 1.5; }
+.salarie-notif-list small { color: #a3a6c2; font-size: 12px; }
 .salarie-notif-footer { display: flex; justify-content: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid #ececf4; }
 
 /* Onglet Rémunération */
 .salarie-remuneration { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
 .salarie-remu-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
-.salarie-remu-heading h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 19px; }
+.salarie-remu-heading h2 { margin: 0 0 8px; color: #1a1a2e; font-size: 22px; }
 .salarie-remu-heading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .salarie-remu-tooltip { display: inline-grid; margin-left: 4px; color: #b3b6d1; cursor: help; vertical-align: -1px; }
 
@@ -404,23 +404,23 @@
 
 .salarie-remu-columns { display: flex; align-items: stretch; gap: 8px; }
 .salarie-remu-col { display: flex; flex: 1; min-width: 0; flex-direction: column; padding: 14px; border: 1px solid #ececf4; border-radius: 10px; }
-.salarie-remu-col h4 { margin: 0 0 10px; font-size: 11px; font-weight: 700; }
+.salarie-remu-col h4 { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
 .salarie-remu-col.positif h4 { color: #15803d; }
 .salarie-remu-col.deduction h4 { color: #dc2626; }
 .salarie-remu-col.penalite h4 { color: #c2410c; }
 .salarie-remu-col.resultat h4 { color: #5b21b6; }
 .salarie-remu-col.resultat { background: #faf9ff; border-color: #e6e3f7; }
 .salarie-remu-col ul { display: flex; flex: 1; flex-direction: column; gap: 8px; margin: 0 0 10px; padding: 0; list-style: none; }
-.salarie-remu-col li { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; }
+.salarie-remu-col li { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
 .salarie-remu-col li span { color: #6b6f8f; }
 .salarie-remu-col li b { color: #1a1a2e; font-weight: 700; white-space: nowrap; }
-.salarie-remu-total { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #ececf4; font-size: 10.5px; font-weight: 700; }
+.salarie-remu-total { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid #ececf4; font-size: 13.5px; font-weight: 700; }
 .salarie-remu-col.positif .salarie-remu-total { color: #15803d; }
 .salarie-remu-col.deduction .salarie-remu-total { color: #dc2626; }
 .salarie-remu-col.penalite .salarie-remu-total { color: #c2410c; }
-.salarie-remu-total.net { border-top: 0; margin-top: 4px; padding: 10px; border-radius: 8px; background: #dcfce7; color: #15803d; font-size: 12px; }
+.salarie-remu-total.net { border-top: 0; margin-top: 4px; padding: 10px; border-radius: 8px; background: #dcfce7; color: #15803d; font-size: 15px; }
 .salarie-remu-total.net span { color: #15803d; }
-.salarie-remu-op { display: flex; flex: 0 0 auto; align-self: center; color: #b3b6d1; font-size: 18px; font-weight: 700; }
+.salarie-remu-op { display: flex; flex: 0 0 auto; align-self: center; color: #b3b6d1; font-size: 21px; font-weight: 700; }
 
 .salarie-donut-wrap.column { flex-direction: column; align-items: stretch; gap: 14px; }
 .salarie-donut-wrap.column .salarie-donut { width: 150px; height: 150px; flex: none; margin: 0 auto; }
@@ -428,29 +428,29 @@
 .salarie-donut-legend.remu li > span { margin-top: 0; }
 .salarie-donut-legend.remu strong { flex: 1; }
 .salarie-remu-legend-values { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.salarie-remu-legend-values b { color: #1a1a2e; font-size: 11px; }
-.salarie-remu-legend-values small { color: #8286a8; font-size: 9px; white-space: nowrap; }
+.salarie-remu-legend-values b { color: #1a1a2e; font-size: 14px; }
+.salarie-remu-legend-values small { color: #8286a8; font-size: 12px; white-space: nowrap; }
 
-.salarie-remu-penalites-card .salarie-table-wrap table { min-width: 0; font-size: 10px; }
+.salarie-remu-penalites-card .salarie-table-wrap table { min-width: 0; font-size: 13px; }
 .salarie-remu-penalites-card th,
 .salarie-remu-penalites-card td { padding: 9px 8px; }
-.salarie-remu-total.penalites { display: flex; justify-content: space-between; margin-top: 6px; padding: 10px 12px; border-radius: 8px; background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 700; }
+.salarie-remu-total.penalites { display: flex; justify-content: space-between; margin-top: 6px; padding: 10px 12px; border-radius: 8px; background: #fef2f2; color: #dc2626; font-size: 14px; font-weight: 700; }
 
 /* Onglet Activités */
 .salarie-activites { display: flex; flex-direction: column; gap: 18px; margin-top: 16px; }
 
 .salarie-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
-.salarie-filter-field { display: flex; flex-direction: column; gap: 6px; font-size: 10.5px; font-weight: 700; color: #3a3d63; }
-.salarie-filter-control { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #e0ddf2; border-radius: 7px; background: #fff; color: #1a1a2e; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.salarie-filter-field { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; font-weight: 700; color: #3a3d63; }
+.salarie-filter-control { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #e0ddf2; border-radius: 7px; background: #fff; color: #1a1a2e; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .salarie-filter-control.select { justify-content: space-between; min-width: 170px; color: #4b4f75; }
 .salarie-filter-control svg { color: #8286a8; flex: 0 0 auto; }
 .salarie-filter-control select { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
 .salarie-filter-control select:focus { outline: none; }
 .salarie-filter-reset { height: 36px; }
 
-.salarie-count-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 10px; font-weight: 700; }
+.salarie-count-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 9px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 13px; font-weight: 700; }
 
-.salarie-project-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.salarie-project-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 6px; font-size: 12.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
 .salarie-project-badge.blue { background: #dbeafe; color: #256abf; }
 .salarie-project-badge.violet { background: #ede9fe; color: #5b21b6; }
 .salarie-project-badge.green { background: #dcfce7; color: #15803d; }

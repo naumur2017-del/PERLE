@@ -26,7 +26,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #35335c;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -39,15 +39,15 @@
 .pe-request-tabs { display: flex; gap: 22px; border-bottom: 1px solid #eae7f6; }
 .pe-request-tabs button {
   padding: 10px 2px; border: none; border-bottom: 2px solid transparent; background: none;
-  color: #8f8fa6; font-size: 13px; font-weight: 700; cursor: pointer;
+  color: #8f8fa6; font-size: 16px; font-weight: 700; cursor: pointer;
 }
 .pe-request-tabs button:hover { color: #35335c; }
 .pe-request-tabs button.active { color: #6b46c1; border-bottom-color: #6b46c1; }
 
 /* =============== HEADING =============== */
-.pe-exec-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #14123a; }
+.pe-exec-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #14123a; }
 .pe-exec-heading h2 svg { color: #8f8fa6; }
-.pe-exec-heading p { margin: 0; font-size: 11.5px; color: #8f8fa6; }
+.pe-exec-heading p { margin: 0; font-size: 14.5px; color: #8f8fa6; }
 
 /* =============== FILTERS =============== */
 .pe-filters {
@@ -62,8 +62,8 @@
   box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
 }
 
-.pe-filters label { display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; font-weight: 700; color: #6c6c85; }
-.pe-filters select, .pe-filters input[type="date"] { height: 36px; min-width: 140px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 12px; font-weight: 600; }
+.pe-filters label { display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 700; color: #6c6c85; }
+.pe-filters select, .pe-filters input[type="date"] { height: 36px; min-width: 140px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 15px; font-weight: 600; }
 
 .pe-daterange {
   display: flex;
@@ -75,16 +75,16 @@
   border-radius: 7px;
   background: #ffffff;
   color: #2b2b4a;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .pe-search { flex: 1; min-width: 240px; position: relative; }
 .pe-search svg { position: absolute; left: 10px; bottom: 10px; color: #9b9bb3; pointer-events: none; }
-.pe-search input { width: 100%; height: 36px; padding: 0 10px 0 30px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 12px; font-weight: 600; }
+.pe-search input { width: 100%; height: 36px; padding: 0 10px 0 30px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 15px; font-weight: 600; }
 
-.pe-reset { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #35335c; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pe-reset { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #35335c; font-size: 15px; font-weight: 700; cursor: pointer; }
 .pe-reset:hover { background: #f7f5ff; }
 
 .pe-btn-primary {
@@ -97,7 +97,7 @@
   border-radius: 7px;
   background: #6b46c1;
   color: white;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -114,9 +114,9 @@
 }
 
 .pe-table-wrap { overflow-x: auto; }
-.pe-table { width: 100%; min-width: 1750px; border-collapse: collapse; font-size: 11px; }
+.pe-table { width: 100%; min-width: 1750px; border-collapse: collapse; font-size: 14px; }
 .pe-table th, .pe-table td { padding: 9px 10px; border-bottom: 1px solid #f0eef8; text-align: left; white-space: nowrap; }
-.pe-table thead th { background: #faf9fe; color: #6c6c85; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+.pe-table thead th { background: #faf9fe; color: #6c6c85; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
 .pe-table tbody tr:hover { background: #faf9ff; }
 
 .pe-code { color: #6b46c1; font-weight: 700; }
@@ -126,12 +126,12 @@
 
 .pe-justificatif { display: inline-flex; align-items: center; gap: 7px; color: #6b46c1; }
 .pe-justificatif > span { display: flex; flex-direction: column; }
-.pe-justificatif strong { font-size: 10.5px; font-weight: 700; color: #14123a; }
-.pe-justificatif small { font-size: 9.5px; color: #8f8fa6; }
+.pe-justificatif strong { font-size: 13.5px; font-weight: 700; color: #14123a; }
+.pe-justificatif small { font-size: 12.5px; color: #8f8fa6; }
 
-.pe-empty { text-align: center; padding: 24px; color: #a8a8bd; font-size: 12px; white-space: normal; }
+.pe-empty { text-align: center; padding: 24px; color: #a8a8bd; font-size: 15px; white-space: normal; }
 
-.pe-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.pe-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .pe-pill-attente { background: #fef1d8; color: #c2740a; }
 .pe-pill-execute { background: #dcfce7; color: #15803d; }
 .pe-pill-refuse { background: #fee2e2; color: #b91c1c; }
@@ -139,13 +139,13 @@
 .pe-row-action { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 6px; background: none; color: #8f8fa6; cursor: pointer; }
 .pe-row-action:hover { background: #f0eef8; color: #6b46c1; }
 
-.pe-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 11.5px; color: #6c6c85; }
+.pe-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 14.5px; color: #6c6c85; }
 .pe-table-foot-right { display: flex; align-items: center; gap: 16px; }
 
-.pe-page-size select { height: 30px; padding: 0 8px; border: 1px solid #ddd8f2; border-radius: 6px; background: white; color: #2b2b4a; font-size: 11px; font-weight: 700; }
+.pe-page-size select { height: 30px; padding: 0 8px; border: 1px solid #ddd8f2; border-radius: 6px; background: white; color: #2b2b4a; font-size: 14px; font-weight: 700; }
 
 .pe-pagination { display: flex; align-items: center; gap: 4px; }
-.pe-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 11px; font-weight: 700; cursor: pointer; }
+.pe-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 14px; font-weight: 700; cursor: pointer; }
 .pe-pagination button:hover:not(:disabled) { background: #f0eef8; }
 .pe-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .pe-pagination button.is-active { background: #6b46c1; border-color: #6b46c1; color: #fff; }
@@ -174,20 +174,20 @@
 }
 
 .pe-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.pe-modal-head h3 { margin: 0 0 3px; font-size: 15px; font-weight: 700; color: #14123a; }
-.pe-modal-head p { margin: 0; font-size: 11px; color: #8f8fa6; }
+.pe-modal-head h3 { margin: 0 0 3px; font-size: 18px; font-weight: 700; color: #14123a; }
+.pe-modal-head p { margin: 0; font-size: 14px; color: #8f8fa6; }
 
 .pe-modal-close { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: none; border-radius: 7px; background: #f4f2fb; color: #6c6c85; cursor: pointer; }
 .pe-modal-close:hover { background: #eae5fb; color: #6b46c1; }
 
-.pe-modal-field { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; font-weight: 700; color: #35335c; }
+.pe-modal-field { display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; font-weight: 700; color: #35335c; }
 .pe-modal-field textarea {
   padding: 10px 12px;
   border: 1px solid #ddd8f2;
   border-radius: 8px;
   background: #ffffff;
   color: #2b2b4a;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 500;
   font-family: inherit;
   resize: vertical;
@@ -207,7 +207,7 @@
   border-radius: 8px;
   background: #f7f5ff;
   color: #6b46c1;
-  font-size: 11.5px;
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -223,7 +223,7 @@
   border-radius: 7px;
   background: #dcfce7;
   color: #15803d;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -238,7 +238,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #b91c1c;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -251,7 +251,7 @@
   border-radius: 8px;
   background: #16a34a;
   color: #ffffff;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 700;
   cursor: pointer;
 }

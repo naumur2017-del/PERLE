@@ -1,0 +1,138 @@
+.gsa-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  width: 100%;
+  padding: 20px 32px 32px;
+  color: #1a1a2e;
+  animation: gsa-enter 220ms ease-out;
+}
+
+@keyframes gsa-enter {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.gsa-intro { display: flex; align-items: flex-start; gap: 14px; }
+.gsa-intro-icon {
+  display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px;
+  border-radius: 14px; background: #efe9fd; color: #6b46c1;
+}
+.gsa-intro h2 { margin: 0 0 4px; font-size: 23px; font-weight: 800; color: #14123a; }
+.gsa-intro p { margin: 0; font-size: 15.5px; color: #6c6c85; max-width: 640px; line-height: 1.5; }
+
+.gsa-panel {
+  border: 1px solid #eae7f6; border-radius: 14px; background: #ffffff;
+  box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
+  padding: 20px 22px;
+}
+.gsa-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17.5px; font-weight: 800; color: #14123a; }
+.gsa-panel-sub { margin: 6px 0 16px; font-size: 15px; color: #8f8fa6; }
+
+/* =============== ESPACES (sections de la page) =============== */
+.gsa-sections { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.gsa-section-card { padding: 14px 16px; border-radius: 12px; background: #faf9fe; border: 1px solid #f0eef8; }
+.gsa-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.gsa-section-icon { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 10px; background: currentColor; }
+.gsa-section-icon svg { color: #ffffff; }
+.gsa-section-head strong { font-size: 16px; font-weight: 800; color: #14123a; }
+.gsa-section-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.gsa-section-card li { font-size: 14.5px; color: #4a4a63; line-height: 1.5; }
+
+/* =============== CYCLE (timeline verticale) =============== */
+.gsa-cycle { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+
+.gsa-cycle-step {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 4px 22px 4px;
+}
+.gsa-cycle-step:not(:last-child)::before {
+  content: ''; position: absolute; left: 23px; top: 44px; bottom: -2px; width: 2px;
+  background: #ece7fb;
+}
+.gsa-cycle-step:last-child { padding-bottom: 4px; }
+
+.gsa-cycle-number {
+  position: absolute; top: 14px; left: 14px;
+  display: grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 50%; background: #ffffff; border: 2px solid currentColor;
+  font-size: 12px; font-weight: 800; z-index: 1;
+}
+
+.gsa-cycle-icon {
+  display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px;
+  margin-left: 24px;
+  border-radius: 13px; background: currentColor;
+}
+.gsa-cycle-icon svg { color: #ffffff; }
+
+.gsa-cycle-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
+.gsa-cycle-acteur { font-size: 13.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: currentColor; }
+.gsa-cycle-body strong { font-size: 16.5px; font-weight: 700; color: #14123a; }
+.gsa-cycle-body p { margin: 0; font-size: 15px; color: #6c6c85; line-height: 1.55; max-width: 640px; }
+
+/* =============== CYCLE SIMPLE (avance sur salaire, en ligne) =============== */
+.gsa-cycle-simple { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.gsa-cycle-simple-step {
+  flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 4px;
+  padding: 14px; border-radius: 12px; background: #faf9fe; border: 1px solid #f0eef8;
+}
+.gsa-cycle-simple-step svg { color: #6b46c1; }
+.gsa-cycle-simple-step strong { font-size: 16px; font-weight: 800; color: #14123a; }
+.gsa-cycle-simple-step p { margin: 0; font-size: 14.5px; color: #6c6c85; line-height: 1.5; }
+.gsa-cycle-arrow { align-self: center; flex: 0 0 auto; color: #c7c0e8; }
+
+.gsa-tone-purple { color: #6b46c1; }
+.gsa-tone-blue { color: #1d4ed8; }
+.gsa-tone-green { color: #15803d; }
+.gsa-tone-orange { color: #b45309; }
+.gsa-tone-red { color: #b91c1c; }
+.gsa-tone-gray { color: #6b7280; }
+
+/* =============== STATUTS =============== */
+.gsa-statuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.gsa-statut-card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px; border-radius: 12px; background: #faf9fe; border: 1px solid #f0eef8;
+}
+.gsa-statut-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: currentColor; }
+.gsa-statut-icon svg { color: #ffffff; }
+.gsa-statut-card strong { font-size: 16px; font-weight: 800; color: #14123a; }
+.gsa-statut-card p { margin: 0; font-size: 14.5px; color: #6c6c85; line-height: 1.5; }
+
+/* =============== BANNIÈRE / PIED DE PAGE =============== */
+.gsa-info-banner {
+  display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 11px 16px;
+  border: 1px solid #dbe8ff; border-radius: 10px; background: #eef4ff; color: #2b4f8c;
+  font-size: 15px; font-weight: 500;
+}
+.gsa-info-banner svg { flex: 0 0 auto; }
+
+.gsa-footer-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 14px 18px; border: 1px solid #eae7f6; border-radius: 12px; background: #ffffff;
+  color: #6c6c85; font-size: 15px;
+}
+.gsa-footer-note svg { flex: 0 0 auto; color: #6b46c1; }
+.gsa-footer-note span { flex: 1; min-width: 220px; }
+.gsa-link-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: none; background: none;
+  color: #6b46c1; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.gsa-link-btn:hover { text-decoration: underline; }
+
+@media (max-width: 1100px) {
+  .gsa-sections { grid-template-columns: repeat(2, 1fr); }
+  .gsa-statuts { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .gsa-page { padding: 16px; }
+  .gsa-sections { grid-template-columns: 1fr; }
+  .gsa-cycle-step { flex-direction: column; }
+  .gsa-cycle-icon { margin-left: 0; }
+  .gsa-cycle-step:not(:last-child)::before { display: none; }
+  .gsa-cycle-simple { flex-direction: column; }
+  .gsa-cycle-arrow { transform: rotate(90deg); align-self: flex-start; margin-left: 20px; }
+}

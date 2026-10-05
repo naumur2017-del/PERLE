@@ -1,4 +1,4 @@
-.date-picker-field { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 700; color: #1b205e; }
+.date-picker-field { display: flex; flex-direction: column; gap: 7px; font-size: 15px; font-weight: 700; color: #1b205e; }
 .date-picker { position: relative; }
 
 .date-picker-required-input { position: absolute; inset: 0; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; opacity: 0; pointer-events: none; }
@@ -18,7 +18,7 @@
   border-radius: 7px;
   background: #ffffff;
   color: #20255f;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
@@ -47,7 +47,7 @@
 @keyframes date-picker-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 .date-picker-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; }
-.date-picker-month-label { font-size: 12.5px; font-weight: 800; color: #14123a; text-transform: capitalize; }
+.date-picker-month-label { font-size: 15.5px; font-weight: 800; color: #14123a; text-transform: capitalize; }
 
 .date-picker-nav-btn {
   display: grid; place-items: center;
@@ -63,7 +63,7 @@
 .date-picker-weekdays {
   display: grid; grid-template-columns: repeat(7, 1fr);
   padding: 0 1px 4px;
-  font-size: 9px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: #9497b8; text-align: center;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: #9497b8; text-align: center;
 }
 
 .date-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -80,7 +80,7 @@
   border-radius: 8px;
   background: none;
   color: #20255f;
-  font-size: 11.5px;
+  font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
@@ -107,7 +107,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #6b46c1;
-  font-size: 10.5px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: background 140ms ease;

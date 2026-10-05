@@ -16,6 +16,7 @@ import JournalTresoreriePage from './pages/JournalTresoreriePage'
 import MercurialesPage from './pages/MercurialesPage'
 import GuidePage from './pages/GuidePage'
 import GuideStaffingPage from './pages/GuideStaffingPage'
+import GuideSalariePage from './pages/GuideSalariePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
 import StaffingPage from './pages/StaffingPage'
@@ -316,6 +317,19 @@ function App() {
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ne doit se relancer qu'à la connexion (nouveau token), pas à chaque changement de session
   }, [session?.token])
+
+  // Actualisation silencieuse de « mes » attributions (même source que le minuteur flottant et
+  // Exécuté staffing) : un manager peut attribuer une nouvelle tâche, ou le Pilotage clôturer une
+  // tâche « en revue », sans que la personne connectée n'ait besoin de recharger la page pour le
+  // voir apparaître. Pas de bascule de `loading` ici — seulement au chargement initial ci-dessus.
+  useEffect(() => {
+    if (!session) return
+    const userId = session.userId
+    const interval = window.setInterval(() => {
+      fetchTaskAssignments({ user: userId }).then(setMyAssignments).catch(() => {})
+    }, 20000)
+    return () => window.clearInterval(interval)
+  }, [session])
 
   // Ne fait vivre que l'affichage (le temps réel reste dérivé de temps_travaille_secondes + segment
   // actif) : pas de compteur local qui pourrait diverger de ce qui est enregistré en base.
@@ -631,7 +645,7 @@ function App() {
       case 'guide-staffing': return <GuideStaffingPage navigateTo={navigateTo} />
       case 'guide-gestion': return <ModulePage title={pageConfig['guide-gestion'].title} description={pageConfig['guide-gestion'].description} icon={icons.guide} />
       case 'guide-tresorerie': return <ModulePage title={pageConfig['guide-tresorerie'].title} description={pageConfig['guide-tresorerie'].description} icon={icons.guide} />
-      case 'guide-salarie': return <ModulePage title={pageConfig['guide-salarie'].title} description={pageConfig['guide-salarie'].description} icon={icons.guide} />
+      case 'guide-salarie': return <GuideSalariePage navigateTo={navigateTo} />
       case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
       case 'parametres': return can(session, 'config:view')

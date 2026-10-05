@@ -1,6 +1,6 @@
 /* Style de repli quand le composant est utilisé sans className (label auto-porté, cohérent
    avec CountrySelect) — un className fourni par le parent (ex. « login-field ») prend le dessus. */
-.phone-input-field { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 700; color: #1b205e; }
+.phone-input-field { display: flex; flex-direction: column; gap: 7px; font-size: 15px; font-weight: 700; color: #1b205e; }
 
 .phone-input {
   position: relative;
@@ -20,7 +20,7 @@
   padding-right: 8px;
   border-right: 1px solid #eae7f6;
   color: #6b46c1;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -33,7 +33,7 @@
   outline: 0;
   background: none;
   color: #20255f;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 

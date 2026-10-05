@@ -4,6 +4,8 @@ import {
   Landmark, Plus, RotateCcw, Search, SlidersHorizontal, Wallet,
 } from 'lucide-react'
 import { currencySuffix } from '../utils/currency'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './ComptesOperationsPage.css'
 
 interface CompteDef {
@@ -85,6 +87,7 @@ function MontantCell({ value }: { value?: number }) {
 }
 
 export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('co-kpis-hidden')
   const [search, setSearch] = useState('')
   const [projetFiltre, setProjetFiltre] = useState('Tous')
   const [typeFiltre, setTypeFiltre] = useState('Tous')
@@ -156,6 +159,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
           <button type="button" className="co-link-btn" onClick={() => navigateTo('tresorerie-rapports')}>Voir le journal de la trésorerie</button>
         </div>
         <div className="co-toolbar">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           <button type="button" className="co-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
           <button type="button" className="co-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>
         </div>
@@ -165,6 +169,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
         <button type="button" className="co-btn-primary"><Plus size={14} />Nouveau compte</button>
       </div>
 
+      {showKpis && (
       <div className="co-kpis">
         {KPIS.map((kpi) => (
           <article key={kpi.label} className={`co-kpi co-kpi-${kpi.tone}`}>
@@ -176,6 +181,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
           </article>
         ))}
       </div>
+      )}
 
       <article className="co-solde-initial">
         <span className="co-solde-initial-icon"><Wallet size={18} /></span>

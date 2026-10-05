@@ -30,7 +30,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #35335c;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -43,6 +43,8 @@
   background: #6b46c1;
   color: #ffffff;
 }
+
+.ct-toolbar { display: flex; justify-content: flex-end; }
 
 /* =============== TOP: KPIS =============== */
 .ct-kpis {
@@ -78,9 +80,9 @@
 .ct-kpi-red .ct-kpi-icon { background: #fee2e2; color: #dc2626; }
 
 .ct-kpi > div { display: flex; flex-direction: column; min-width: 0; }
-.ct-kpi strong { font-size: 19px; font-weight: 700; color: #14123a; line-height: 1.2; }
-.ct-kpi span { font-size: 10px; font-weight: 700; color: #4a4a63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ct-kpi small { font-size: 9.5px; color: #8f8fa6; }
+.ct-kpi strong { font-size: 22px; font-weight: 700; color: #14123a; line-height: 1.2; }
+.ct-kpi span { font-size: 13px; font-weight: 700; color: #4a4a63; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ct-kpi small { font-size: 12.5px; color: #8f8fa6; }
 
 /* =============== FILTERS =============== */
 .ct-filters {
@@ -99,7 +101,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #6c6c85;
 }
@@ -113,7 +115,7 @@
   border-radius: 7px;
   background: #ffffff;
   color: #2b2b4a;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -131,7 +133,7 @@
   border-radius: 7px;
   background: #ffffff;
   color: #35335c;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -155,15 +157,15 @@
 
 .ct-table-panel { overflow: hidden; }
 .ct-table-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #eae7f6; }
-.ct-table-head h3 { margin: 0; font-size: 13.5px; font-weight: 700; color: #14123a; }
+.ct-table-head h3 { margin: 0; font-size: 16.5px; font-weight: 700; color: #14123a; }
 
 .ct-table-wrap { overflow-x: auto; }
-.ct-table { width: 100%; min-width: 1900px; border-collapse: collapse; font-size: 11px; }
+.ct-table { width: 100%; min-width: 1900px; border-collapse: collapse; font-size: 14px; }
 .ct-table th, .ct-table td { padding: 9px 10px; border-bottom: 1px solid #f0eef8; text-align: left; white-space: nowrap; }
-.ct-table thead th { background: #faf9fe; color: #6c6c85; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; text-align: center; border-bottom: 1px solid #eae7f6; }
+.ct-table thead th { background: #faf9fe; color: #6c6c85; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; text-align: center; border-bottom: 1px solid #eae7f6; }
 .ct-table thead tr:first-child th[rowspan] { text-align: left; }
 .ct-table tbody tr:hover { background: #faf9ff; }
-.ct-empty { text-align: center; color: #a8a8bd; padding: 24px; font-size: 12px; white-space: normal; }
+.ct-empty { text-align: center; color: #a8a8bd; padding: 24px; font-size: 15px; white-space: normal; }
 
 .ct-code { color: #14123a; font-weight: 700; }
 .ct-name { color: #14123a; font-weight: 600; white-space: normal; min-width: 160px; }
@@ -171,34 +173,34 @@
 .ct-ligne-link { border: none; background: none; padding: 0; color: #6b46c1; font-weight: 600; font-size: inherit; text-align: left; cursor: pointer; text-decoration: none; }
 .ct-ligne-link:hover { text-decoration: underline; }
 
-.ct-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.ct-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .ct-pill-attente { background: #eef0f3; color: #4b5563; }
 .ct-pill-cours { background: #dbeafe; color: #1d4ed8; }
 .ct-pill-termine { background: #dcfce7; color: #15803d; }
 .ct-pill-bloque { background: #fef1d8; color: #b45309; }
 .ct-pill-retard { background: #fee2e2; color: #b91c1c; }
 
-.ct-priorite { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.ct-priorite { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .ct-priorite-haute { background: #fee2e2; color: #b91c1c; }
 .ct-priorite-moyenne { background: #eee9ff; color: #5835da; }
 .ct-priorite-basse { background: #dcfce7; color: #15803d; }
 
-.ct-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 11.5px; color: #6c6c85; }
+.ct-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 14.5px; color: #6c6c85; }
 .ct-pagination { display: flex; align-items: center; gap: 4px; }
-.ct-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 11px; font-weight: 700; cursor: pointer; }
+.ct-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 14px; font-weight: 700; cursor: pointer; }
 .ct-pagination button:hover { background: #f0eef8; }
 .ct-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .ct-pagination button.is-active { background: #6b46c1; border-color: #6b46c1; color: #fff; }
 .ct-page-ellipsis { padding: 0 4px; color: #a8a8bd; }
 
 .ct-panel { padding: 12px 14px; }
-.ct-panel h3 { margin: 0 0 8px; font-size: 11px; font-weight: 700; color: #14123a; }
+.ct-panel h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #14123a; }
 
 .ct-donut-wrap { display: flex; flex-direction: row; align-items: center; gap: 12px; }
 .ct-donut-svg { width: 84px; height: 84px; flex-shrink: 0; }
-.ct-donut-value { font-size: 12px; font-weight: 700; fill: #14123a; }
-.ct-donut-sub { font-size: 7px; fill: #8f8fa6; }
-.ct-donut-legend { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; width: 100%; font-size: 9.5px; color: #4a4a63; }
+.ct-donut-value { font-size: 15px; font-weight: 700; fill: #14123a; }
+.ct-donut-sub { font-size: 10px; fill: #8f8fa6; }
+.ct-donut-legend { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; width: 100%; font-size: 12.5px; color: #4a4a63; }
 .ct-donut-legend li { display: flex; align-items: center; gap: 6px; }
 .ct-donut-legend i { display: block; width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
@@ -209,19 +211,19 @@
 .ct-alerte-icon.orange { background: #fef1d8; color: #f59e0b; }
 .ct-alerte-icon.purple { background: #efe9fd; color: #6b46c1; }
 .ct-alerte-icon.slate { background: #eef0f3; color: #6b7280; }
-.ct-alerte-label { flex: 1; min-width: 0; font-size: 9.5px; color: #4a4a63; }
-.ct-alertes b { color: #14123a; font-size: 11.5px; }
+.ct-alerte-label { flex: 1; min-width: 0; font-size: 12.5px; color: #4a4a63; }
+.ct-alertes b { color: #14123a; font-size: 14.5px; }
 
 /* =============== BOTTOM: 3 MINI PANELS =============== */
 .ct-bottom { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 
 .ct-mini-panel { padding: 16px; border: 1px solid #eae7f6; border-radius: 12px; background: #ffffff; box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04); }
 .ct-mini-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.ct-mini-head h3 { margin: 0; font-size: 11.5px; font-weight: 700; color: #14123a; }
+.ct-mini-head h3 { margin: 0; font-size: 14.5px; font-weight: 700; color: #14123a; }
 
-.ct-mini-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.ct-mini-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .ct-mini-table th, .ct-mini-table td { padding: 7px 6px; border-bottom: 1px solid #f0eef8; text-align: left; }
-.ct-mini-table th { color: #8f8fa6; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.ct-mini-table th { color: #8f8fa6; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .ct-mini-table .ct-name { min-width: 0; white-space: normal; }
 .ct-negative { color: #b91c1c; font-weight: 700; }
 .ct-warning { color: #b45309; font-weight: 700; }

@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './JournalTresoreriePage.css'
 
 type TypeOperation = 'Entrée' | 'Sortie' | 'Transfert'
@@ -140,6 +142,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
   const [exportOpen, setExportOpen] = useState(false)
   const [selected, setSelected] = useState<OperationJournal | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(JOURNAL_COLUMNS)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('jt-kpis-hidden')
 
   const comptes = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.compte))), [])
   const initiateurs = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.initiateur))), [])
@@ -173,6 +176,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
           <button type="button" className="jt-link-btn" onClick={() => navigateTo('tresorerie')}>Voir les ordonnances des paiements</button>
         </div>
         <div className="jt-toolbar">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           <ColumnsMenu columns={JOURNAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="jt-btn-outline" />
           <div className="jt-export-wrap">
             <button type="button" className="jt-btn-outline" onClick={() => setExportOpen((o) => !o)}>
@@ -242,6 +246,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         </div>
       </div>
 
+      {showKpis && (
       <div className="jt-kpis">
         {KPIS.map((kpi) => (
           <article key={kpi.label} className={`jt-kpi jt-kpi-${kpi.tone}`}>
@@ -253,6 +258,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
           </article>
         ))}
       </div>
+      )}
 
       <section className="jt-table-panel">
         <div className="jt-table-wrap">

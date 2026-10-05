@@ -6,6 +6,8 @@ import {
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { fetchTaskAssignments, type TaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './ControleTachesPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -215,6 +217,8 @@ export default function ControleTachesPage({ navigateTo, onOpenLigneBudgetaire }
   const total = tachesFiltrees.length
   const pct = (n: number) => total > 0 ? fmtPct((n / total) * 100) : '0,0 %'
 
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('ct-kpis-hidden')
+
   const KPIS = [
     { icon: ClipboardList, tone: 'purple', label: 'Nombre total de tâches suivies', value: String(total), sub: 'Toutes tâches confondues' },
     { icon: PauseCircle, tone: 'gray', label: 'Non démarrées', value: String(counts['Non démarrée']), sub: pct(counts['Non démarrée']) },
@@ -271,6 +275,11 @@ export default function ControleTachesPage({ navigateTo, onOpenLigneBudgetaire }
 
       {!loading && !loadError && (
         <>
+          <div className="ct-toolbar">
+            <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
+          </div>
+
+          {showKpis && (
           <div className="ct-kpis">
             {KPIS.map((kpi) => (
               <article key={kpi.label} className={`ct-kpi ct-kpi-${kpi.tone}`}>
@@ -283,6 +292,7 @@ export default function ControleTachesPage({ navigateTo, onOpenLigneBudgetaire }
               </article>
             ))}
           </div>
+          )}
 
           <div className="ct-side-panels">
             <div className="ct-panel">

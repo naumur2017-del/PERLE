@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react'
 import './EmployeeDashboard.css'
 import { KpiCard, Panel, type PanelState } from '../components/dashboard/DashboardUI'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { EhsTrendChart, TaskSplitChart, TasksTrendChart } from '../components/dashboard/ManagerCharts'
 import { DIR_PERIOD_LABELS, type DirPeriod } from '../components/dashboard/directorData'
 import { fetchEmployeeDashboard, type EmployeeDashboard as EmployeeData } from '../api/dashboard'
@@ -27,6 +29,7 @@ export default function EmployeeDashboard({ session, navigateTo }: { session: Se
   const [data, setData] = useState<EmployeeData | null>(null)
   const [refreshedAt, setRefreshedAt] = useState(clock())
   const [reloadKey, setReloadKey] = useState(0)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('emp-dsh-kpis-hidden')
 
   useEffect(() => {
     let cancelled = false
@@ -68,6 +71,7 @@ export default function EmployeeDashboard({ session, navigateTo }: { session: Se
         <button type="button" className="dsh-btn dsh-btn-primary" onClick={refresh} disabled={loading}>
           {loading ? '⟳ Actualisation…' : '⟳ Actualiser'}
         </button>
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
       </div>
     </div>
 
@@ -76,6 +80,7 @@ export default function EmployeeDashboard({ session, navigateTo }: { session: Se
       <button type="button" className="dsh-btn" onClick={refresh}>Réessayer</button>
     </div>}
 
+    {showKpis && (
     <div className="dsh-kpi-grid">
       <KpiCard loading={loading} icon="🔔" tone={(kpi?.new_tasks ?? 0) > 0 ? 'warn' : 'ok'} label="Nouvelles tâches attribuées"
         value={String(kpi?.new_tasks ?? 0)}
@@ -117,6 +122,7 @@ export default function EmployeeDashboard({ session, navigateTo }: { session: Se
         details="Voir mes demandes de congé"
         onOpen={() => navigateTo('salarie')} />
     </div>
+    )}
 
     <div className="dsh-grid">
       <Panel className="dsh-col-7" title="Exécution de mes tâches" subtitle="Répartition de mes attributions"

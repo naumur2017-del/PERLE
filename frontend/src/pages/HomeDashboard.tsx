@@ -14,6 +14,8 @@ import {
 } from '../components/dashboard/directorData'
 import { currencySuffix } from '../utils/currency'
 import { fetchDirectionDashboard, type DirectionDashboard } from '../api/dashboard'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 
 const FILTER_KEY = 'perle-direction-filters'
 
@@ -45,6 +47,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
   const [refreshedAt, setRefreshedAt] = useState(clock())
   const [collapsed, setCollapsed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('dir-dsh-kpis-hidden')
 
   // Le filtre de période est conservé pendant la session.
   useEffect(() => { sessionStorage.setItem(FILTER_KEY, JSON.stringify({ period })) }, [period])
@@ -92,6 +95,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
         <button type="button" className="dsh-btn dsh-btn-primary" onClick={refresh} disabled={loading}>
           {loading ? '⟳ Actualisation…' : '⟳ Actualiser'}
         </button>
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
         <button
           type="button"
           className="dsh-btn"
@@ -112,6 +116,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
     {/* ---------------------------------------------------------------- */}
     {/* Indicateurs de tête                                               */}
     {/* ---------------------------------------------------------------- */}
+    {showKpis && (
     <div className="dsh-kpi-grid">
       <KpiCard loading={loading} icon="₣" tone="primary" label="Chiffre d’affaires"
         value={formatFcfa(kpi?.revenue ?? 0)}
@@ -144,6 +149,7 @@ export default function HomeDashboard({ navigateTo }: { navigateTo: (page: strin
         details="Sur l’ensemble des projets"
         onOpen={() => navigateTo('staffing')} />
     </div>
+    )}
 
     {/* ---------------------------------------------------------------- */}
     {/* Graphiques                                                        */}

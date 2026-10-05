@@ -9,7 +9,9 @@ import { fetchMe, type MeProfile } from '../api/employees'
 import { ApiError } from '../api/client'
 import RatingModal from '../components/RatingModal'
 import TaskDetailByIdModal from '../components/TaskDetailByIdModal'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
 import { useUnreadMessages } from '../hooks/useUnreadMessages'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './SuiviStaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -101,6 +103,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
   // équipes, voir TaskDetailByIdModal.
   const [discussionTaskId, setDiscussionTaskId] = useState<number | null>(null)
   const { unreadTaskIds, markTaskReadLocally } = useUnreadMessages()
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('su-kpis-hidden')
 
   useEffect(() => {
     let cancelled = false
@@ -109,6 +112,15 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
       .catch((err) => { if (!cancelled) setLoadError(errorMessage(err)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
+  }, [])
+
+  // Actualisation silencieuse : l'exécution avance côté employé, le Pilotage clôture une tâche...
+  // ces changements doivent apparaître ici sans recharger la page. Pas de bascule de `loading`.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      fetchTaskAssignments().then(setAssignments).catch(() => {})
+    }, 20000)
+    return () => window.clearInterval(interval)
   }, [])
 
   // Fait vivre le compte à rebours « Temps restant » de chaque ligne, seconde par seconde.
@@ -172,7 +184,10 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
     setRatingId(null)
   }
 
-  const handleMarkEnRevue = async (taskId: number) => {
+  // Une fois l'exécution terminée par tout le monde (revue « en_attente »), le manager de
+  // l'équipe porteuse (ou le Pilotage) valide la tâche : elle passe en « en_revue » et devient
+  // alors actionnable (clôture) depuis Staffing des équipes.
+  const handleValider = async (taskId: number) => {
     setActionError(null)
     try {
       const updated = await setTaskRevueOverride(taskId, 'en_revue')
@@ -202,6 +217,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
           <h1>Suivi des staffings <Info size={15} className="su-title-info" /></h1>
           <p>Suivez l'évolution de chaque staffing réalisé dans l'organisation.</p>
         </div>
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
       </div>
 
       {loading && <p className="ge-detail-empty">Chargement…</p>}
@@ -209,18 +225,20 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
 
       {!loading && !loadError && (
         <>
-          <div className="su-kpis">
-            {KPIS.map((kpi) => (
-              <article key={kpi.label} className={`su-kpi su-kpi-${kpi.tone}`}>
-                <span className="su-kpi-icon"><kpi.icon size={17} /></span>
-                <div>
-                  <span className="su-kpi-label">{kpi.label}</span>
-                  <strong>{kpi.value}</strong>
-                  <small>{kpi.sub}</small>
-                </div>
-              </article>
-            ))}
-          </div>
+          {showKpis && (
+            <div className="su-kpis">
+              {KPIS.map((kpi) => (
+                <article key={kpi.label} className={`su-kpi su-kpi-${kpi.tone}`}>
+                  <span className="su-kpi-icon"><kpi.icon size={17} /></span>
+                  <div>
+                    <span className="su-kpi-label">{kpi.label}</span>
+                    <strong>{kpi.value}</strong>
+                    <small>{kpi.sub}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
 
           <div className="su-filters">
             <label>Projet
@@ -253,7 +271,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
 
           <div className="su-info-banner">
             <Info size={14} />
-            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing ». Une fois tout le monde terminé, la tâche passe « En attente » : validez-la pour l'envoyer en revue au Pilotage, qui la clôturera définitivement depuis Staffing des équipes.</span>
+            <span>Chaque personne fait évoluer son propre statut depuis « Exécuté staffing ». Une fois tout le monde terminé, la tâche passe « En attente » : validez-la pour l'envoyer en revue au Pilotage, qui la clôturera depuis Staffing des équipes.</span>
           </div>
 
           {actionError && <p className="ge-detail-empty su-action-error">{actionError}</p>}
@@ -284,7 +302,7 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                     const execTone = doneCount === total ? 'green' : g.assignments.some((a) => a.execution_statut === 'en_cours') ? 'blue' : 'orange'
                     const totalHeures = g.assignments.reduce((sum, a) => sum + a.heures, 0)
                     const expanded = expandedTaskIds.has(g.taskId)
-                    const canMarkEnRevue = (revue === 'en_cours' || revue === 'en_attente') && (managedTeamIds.has(g.task_equipe) || canOverrideAnyTeam)
+                    const canValider = revue === 'en_attente' && (managedTeamIds.has(g.task_equipe) || canOverrideAnyTeam)
                     return (
                       <Fragment key={g.taskId}>
                         <tr className="su-group-row">
@@ -314,13 +332,13 @@ export default function SuiviStaffingPage({ navigateTo }: { navigateTo: (page: s
                           <td><span className={`su-statut-pill su-statut-${REVUE_TONE[revue]}`}>{REVUE_LABEL[revue]}</span></td>
                           <td>
                             <div className="su-row-actions">
-                              {canMarkEnRevue && (
+                              {canValider && (
                                 <button
-                                  type="button" className={`su-revue-btn ${revue === 'en_attente' ? 'su-revue-btn-primary' : ''}`}
-                                  title={revue === 'en_attente' ? 'Valider cette tâche et l’envoyer en revue au Pilotage' : 'Envoyer cette tâche en revue avant même la fin de l’exécution'}
-                                  onClick={() => handleMarkEnRevue(g.taskId)}
+                                  type="button" className="su-revue-btn su-revue-btn-primary"
+                                  title="Valider cette tâche et l’envoyer en revue au Pilotage"
+                                  onClick={() => handleValider(g.taskId)}
                                 >
-                                  <Flag size={12} />{revue === 'en_attente' ? 'Valider' : 'Marquer en revue'}
+                                  <Flag size={12} />Valider
                                 </button>
                               )}
                               <button type="button" className="su-message-btn" title="Discussion de la tâche" aria-label="Discussion de la tâche" onClick={() => setDiscussionTaskId(g.taskId)}>

@@ -4,6 +4,8 @@ import {
   Copy, Download, ListChecks, Pencil, Plus, Recycle, RotateCcw, Search, Trash2, TrendingUp, Upload,
 } from 'lucide-react'
 import { currencySuffix } from '../utils/currency'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './MercurialesPage.css'
 
 type Statut = 'Active' | 'Expirée' | 'Programmée'
@@ -103,6 +105,8 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
     return sorted
   }, [mercuriales, filterCategorie, filterSousCategorie, filterUnite, filterStatut, refQuery, designationQuery, sort])
 
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('mer-kpis-hidden')
+
   const resetFiltres = () => {
     setFilterCategorie('Toutes'); setFilterSousCategorie('Toutes'); setFilterUnite('Toutes')
     setFilterStatut('Tous'); setRefQuery(''); setDesignationQuery('')
@@ -121,6 +125,7 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
           <button type="button" className="mer-link-btn" onClick={() => navigateTo('tresorerie-rapports')}>Voir le journal de la trésorerie</button>
         </div>
         <div className="mer-toolbar">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           <button type="button" className="mer-btn-outline"><Upload size={14} />Importer</button>
           <div className="mer-export-wrap">
             <button type="button" className="mer-btn-outline" onClick={() => setExportOpen((o) => !o)}>
@@ -178,6 +183,7 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
         </div>
       </div>
 
+      {showKpis && (
       <div className="mer-kpis">
         {KPIS.map((kpi) => (
           <article key={kpi.label} className={`mer-kpi mer-kpi-${kpi.tone}`}>
@@ -189,6 +195,7 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
           </article>
         ))}
       </div>
+      )}
 
       <section className="mer-table-panel">
         <div className="mer-table-wrap">

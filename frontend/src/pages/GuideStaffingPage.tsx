@@ -33,7 +33,7 @@ const CYCLE = [
   {
     acteur: 'Pilotage / Contrôle de gestion', page: 'Staffing des équipes', icon: ShieldCheck, tone: 'purple',
     action: 'Clôture définitivement la tâche',
-    detail: "Bascule son statut en « Terminée » (onglet En revue). Ce changement s'applique instantanément partout : Nouveau staffing, Suivi des staffings et Exécuté staffing (manager et employés) passent tous à « Terminée ».",
+    detail: "Bascule son statut en « Terminée » via le sélecteur En cours / En revue / Terminée. Ce changement s'applique instantanément partout : Nouveau staffing, Suivi des staffings et Exécuté staffing (manager et employés) passent tous à « Terminée » — et personne ne peut plus revenir en arrière manuellement.",
   },
 ]
 
@@ -41,7 +41,7 @@ const STATUTS = [
   { icon: Clock3, tone: 'blue', label: 'En cours', sub: "Au moins une personne staffée n'a pas encore terminé son exécution." },
   { icon: Hourglass, tone: 'orange', label: 'En attente', sub: 'Tout le monde a terminé — calculé automatiquement, en attente de validation par le manager.' },
   { icon: Flag, tone: 'purple', label: 'En revue', sub: 'Le manager a validé — la tâche est soumise au Pilotage pour clôture.' },
-  { icon: CheckCircle2, tone: 'green', label: 'Terminée', sub: 'Le Pilotage a clôturé la tâche — définitif, pour tout le système.' },
+  { icon: CheckCircle2, tone: 'green', label: 'Terminée', sub: 'Le Pilotage a clôturé la tâche — verrouillée pour tout le système, plus aucun changement manuel possible.' },
 ]
 
 const PAGES = [
@@ -49,8 +49,8 @@ const PAGES = [
     icon: ClipboardList, tone: 'purple', label: 'Staffing des équipes', role: 'Pilotage / Contrôle de gestion / Direction',
     points: [
       "Attribue les tâches du catalogue aux équipes (seule la fonction qui crée réellement une tâche).",
-      'Onglets En cours / En revue / Terminées : clôture chaque tâche validée par un manager.',
-      "Peut aussi rouvrir une tâche déjà en revue (retour « En cours ») en cas d'erreur.",
+      "Sélecteur En cours / En revue / Terminée sur chaque tâche acceptée : peut basculer librement entre les deux premiers (même avant la validation du manager), à tout moment.",
+      "Une fois « Terminée » posée, le sélecteur disparaît : la tâche est verrouillée, plus aucun changement manuel n'est possible — ni ici, ni ailleurs.",
     ],
   },
   {
@@ -110,7 +110,7 @@ export default function GuideStaffingPage({ navigateTo }: { navigateTo: (page: s
 
         <div className="gst-info-banner">
           <Info size={14} />
-          <span>Si le staffing change après une clôture — un nouvel employé ajouté, une attribution retirée — la tâche redevient automatiquement « En cours » : rien ne reste figé sur un état périmé.</span>
+          <span>Une tâche « Terminée » est verrouillée : son statut ne peut plus être changé manuellement par personne, pas même le Pilotage. Seul un changement réel du staffing — un employé ajouté ou retiré — la rouvre automatiquement en « En cours », pour ne jamais rester figée sur un état périmé.</span>
         </div>
       </section>
 

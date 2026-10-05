@@ -26,7 +26,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #35335c;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -45,7 +45,7 @@
   border-radius: 8px;
   background: #6b46c1;
   color: white;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -57,7 +57,7 @@
 .tr-request-tabs { display: flex; gap: 22px; border-bottom: 1px solid #eae7f6; }
 .tr-request-tabs button {
   padding: 10px 2px; border: none; border-bottom: 2px solid transparent; background: none;
-  color: #8f8fa6; font-size: 13px; font-weight: 700; cursor: pointer;
+  color: #8f8fa6; font-size: 16px; font-weight: 700; cursor: pointer;
 }
 .tr-request-tabs button:hover { color: #35335c; }
 .tr-request-tabs button.active { color: #6b46c1; border-bottom-color: #6b46c1; }
@@ -74,28 +74,28 @@
   box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
 }
 
-.tr-request-heading h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #14123a; }
-.tr-request-heading p { margin: 0; font-size: 11.5px; color: #8f8fa6; }
+.tr-request-heading h2 { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #14123a; }
+.tr-request-heading p { margin: 0; font-size: 14.5px; color: #8f8fa6; }
 
 .tr-request-grid { display: grid; gap: 14px; }
 .tr-request-grid.four { grid-template-columns: repeat(4, 1fr); }
 .tr-request-grid.three { grid-template-columns: repeat(3, 1fr); }
 .tr-request-grid.two { grid-template-columns: repeat(2, 1fr); }
 
-.tr-hint { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f4f1ff; color: #6b46c1; font-size: 11px; font-weight: 600; line-height: 1.5; }
+.tr-hint { margin: -4px 0 0; padding: 8px 10px; border-radius: 6px; background: #f4f1ff; color: #6b46c1; font-size: 14px; font-weight: 600; line-height: 1.5; }
 
 .tr-request-grid label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 14.5px;
   font-weight: 700;
   color: #35335c;
   position: relative;
 }
 
 .tr-request-grid label em { color: #dc2626; font-style: normal; }
-.tr-file-name { color: #6c6c85; font-size: 10.5px; font-weight: 600; }
+.tr-file-name { color: #6c6c85; font-size: 13.5px; font-weight: 600; }
 
 .tr-request-grid select,
 .tr-request-grid input,
@@ -105,7 +105,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #2b2b4a;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-weight: 500;
   font-family: inherit;
 }
@@ -114,7 +114,7 @@
 .tr-request-grid textarea { resize: vertical; min-height: 90px; }
 
 .tr-textarea-counted { position: relative; }
-.tr-char-count { position: absolute; right: 10px; bottom: 10px; font-size: 10px; font-weight: 600; color: #a8a8bd; }
+.tr-char-count { position: absolute; right: 10px; bottom: 10px; font-size: 13px; font-weight: 600; color: #a8a8bd; }
 
 .tr-request-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
@@ -123,7 +123,7 @@
 
 .tr-draft-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tr-draft-head-title { display: flex; align-items: center; gap: 8px; color: #8f8fa6; }
-.tr-draft-head-title h3 { margin: 0; font-size: 14px; font-weight: 700; color: #14123a; }
+.tr-draft-head-title h3 { margin: 0; font-size: 17px; font-weight: 700; color: #14123a; }
 
 .tr-draft-toggle {
   display: flex;
@@ -135,7 +135,7 @@
   border-radius: 7px;
   background: #ffffff;
   color: #35335c;
-  font-size: 11.5px;
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -155,8 +155,8 @@
   box-shadow: 0 2px 8px rgba(30, 20, 80, 0.04);
 }
 
-.tr-filters label { display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; font-weight: 700; color: #6c6c85; }
-.tr-filters select, .tr-filters input[type="date"] { height: 36px; min-width: 140px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 12px; font-weight: 600; }
+.tr-filters label { display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 700; color: #6c6c85; }
+.tr-filters select, .tr-filters input[type="date"] { height: 36px; min-width: 140px; padding: 0 10px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 15px; font-weight: 600; }
 
 .tr-daterange {
   display: flex;
@@ -168,16 +168,16 @@
   border-radius: 7px;
   background: #ffffff;
   color: #2b2b4a;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .tr-search { flex: 1; min-width: 240px; position: relative; }
 .tr-search svg { position: absolute; left: 10px; bottom: 10px; color: #9b9bb3; pointer-events: none; }
-.tr-search input { width: 100%; height: 36px; padding: 0 10px 0 30px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 12px; font-weight: 600; }
+.tr-search input { width: 100%; height: 36px; padding: 0 10px 0 30px; border: 1px solid #ddd8f2; border-radius: 7px; background: #ffffff; color: #2b2b4a; font-size: 15px; font-weight: 600; }
 
-.tr-reset { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border: 1px solid #ddd8f2; border-radius: 8px; background: #ffffff; color: #35335c; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.tr-reset { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border: 1px solid #ddd8f2; border-radius: 8px; background: #ffffff; color: #35335c; font-size: 15.5px; font-weight: 700; cursor: pointer; }
 .tr-reset:hover { background: #f7f5ff; }
 
 /* =============== TABLE =============== */
@@ -190,18 +190,18 @@
 }
 
 .tr-table-wrap { overflow-x: auto; }
-.tr-table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 11px; }
+.tr-table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 14px; }
 .tr-table th, .tr-table td { padding: 9px 10px; border-bottom: 1px solid #f0eef8; text-align: left; white-space: nowrap; }
-.tr-table thead th { background: #faf9fe; color: #6c6c85; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+.tr-table thead th { background: #faf9fe; color: #6c6c85; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
 .tr-table tbody tr:hover { background: #faf9ff; }
 
 .tr-code { color: #6b46c1; font-weight: 700; }
 .tr-name { color: #14123a; font-weight: 600; white-space: normal; min-width: 170px; }
 .tr-montant { font-weight: 700; color: #14123a; }
 
-.tr-empty { text-align: center; padding: 24px; color: #a8a8bd; font-size: 12px; white-space: normal; }
+.tr-empty { text-align: center; padding: 24px; color: #a8a8bd; font-size: 15px; white-space: normal; }
 
-.tr-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.tr-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .tr-pill-attente { background: #dbeafe; color: #1d4ed8; }
 .tr-pill-pret { background: #ede9fe; color: #7c3aed; }
 .tr-pill-refuse { background: #fee2e2; color: #b91c1c; }
@@ -215,9 +215,9 @@
 .tr-row-action:hover { background: #f0eef8; color: #6b46c1; }
 .tr-row-action.danger:hover { background: #fee2e2; color: #dc2626; }
 
-.tr-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 11.5px; color: #6c6c85; }
+.tr-table-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-top: 1px solid #eae7f6; font-size: 14.5px; color: #6c6c85; }
 .tr-pagination { display: flex; align-items: center; gap: 4px; }
-.tr-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 11px; font-weight: 700; cursor: pointer; }
+.tr-pagination button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: #4a4a63; font-size: 14px; font-weight: 700; cursor: pointer; }
 .tr-pagination button:hover:not(:disabled) { background: #f0eef8; }
 .tr-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .tr-pagination button.is-active { background: #6b46c1; border-color: #6b46c1; color: #fff; }

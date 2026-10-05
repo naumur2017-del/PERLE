@@ -28,7 +28,7 @@
   padding: 18px 22px;
   border-bottom: 1px solid #f0eef8;
 }
-.np-head h3 { margin: 0; font-size: 17px; font-weight: 800; color: #14123a; }
+.np-head h3 { margin: 0; font-size: 20px; font-weight: 800; color: #14123a; }
 .np-close {
   display: grid; place-items: center; width: 30px; height: 30px;
   border: none; border-radius: 8px; background: #f4f1ff; color: #6b46c1; cursor: pointer;
@@ -41,13 +41,13 @@
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 56px 24px; color: #a8a8bd; text-align: center;
 }
-.np-empty strong { font-size: 14px; color: #4a4a63; }
-.np-empty p { margin: 0; font-size: 12.5px; max-width: 320px; }
+.np-empty strong { font-size: 17px; color: #4a4a63; }
+.np-empty p { margin: 0; font-size: 15.5px; max-width: 320px; }
 
 .np-section { padding: 12px 8px 4px; }
 .np-section h4 {
   display: flex; align-items: center; gap: 6px; margin: 0 0 8px;
-  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: #8f8fa6;
+  font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: #8f8fa6;
 }
 .np-section ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 
@@ -69,10 +69,10 @@
 .np-row-icon-red { background: #fee2e2; color: #b91c1c; }
 
 .np-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.np-row-main strong { font-size: 12.5px; font-weight: 700; color: #14123a; line-height: 1.4; }
-.np-row-main span { font-size: 11px; color: #8f8fa6; }
+.np-row-main strong { font-size: 15.5px; font-weight: 700; color: #14123a; line-height: 1.4; }
+.np-row-main span { font-size: 14px; color: #8f8fa6; }
 
-.np-row time { flex: 0 0 auto; font-size: 10px; color: #a8a8bd; white-space: nowrap; margin-top: 2px; }
+.np-row time { flex: 0 0 auto; font-size: 13px; color: #a8a8bd; white-space: nowrap; margin-top: 2px; }
 
 @media (max-width: 560px) {
   .np-overlay { padding: 0; align-items: flex-end; }

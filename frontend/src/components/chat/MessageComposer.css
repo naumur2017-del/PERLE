@@ -28,7 +28,7 @@
 .mc-mention-menu li {
   padding: 7px 10px;
   border-radius: 7px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: #35335c;
   cursor: pointer;
@@ -42,7 +42,7 @@
   border-radius: 4px;
   background: #fdecea;
   color: #a5291d;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   animation: mc-error-in 180ms ease-out;
 }
@@ -71,7 +71,7 @@
 
 .mc-preview img, .mc-preview video { display: block; max-width: 200px; max-height: 140px; border-radius: 8px; object-fit: cover; }
 .mc-preview audio { width: 210px; height: 34px; }
-.mc-preview-file { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: #35335c; font-size: 12px; font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-preview-file { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: #35335c; font-size: 15px; font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-preview-file svg { flex: 0 0 auto; color: #6b46c1; }
 
 .mc-preview-remove {
@@ -120,7 +120,7 @@
   border-radius: 18px;
   background: #ffffff;
   color: #1a1a2e;
-  font-size: 12.5px;
+  font-size: 15.5px;
   font-family: inherit;
   line-height: 1.4;
   transition: border-color 140ms ease, box-shadow 140ms ease;
@@ -178,18 +178,18 @@
   50% { transform: scale(1.25); opacity: 0.75; box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
 }
 
-.mc-recording-time { flex: 1; font-size: 12px; font-weight: 700; color: #a5291d; font-variant-numeric: tabular-nums; }
+.mc-recording-time { flex: 1; font-size: 15px; font-weight: 700; color: #a5291d; font-variant-numeric: tabular-nums; }
 
 .mc-recording-cancel {
   border: none; background: none; padding: 4px 8px;
-  color: #8f8fa6; font-size: 11px; font-weight: 700; cursor: pointer;
+  color: #8f8fa6; font-size: 14px; font-weight: 700; cursor: pointer;
 }
 .mc-recording-cancel:hover { color: #4a4a63; }
 
 .mc-recording-stop {
   display: inline-flex; align-items: center; gap: 5px;
   border: none; border-radius: 999px; padding: 6px 12px;
-  background: #dc2626; color: #ffffff; font-size: 11px; font-weight: 700; cursor: pointer;
+  background: #dc2626; color: #ffffff; font-size: 14px; font-weight: 700; cursor: pointer;
   transition: background 140ms ease, transform 100ms ease;
 }
 .mc-recording-stop:hover { background: #b91c1c; transform: scale(1.03); }

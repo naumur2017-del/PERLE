@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import TaskDetailByIdModal from '../components/TaskDetailByIdModal'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { executeTaskAssignmentAction, type TaskAssignment, type TaskExecutionStatut } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import { formatMontant } from '../utils/currency'
@@ -198,6 +200,7 @@ export default function ExecuteStaffingPage({
   const [filterEquipe, setFilterEquipe] = useState('Toutes')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(STAFF_COLUMNS)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('es-kpis-hidden')
 
   useEffect(() => {
     const interval = setInterval(() => setNowMs(Date.now()), 1000)
@@ -301,7 +304,10 @@ export default function ExecuteStaffingPage({
           <h1>Exécuté staffing <Info size={15} className="es-title-info" /></h1>
           <p>Consultez et exécutez les tâches qui vous sont affectées.</p>
         </div>
-        <button type="button" className="es-btn-outline" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Voir le nouveau staffing</button>
+        <div className="es-title-actions">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
+          <button type="button" className="es-btn-outline" onClick={() => navigateTo('staffing')}><UserCheck size={14} />Voir le nouveau staffing</button>
+        </div>
       </div>
 
       {loadError && <p className="es-empty">{loadError}</p>}
@@ -313,16 +319,18 @@ export default function ExecuteStaffingPage({
             <button type="button" className="es-btn-outline" disabled><SlidersHorizontal size={14} />Filtres avancés</button>
           </div>
 
-          <div className="es-kpis">
-            {KPIS.map((kpi) => (
-              <article key={kpi.label} className={`es-kpi es-kpi-${kpi.tone}`}>
-                <span className="es-kpi-icon"><kpi.icon size={19} /></span>
-                <strong>{kpi.value}</strong>
-                <span className="es-kpi-label">{kpi.label}</span>
-                <small>{kpi.sub}</small>
-              </article>
-            ))}
-          </div>
+          {showKpis && (
+            <div className="es-kpis">
+              {KPIS.map((kpi) => (
+                <article key={kpi.label} className={`es-kpi es-kpi-${kpi.tone}`}>
+                  <span className="es-kpi-icon"><kpi.icon size={19} /></span>
+                  <strong>{kpi.value}</strong>
+                  <span className="es-kpi-label">{kpi.label}</span>
+                  <small>{kpi.sub}</small>
+                </article>
+              ))}
+            </div>
+          )}
 
           <div className={`es-layout ${selected ? 'has-detail' : ''}`}>
             <div className="es-main">

@@ -4,11 +4,12 @@ import {
   Search, Star, Trash2, UserCheck, UserPlus, UserX, Users, X, XCircle,
 } from 'lucide-react'
 import { fetchEmployees, fetchMe, fetchTeams, type Employee, type MeProfile, type Team, type TeamMember } from '../api/employees'
-import { fetchOrganisationEhs } from '../api/organisation'
 import { decideTask, fetchTask, fetchTasks, taskRevueStatut, type Task } from '../api/tasks'
 import { createTaskAssignment, deleteTaskAssignment, rateTaskAssignment, type TaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import RatingModal from '../components/RatingModal'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { formatMontant } from '../utils/currency'
 import './StaffingPage.css'
 
@@ -66,10 +67,10 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   // un membre de l'équipe destinataire (ex. renfort ponctuel d'une autre équipe) — voir
   // selectableMembers.
   const [allEmployees, setAllEmployees] = useState<Employee[]>([])
-  const [ehsRate, setEhsRate] = useState(150)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('ns-kpis-hidden')
 
   const [activeTab, setActiveTab] = useState<Tab>('a_valider')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -83,17 +84,28 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const [ratingAssignment, setRatingAssignment] = useState<TaskAssignment | null>(null)
 
   useEffect(() => {
-    Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchOrganisationEhs(), fetchEmployees()])
-      .then(([tasksData, pendingData, teamsData, meData, ehsData, employeesData]) => {
+    Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true }), fetchTeams(), fetchMe(), fetchEmployees()])
+      .then(([tasksData, pendingData, teamsData, meData, employeesData]) => {
         setTasks(tasksData)
         setPendingTasks(pendingData)
         setTeams(teamsData)
         setMe(meData)
-        setEhsRate(ehsData.taux_ehs_fcfa)
         setAllEmployees(employeesData)
       })
       .catch(() => setLoadError('Impossible de charger les tâches à staffer.'))
       .finally(() => setLoading(false))
+  }, [])
+
+  // Actualisation silencieuse : une tâche envoyée par le Pilotage, ou staffée/clôturée depuis un
+  // autre poste, doit apparaître ici sans recharger la page. Pas de bascule de `loading` — c'est
+  // un rafraîchissement discret des deux listes de tâches, pas un nouveau chargement.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      Promise.all([fetchTasks({ staffing: true }), fetchTasks({ aValider: true })])
+        .then(([tasksData, pendingData]) => { setTasks(tasksData); setPendingTasks(pendingData) })
+        .catch(() => {})
+    }, 20000)
+    return () => window.clearInterval(interval)
   }, [])
 
   // Ouvre directement la tâche visée depuis une notification (« nouvelle tâche envoyée à votre
@@ -132,8 +144,10 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
   const assignMember = availableMembers.find((m) => m.id === assignMemberId) ?? null
   const assignHeuresNumber = Number(assignHeures) || 0
   const ehsPreview = assignMember ? assignMember.grade * assignHeuresNumber : 0
-  const montantPreview = ehsPreview * ehsRate
-  const resteApres = selected?.budget_reste_fcfa != null ? selected.budget_reste_fcfa - montantPreview : null
+  // Le montant saisi sur une ligne budgétaire lors de son attribution au projet/à l'équipe est
+  // déjà un seuil en EHS (pas un montant FCFA à convertir) — voir budget_ligne_montant/
+  // budget_reste_fcfa (TaskSerializer), comparés ici directement à ehsPreview.
+  const resteApres = selected?.budget_reste_fcfa != null ? selected.budget_reste_fcfa - ehsPreview : null
   const depasseReste = resteApres !== null && resteApres < 0
   const canAssign = assignMember !== null && assignHeuresNumber > 0 && !depasseReste
 
@@ -267,25 +281,30 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
           <h1>Nouveau staffing <Info size={15} className="ns-title-info" /></h1>
           <p>Acceptez ou refusez les tâches envoyées à votre équipe, puis répartissez les tâches acceptées entre vous-même et/ou vos membres, avec les heures de chacun.</p>
         </div>
-        <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}>Voir l'exécuté staffing</button>
+        <div className="ns-title-actions">
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
+          <button type="button" className="ns-btn-outline" onClick={() => navigateTo('staffing-execute')}>Voir l'exécuté staffing</button>
+        </div>
       </div>
 
       {loadError && <p className="ns-empty">{loadError}</p>}
 
       {!loadError && (
         <>
-          <div className="ns-kpis">
-            {KPIS.map((kpi) => (
-              <article key={kpi.label} className={`ns-kpi ns-kpi-${kpi.tone}`}>
-                <span className="ns-kpi-icon"><kpi.icon size={17} /></span>
-                <div>
-                  <span className="ns-kpi-label">{kpi.label}</span>
-                  <strong>{kpi.value}</strong>
-                  <small>{kpi.sub}</small>
-                </div>
-              </article>
-            ))}
-          </div>
+          {showKpis && (
+            <div className="ns-kpis">
+              {KPIS.map((kpi) => (
+                <article key={kpi.label} className={`ns-kpi ns-kpi-${kpi.tone}`}>
+                  <span className="ns-kpi-icon"><kpi.icon size={17} /></span>
+                  <div>
+                    <span className="ns-kpi-label">{kpi.label}</span>
+                    <strong>{kpi.value}</strong>
+                    <small>{kpi.sub}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
 
           {allTasks.length === 0 ? (
             <div className="ns-info-banner">
@@ -544,19 +563,12 @@ export default function StaffingPage({ navigateTo, focusTaskId, onFocusConsumed 
                             </div>
 
                             {selected.budget_ligne_montant != null && resteApres !== null && (
-                              <>
-                                <div className={`ns-predict-card${depasseReste ? ' is-danger' : ''}`}>
-                                  <span className="ns-predict-card-label">Reste sur la ligne — FCFA</span>
-                                  <strong className="ns-predict-card-value">{fmtFcfa(resteApres)}</strong>
-                                  <span className="ns-predict-card-sub">Somme initiale : {fmtFcfa(selected.budget_ligne_montant)}</span>
-                                  {depasseReste && <span className="ns-predict-card-sub is-danger-text">Dépasse le reste disponible ({fmtFcfa(selected.budget_reste_fcfa ?? 0)}).</span>}
-                                </div>
-                                <div className={`ns-predict-card${depasseReste ? ' is-danger' : ''}`}>
-                                  <span className="ns-predict-card-label">Reste sur la ligne — EHS</span>
-                                  <strong className="ns-predict-card-value">{fmtEhs(resteApres / ehsRate)} EHS</strong>
-                                  <span className="ns-predict-card-sub">Somme initiale : {fmtEhs(selected.budget_ligne_montant / ehsRate)} EHS</span>
-                                </div>
-                              </>
+                              <div className={`ns-predict-card${depasseReste ? ' is-danger' : ''}`}>
+                                <span className="ns-predict-card-label">Solde EHS de la ligne budgétaire</span>
+                                <strong className="ns-predict-card-value">{fmtEhs(resteApres)} EHS</strong>
+                                <span className="ns-predict-card-sub">Seuil attribué : {fmtEhs(selected.budget_ligne_montant)} EHS</span>
+                                {depasseReste && <span className="ns-predict-card-sub is-danger-text">Dépasse le solde disponible ({fmtEhs(selected.budget_reste_fcfa ?? 0)} EHS).</span>}
+                              </div>
                             )}
                           </div>
                         )}

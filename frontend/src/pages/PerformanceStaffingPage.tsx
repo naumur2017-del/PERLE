@@ -6,6 +6,8 @@ import { fetchTaskAssignments, type TaskAssignment } from '../api/taskAssignment
 import { fetchEmployees, fetchTeams, type Employee, type Team } from '../api/employees'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './PerformanceStaffingPage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -255,6 +257,8 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
   const equipeTopNote = noteParEquipe[0] ?? null
   const employeTopNote = noteParEmploye[0] ?? null
 
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('pfs-kpis-hidden')
+
   const KPIS_EHS = [
     { icon: Users, tone: 'indigo', label: 'EHS consommés (total)', value: `${fmtEhs(totalEhs)} EHS`, sub: `${filtered.length} staffing(s)` },
     {
@@ -321,6 +325,10 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
         ))}
       </nav>
 
+      <div className="pfs-kpi-toggle-row">
+        <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
+      </div>
+
       {loading && <p className="ge-detail-empty">Chargement…</p>}
       {loadError && <p className="ge-detail-empty">{loadError}</p>}
 
@@ -328,6 +336,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
         <>
           {activeTab === 'ehs' ? (
             <>
+              {showKpis && (
               <div className="pfs-kpis">
                 {KPIS_EHS.map((kpi) => (
                   <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
@@ -340,6 +349,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
                   </article>
                 ))}
               </div>
+              )}
 
               <div className="pfs-grid pfs-grid-3">
                 <section className="pfs-panel">
@@ -438,6 +448,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
             </>
           ) : activeTab === 'temps' ? (
             <>
+              {showKpis && (
               <div className="pfs-kpis pfs-kpis-4">
                 {TEMPS_KPIS.map((kpi) => (
                   <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
@@ -450,6 +461,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
                   </article>
                 ))}
               </div>
+              )}
 
               <div className="pfs-grid pfs-grid-3">
                 <section className="pfs-panel">
@@ -520,6 +532,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
             </>
           ) : (
             <>
+              {showKpis && (
               <div className="pfs-kpis pfs-kpis-4">
                 {NOTES_KPIS.map((kpi) => (
                   <article key={kpi.label} className={`pfs-kpi pfs-kpi-${kpi.tone}`}>
@@ -533,6 +546,7 @@ export default function PerformanceStaffingPage({ navigateTo }: { navigateTo: (p
                   </article>
                 ))}
               </div>
+              )}
 
               {rated.length === 0 ? (
                 <p className="pfs-empty">Aucune tâche notée pour le moment — notez un staffing terminé depuis Suivi des staffings.</p>

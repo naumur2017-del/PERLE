@@ -20,7 +20,7 @@
 .tdm-code-chip {
   display: inline-flex; align-items: center;
   padding: 3px 10px; border-radius: 999px; background: #f3effe; color: #6b46c1;
-  font-size: 11px; font-weight: 800; letter-spacing: .3px;
+  font-size: 14px; font-weight: 800; letter-spacing: .3px;
 }
 .tdm-head-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -33,11 +33,11 @@
 .tdm-head { padding: 10px 22px 0; }
 .tdm-title {
   margin: 0; padding-bottom: 8px; border-bottom: 2px solid transparent;
-  font-size: 21px; font-weight: 700; color: #14123a; line-height: 1.3;
+  font-size: 24px; font-weight: 700; color: #14123a; line-height: 1.3;
   transition: border-color 120ms ease;
 }
 .tdm-title:hover { border-bottom-color: #e6e0f5; }
-.tdm-crumbs { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: #8f8fa6; }
+.tdm-crumbs { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 15px; color: #8f8fa6; }
 .tdm-crumb { color: #6c6c85; }
 .tdm-crumb-sep { color: #d3cdea; }
 
@@ -54,39 +54,39 @@
   display: flex; flex-direction: column; gap: 3px; min-width: 140px;
   padding: 7px 12px; border-radius: 9px; background: #fff; border: 1px solid #eee9fa;
 }
-.tdm-field-label { font-size: 10px; font-weight: 600; color: #8f8fa6; }
-.tdm-field-value { font-size: 13px; font-weight: 700; color: #14123a; display: flex; align-items: center; gap: 6px; }
+.tdm-field-label { font-size: 13px; font-weight: 600; color: #8f8fa6; }
+.tdm-field-value { font-size: 16px; font-weight: 700; color: #14123a; display: flex; align-items: center; gap: 6px; }
 
 .tdm-more-btn {
   display: flex; align-items: center; gap: 4px; align-self: center;
   padding: 7px 12px; border: 1px dashed #d3cdea; border-radius: 9px; background: none;
-  color: #6b46c1; font-size: 12px; font-weight: 700; cursor: pointer;
+  color: #6b46c1; font-size: 15px; font-weight: 700; cursor: pointer;
 }
 .tdm-more-btn:hover { background: #f3effe; }
 
 .tdm-description { margin: 14px 22px 0; padding: 12px 14px; border: 1px solid #f0eef8; border-radius: 10px; background: #fff; }
-.tdm-description p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #3a3a52; white-space: pre-wrap; }
+.tdm-description p { margin: 0; font-size: 15.5px; line-height: 1.55; color: #3a3a52; white-space: pre-wrap; }
 
 /* Badge « Jours restants », dans une carte de .tdm-fieldrow — même palette que les statuts
    d'exécution (Suivi des staffings) : vert si confortable, orange si proche, rouge en retard. */
-.tdm-jours-restants { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.tdm-jours-restants { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 14px; font-weight: 800; }
 .tdm-jours-ok { background: #e6f6ec; color: #1c8a4e; }
 .tdm-jours-warn { background: #fff2df; color: #b4620f; }
 .tdm-jours-danger { background: #fdecea; color: #c62828; }
 .tdm-jours-muted { background: #f0eef8; color: #8f8fa6; }
 
 .tdm-assignments { margin: 14px 22px 0; padding: 12px 14px; border: 1px solid #f0eef8; border-radius: 10px; background: #fff; }
-.tdm-assignments-head { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px; }
+.tdm-assignments-head { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px; }
 .tdm-assignment-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto; }
 .tdm-assignment-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: #faf9fe; }
-.tdm-assignment-nom { font-size: 12.5px; font-weight: 700; color: #14123a; }
-.tdm-assignment-meta { font-size: 11px; color: #6c6c85; white-space: nowrap; }
+.tdm-assignment-nom { font-size: 15.5px; font-weight: 700; color: #14123a; }
+.tdm-assignment-meta { font-size: 14px; color: #6c6c85; white-space: nowrap; }
 
 .tdm-thread { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .tdm-thread-head {
   display: flex; align-items: center; gap: 7px;
   margin: 0; padding: 12px 22px; border-top: 1px solid #f0eef8; border-bottom: 1px solid #f0eef8;
-  font-size: 12px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px;
+  font-size: 15px; font-weight: 700; color: #6c6c85; text-transform: uppercase; letter-spacing: .3px;
   background: #faf9fe;
 }
 
@@ -95,7 +95,7 @@
    TaskDetailByIdModal, qui réutilise aussi .tm-empty pour son propre état de chargement). */
 .tm-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  margin: 0; padding: 24px; color: #a8a8bd; font-size: 12px; text-align: center;
+  margin: 0; padding: 24px; color: #a8a8bd; font-size: 15px; text-align: center;
 }
 .tm-list { flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 .tdm-list { flex: 1; padding: 12px 22px; }
@@ -103,10 +103,10 @@
 .tdm-system-entry {
   display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
   margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #f7f5ff;
-  max-width: 90%; color: #6c6c85; font-size: 11px;
+  max-width: 90%; color: #6c6c85; font-size: 14px;
 }
 .tdm-system-entry span { font-weight: 700; color: #4a2f8f; }
-.tdm-system-entry time { margin-left: 4px; color: #a8a8bd; font-size: 10px; }
+.tdm-system-entry time { margin-left: 4px; color: #a8a8bd; font-size: 13px; }
 
 .tdm-thread .mc-composer { margin: 0 22px 16px; }
 .tdm-thread .typing-indicator { margin: 0 22px; }

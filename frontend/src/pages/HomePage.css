@@ -24,7 +24,7 @@
    .dsh-segmented déjà définies ailleurs (dashboard.css) à spécificité égale sinon. */
 .home-dash-tabs.dsh-segmented button {
   padding: 9px 18px;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: .1px;
   color: var(--dsh-text-2, #3a3a55);

@@ -4,7 +4,7 @@
 // normalement (le manager l'accepte ou la refuse, puis répartit les heures).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, Download, Eye, Filter, Info, Pencil, Plus, Search,
+  ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Info, Lock, Pencil, Plus, Search,
   Star, Trash2, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
@@ -18,6 +18,8 @@ import { rateTaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
 import TaskDetailModal from '../components/TaskDetailModal'
+import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { Panel, KpiCard, type PanelState } from '../components/dashboard/DashboardUI'
 import { TasksTrendChart } from '../components/dashboard/ManagerCharts'
 import { TeamTasksBarChart, TaskStatusDonut, ProjectBudgetScatter } from '../components/dashboard/StaffingCharts'
@@ -403,14 +405,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
   const [actionError, setActionError] = useState<string | null>(null)
   // Repliable pour laisser plus de place au tableau des tâches ; mémorisé d'une visite à l'autre
   // (même principe que le repli de la barre latérale, voir App.tsx).
-  const [showKpis, setShowKpis] = useState(() => localStorage.getItem('se-kpis-hidden') !== '1')
-  const toggleKpis = () => {
-    setShowKpis((prev) => {
-      const next = !prev
-      localStorage.setItem('se-kpis-hidden', next ? '0' : '1')
-      return next
-    })
-  }
+  const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('se-kpis-hidden')
 
   const [search, setSearch] = useState('')
   // Rubriques d'exécution (distinctes du statut de décision filtré juste en dessous) : une tâche
@@ -452,6 +447,16 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
       })
       .catch(() => setLoadError('Impossible de charger le staffing des équipes.'))
       .finally(() => setLoading(false))
+  }, [])
+
+  // Actualisation silencieuse des tâches : un manager qui valide son staffing, ou une tâche qui
+  // passe « En attente » une fois tout le monde terminé, doit apparaître ici sans recharger la
+  // page. Pas de bascule de `loading` — seulement au chargement initial ci-dessus.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      fetchTasks().then(setTasks).catch(() => {})
+    }, 20000)
+    return () => window.clearInterval(interval)
   }, [])
 
   // Ouvre directement le détail complet de la tâche visée depuis une navigation externe (ex. un
@@ -561,7 +566,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
     setClosingTask(null)
   }
 
-  const handleOverride = async (task: Task, statut: 'en_cours' | 'termine') => {
+  const handleOverride = async (task: Task, statut: 'en_cours' | 'en_revue' | 'termine') => {
     setActionError(null)
     try {
       const updated = await setTaskRevueOverride(task.id, statut)
@@ -631,10 +636,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
           <p>Attribuez une tâche du catalogue à une équipe et à son manager. Dès la validation, la tâche est envoyée et apparaît dans Nouveau staffing, onglet À valider, où le workflow se poursuit.</p>
         </div>
         <div className="se-title-actions">
-          <button type="button" className="ge-btn-outline" onClick={toggleKpis}>
-            {showKpis ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {showKpis ? 'Masquer les indicateurs' : 'Afficher les indicateurs'}
-          </button>
+          <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           <button type="button" className="ge-btn-outline" onClick={() => navigateTo('staffing')}>Voir Nouveau staffing</button>
         </div>
       </div>
@@ -787,26 +789,39 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
                       {task.statut === 'acceptee' && (() => {
                         const revue = taskRevueStatut(task)
                         return (
-                          <div className="arch-staffed-hint">
-                            {staffingSummary(task)}
-                            {revue === 'en_revue' ? (
-                              <>
-                                {' · '}
-                                <select
-                                  className="se-revue-select" value="en_revue" aria-label="Changer le statut de revue"
-                                  onChange={(event) => handleOverride(task, event.target.value as 'en_cours' | 'termine')}
-                                >
-                                  <option value="en_revue" disabled>En revue</option>
-                                  <option value="en_cours">→ En cours</option>
-                                  <option value="termine">→ Terminée</option>
-                                </select>
-                              </>
-                            ) : revue === 'termine' ? (
-                              <> · <span className="arch-pill arch-pill-acceptee">Terminée</span></>
-                            ) : revue === 'en_attente' && (
-                              <> · <span className="arch-pill arch-pill-attente" title="Tout le monde a terminé son exécution — en attente de validation par le manager">En attente (manager)</span></>
+                          <>
+                            <div className="arch-staffed-hint">
+                              {staffingSummary(task)}
+                              {revue === 'en_attente' && (
+                                <> · <span className="arch-pill arch-pill-attente" title="Tout le monde a terminé son exécution — en attente d'une décision">En attente</span></>
+                              )}
+                            </div>
+                            {revue === 'termine' ? (
+                              // Clôturée : définitif, le statut ne se change plus depuis cette page
+                              // (voir TaskRevueOverrideView côté backend, qui refuse tout changement
+                              // ultérieur) — seul un changement réel de staffing la rouvrirait.
+                              <span className="arch-pill arch-pill-acceptee se-revue-locked" title="Tâche clôturée — le statut ne peut plus être changé ici">
+                                <Lock size={11} />Terminée
+                              </span>
+                            ) : (
+                              <div className="se-revue-switch" role="group" aria-label="Changer le statut de revue">
+                                {([
+                                  { key: 'en_cours', label: 'En cours' },
+                                  { key: 'en_revue', label: 'En revue' },
+                                  { key: 'termine', label: 'Terminée' },
+                                ] as const).map((option) => (
+                                  <button
+                                    key={option.key} type="button"
+                                    className={`se-revue-opt se-revue-opt-${option.key} ${revue === option.key ? 'is-active' : ''}`}
+                                    disabled={revue === option.key}
+                                    onClick={() => handleOverride(task, option.key)}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
                             )}
-                          </div>
+                          </>
                         )
                       })()}
                     </td>

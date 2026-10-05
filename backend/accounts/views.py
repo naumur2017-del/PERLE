@@ -1480,10 +1480,10 @@ class TaskRevueOverrideView(generics.GenericAPIView):
     """Bascule manuelle de la rubrique d'exécution d'une tâche — voir Task.revue_override. Le
     manager de l'équipe destinataire peut poser « en_revue » (il juge le travail fait, prêt pour
     la revue) ; seules la Direction/le Pilotage peuvent ensuite trancher « en_cours » (renvoi) ou
-    « termine » (clôture effective). Le champ est lu par tout le système (Nouveau staffing,
-    Staffing des équipes) pour catégoriser la tâche : le changement s'applique donc partout,
-    immédiatement. Réinitialisé automatiquement dès que le staffing de la tâche change (voir
-    _clear_revue_override), pour ne jamais rester périmé."""
+    « termine » (clôture effective, définitive — voir post ci-dessous). Le champ est lu par tout
+    le système (Nouveau staffing, Staffing des équipes) pour catégoriser la tâche : le changement
+    s'applique donc partout, immédiatement. Réinitialisé automatiquement dès que le staffing de
+    la tâche change (voir _clear_revue_override), pour ne jamais rester périmé."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
 
@@ -1498,6 +1498,11 @@ class TaskRevueOverrideView(generics.GenericAPIView):
         statut = request.data.get('statut')
         if statut not in ('en_cours', 'en_revue', 'termine'):
             raise ValidationError({'statut': 'Statut invalide (« en_cours », « en_revue » ou « termine » attendu).'})
+        # Une tâche « Terminée » depuis Staffing des équipes est définitive : son statut ne se
+        # change plus manuellement ensuite (seul un changement réel de staffing la rouvre
+        # automatiquement — voir _clear_revue_override).
+        if task.revue_override == 'termine':
+            raise ValidationError({'detail': 'Cette tâche est déjà clôturée : son statut ne peut plus être changé.'})
         if statut == 'en_revue':
             if not _can_manage_task(request.user, task):
                 raise PermissionDenied('Vous n’êtes pas autorisé à changer le statut de cette tâche.')
