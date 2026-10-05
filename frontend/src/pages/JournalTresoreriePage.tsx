@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Calendar, ChevronDown, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, Download, FileText, ListChecks, MoreVertical, Printer, RotateCcw,
@@ -8,6 +8,7 @@ import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/
 import { currencySuffix } from '../utils/currency'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
+import { fetchMouvements, tresorerieError, type MouvementTresorerie } from '../api/tresorerie'
 import './JournalTresoreriePage.css'
 
 type TypeOperation = 'Entrée' | 'Sortie' | 'Transfert'
@@ -32,26 +33,33 @@ interface OperationJournal {
   executeur: string
 }
 
-const OPERATIONS: OperationJournal[] = [
-  { reference: 'OP-2025-00068', date: '30/06/2025', heure: '14:35', codeActivite: 'ACH-FOUR', codeProjet: 'PRJ-0012', libelle: 'Paiement facture fournitures de bureau', type: 'Sortie', compte: 'BICEC', initiateur: 'S. Traoré', ordonnateur: 'M. Traoré', beneficiaire: 'ETS Bureautique', beneficiaireType: 'Prestataire', mercuriale: 'FOUR-001', mercurialeLibelle: 'Fournitures de bureau', montant: 2450000, justificatif: 'fact_4587.pdf', executeur: 'S. Traoré' },
-  { reference: 'OP-2025-00067', date: '30/06/2025', heure: '11:20', codeActivite: 'RH-SAL', codeProjet: 'PRJ-0005', libelle: 'Virement salaire mois de juin', type: 'Sortie', compte: 'BICEC', initiateur: 'A. Koné', ordonnateur: 'A. Koné', beneficiaire: 'Salariés', beneficiaireType: 'Employés', mercuriale: 'SAL-001', mercurialeLibelle: 'Salaires', montant: 45600000, justificatif: 'salaires_juin.pdf', executeur: 'A. Koné' },
-  { reference: 'OP-2025-00066', date: '30/06/2025', heure: '09:15', codeActivite: 'VTE-SER', codeProjet: 'PRJ-0003', libelle: 'Encaissement facture client PROJET B', type: 'Entrée', compte: 'BICEC', initiateur: 'M. Diarra', ordonnateur: 'M. Diarra', beneficiaire: 'Client PROJET B', beneficiaireType: 'Client', mercuriale: 'PREST-002', mercurialeLibelle: 'Prestation de service', montant: 18750000, justificatif: 'enc_8745.pdf', executeur: 'M. Diarra' },
-  { reference: 'OP-2025-00065', date: '29/06/2025', heure: '16:40', codeActivite: 'TRF-INT', codeProjet: 'PRJ-INT', libelle: 'Transfert vers caisse petite caisse', type: 'Transfert', compte: 'Caisse principale', initiateur: 'S. Traoré', ordonnateur: 'S. Traoré', beneficiaire: 'Caisse principale', beneficiaireType: 'Interne', mercuriale: null, mercurialeLibelle: null, montant: 1500000, justificatif: 'transfert_012.pdf', executeur: 'S. Traoré' },
-  { reference: 'OP-2025-00064', date: '29/06/2025', heure: '10:05', codeActivite: 'DEP-CAR', codeProjet: 'PRJ-0008', libelle: 'Achat carburant véhicule mission', type: 'Sortie', compte: 'Caisse principale', initiateur: 'Y. Coulibaly', ordonnateur: 'Y. Coulibaly', beneficiaire: 'Station Total', beneficiaireType: 'Prestataire', mercuriale: 'CARB-001', mercurialeLibelle: 'Carburant', montant: 350000, justificatif: 'carburant_056.pdf', executeur: 'Y. Coulibaly' },
-  { reference: 'OP-2025-00063', date: '28/06/2025', heure: '15:22', codeActivite: 'BAN-INT', codeProjet: 'PRJ-INT', libelle: 'Intérêts bancaires crédités', type: 'Entrée', compte: 'BICEC', initiateur: 'Banque', ordonnateur: 'Banque', beneficiaire: 'Banque', beneficiaireType: 'Banque', mercuriale: null, mercurialeLibelle: null, montant: 125000, justificatif: 'interets_juin.pdf', executeur: 'Banque' },
-  { reference: 'OP-2025-00062', date: '27/06/2025', heure: '14:11', codeActivite: 'DEP-LOY', codeProjet: 'PRJ-0001', libelle: 'Paiement loyer bureau', type: 'Sortie', compte: 'Afriland', initiateur: 'A. Koné', ordonnateur: 'A. Koné', beneficiaire: 'Immobilière du Lac', beneficiaireType: 'Prestataire', mercuriale: 'LOY-001', mercurialeLibelle: 'Loyer bureaux', montant: 3200000, justificatif: 'loyer_juin.pdf', executeur: 'A. Koné' },
-]
-
-const TOTAL_OPERATIONS = 68
-const KPIS = [
-  { icon: ArrowDownToLine, tone: 'blue', label: 'Total entrées', value: `125 450 000 ${currencySuffix()}` },
-  { icon: ArrowUpRight, tone: 'red', label: 'Total sorties', value: `87 320 000 ${currencySuffix()}` },
-  { icon: ArrowLeftRight, tone: 'green', label: 'Total transferts', value: `18 750 000 ${currencySuffix()}` },
-  { icon: ListChecks, tone: 'purple', label: "Nombre d'opérations", value: String(TOTAL_OPERATIONS) },
-]
-
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 const typeTone = (type: TypeOperation) => type === 'Entrée' ? 'green' : type === 'Sortie' ? 'red' : 'neutral'
+
+// Chaque mouvement de « Comptes et opérations » (approvisionnement ou paiement exécuté) est une ligne du journal.
+const toOperation = (mouvement: MouvementTresorerie): OperationJournal => {
+  const date = new Date(mouvement.created_at)
+  const isPaiement = mouvement.nature === 'Paiement'
+  return {
+    reference: mouvement.reference,
+    date: date.toLocaleDateString('fr-FR'),
+    heure: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    codeActivite: '—',
+    codeProjet: mouvement.projet_code || '—',
+    libelle: mouvement.libelle,
+    type: mouvement.type_mouvement,
+    compte: mouvement.compte_nom,
+    initiateur: mouvement.initiateur_nom || '—',
+    ordonnateur: mouvement.initiateur_nom || '—',
+    beneficiaire: mouvement.beneficiaire || '—',
+    beneficiaireType: isPaiement ? 'Fournisseur' : 'Source',
+    mercuriale: null,
+    mercurialeLibelle: null,
+    montant: mouvement.montant,
+    justificatif: mouvement.justificatif_nom || null,
+    executeur: mouvement.executeur_nom || '—',
+  }
+}
 
 type JournalColumnId =
   | 'date' | 'reference' | 'codeActivite' | 'codeProjet' | 'libelle' | 'type'
@@ -131,6 +139,9 @@ function OperationDetailModal({ operation, onClose }: { operation: OperationJour
 }
 
 export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [operations, setOperations] = useState<OperationJournal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [filterCompte, setFilterCompte] = useState('Tous')
   const [filterType, setFilterType] = useState('Toutes')
   const [filterInitiateur, setFilterInitiateur] = useState('Tous')
@@ -144,13 +155,22 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(JOURNAL_COLUMNS)
   const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('jt-kpis-hidden')
 
-  const comptes = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.compte))), [])
-  const initiateurs = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.initiateur))), [])
-  const beneficiaires = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.beneficiaire))), [])
-  const mercuriales = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.mercuriale).filter((m): m is string => m !== null))), [])
-  const ordonnateurs = useMemo(() => Array.from(new Set(OPERATIONS.map((op) => op.ordonnateur))), [])
+  useEffect(() => {
+    let active = true
+    fetchMouvements().then((mouvements) => {
+      if (active) setOperations(mouvements.map(toOperation))
+    }).catch((err: unknown) => { if (active) setError(tresorerieError(err)) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
 
-  const filtered = useMemo(() => OPERATIONS.filter((op) => (
+  const comptes = useMemo(() => Array.from(new Set(operations.map((op) => op.compte))), [operations])
+  const initiateurs = useMemo(() => Array.from(new Set(operations.map((op) => op.initiateur))), [operations])
+  const beneficiaires = useMemo(() => Array.from(new Set(operations.map((op) => op.beneficiaire))), [operations])
+  const mercuriales = useMemo(() => Array.from(new Set(operations.map((op) => op.mercuriale).filter((m): m is string => m !== null))), [operations])
+  const ordonnateurs = useMemo(() => Array.from(new Set(operations.map((op) => op.ordonnateur))), [operations])
+
+  const filtered = useMemo(() => operations.filter((op) => (
     (filterCompte === 'Tous' || op.compte === filterCompte)
     && (filterType === 'Toutes' || op.type === filterType)
     && (filterInitiateur === 'Tous' || op.initiateur === filterInitiateur)
@@ -159,7 +179,15 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
     && (filterOrdonnateur === 'Tous' || op.ordonnateur === filterOrdonnateur)
     && (reference.trim() === '' || op.reference.toLowerCase().includes(reference.trim().toLowerCase()))
     && (libelleQuery.trim() === '' || op.libelle.toLowerCase().includes(libelleQuery.trim().toLowerCase()))
-  )), [filterCompte, filterType, filterInitiateur, filterBeneficiaire, filterMercuriale, filterOrdonnateur, reference, libelleQuery])
+  )), [operations, filterCompte, filterType, filterInitiateur, filterBeneficiaire, filterMercuriale, filterOrdonnateur, reference, libelleQuery])
+
+  const sommeType = (type: TypeOperation) => operations.filter((op) => op.type === type).reduce((sum, op) => sum + op.montant, 0)
+  const kpis = [
+    { icon: ArrowDownToLine, tone: 'blue', label: 'Total entrées', value: `${fmtMontant(sommeType('Entrée'))} ${currencySuffix()}` },
+    { icon: ArrowUpRight, tone: 'red', label: 'Total sorties', value: `${fmtMontant(sommeType('Sortie'))} ${currencySuffix()}` },
+    { icon: ArrowLeftRight, tone: 'green', label: 'Total transferts', value: `${fmtMontant(sommeType('Transfert'))} ${currencySuffix()}` },
+    { icon: ListChecks, tone: 'purple', label: "Nombre d'opérations", value: String(operations.length) },
+  ]
 
   const resetFiltres = () => {
     setFilterCompte('Tous'); setFilterType('Toutes'); setFilterInitiateur('Tous')
@@ -193,6 +221,9 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
           <button type="button" className="jt-btn-outline" onClick={() => window.print()}><Printer size={14} />Imprimer</button>
         </div>
       </div>
+
+      {error && <p role="alert" className="jt-message jt-message-error">{error}</p>}
+      {loading && <p role="status" className="jt-message">Chargement du journal…</p>}
 
       <div className="jt-filters">
         <label>Période
@@ -248,7 +279,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
 
       {showKpis && (
       <div className="jt-kpis">
-        {KPIS.map((kpi) => (
+        {kpis.map((kpi) => (
           <article key={kpi.label} className={`jt-kpi jt-kpi-${kpi.tone}`}>
             <span className="jt-kpi-icon"><kpi.icon size={18} /></span>
             <div>
@@ -271,7 +302,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={visibleColumns.length + 1} className="jt-empty-row">Aucune opération ne correspond à ces filtres.</td></tr>
+                <tr><td colSpan={visibleColumns.length + 1} className="jt-empty-row">{operations.length === 0 && !loading ? 'Aucune opération enregistrée pour le moment.' : 'Aucune opération ne correspond à ces filtres.'}</td></tr>
               )}
               {filtered.map((op) => (
                 <tr key={op.reference}>
@@ -291,17 +322,14 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         </div>
 
         <div className="jt-table-foot">
-          <span>Affichage 1 à {Math.min(20, TOTAL_OPERATIONS)} sur {TOTAL_OPERATIONS} opérations</span>
+          <span>Affichage de 1 à {filtered.length} sur {operations.length} opérations</span>
           <div className="jt-table-foot-right">
             <nav className="jt-pagination" aria-label="Pagination">
               <button type="button" disabled><ChevronsLeft size={14} /></button>
               <button type="button" disabled><ChevronLeft size={14} /></button>
               <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">4</button>
-              <button type="button"><ChevronRight size={14} /></button>
-              <button type="button"><ChevronsRight size={14} /></button>
+              <button type="button" disabled><ChevronRight size={14} /></button>
+              <button type="button" disabled><ChevronsRight size={14} /></button>
             </nav>
             <label className="jt-page-size">
               <select defaultValue={20}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>

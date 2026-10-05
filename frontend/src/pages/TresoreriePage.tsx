@@ -8,6 +8,7 @@ import { currencySuffix } from '../utils/currency'
 import DatePicker from '../components/DatePicker'
 import { fetchProjects, type Project } from '../api/projects'
 import { createPaiement, updatePaiement, deletePaiement, fetchPaiements, paiementDate, paiementError, type Paiement } from '../api/paiements'
+import { fetchComptes, type CompteTresorerie } from '../api/tresorerie'
 import './TresoreriePage.css'
 
 interface Brouillon {
@@ -16,6 +17,7 @@ interface Brouillon {
   dateCreation: string
   projet: string
   ligneBudgetaire: string
+  compte: string
   fournisseur: string
   mercurial: string
   montant: number
@@ -38,18 +40,19 @@ const statutClass = (statut: string) => {
 }
 
 const emptyForm = {
-  projet: '', ligneBudgetaire: '', fournisseur: '', typeDepense: '', montant: '', dateDepense: '',
+  typeDepense: '', projet: '', ligneBudgetaire: '', fournisseur: '', compte: '', montant: '', dateDepense: '',
   objet: '', commentaires: '', code: '', justificatif: null as File | null,
 }
 type FormState = typeof emptyForm
 
-type BrouillonColumnId = 'numero' | 'dateCreation' | 'projet' | 'ligneBudgetaire' | 'fournisseur' | 'mercurial' | 'montant' | 'devise' | 'statut' | 'dateMaj'
+type BrouillonColumnId = 'numero' | 'dateCreation' | 'projet' | 'ligneBudgetaire' | 'compte' | 'fournisseur' | 'mercurial' | 'montant' | 'devise' | 'statut' | 'dateMaj'
 
 const BROUILLON_COLUMNS: ColumnDef<BrouillonColumnId>[] = [
   { id: 'numero', label: 'N° demande' },
   { id: 'dateCreation', label: 'Date de création' },
   { id: 'projet', label: 'Projet' },
   { id: 'ligneBudgetaire', label: 'Ligne budgétaire' },
+  { id: 'compte', label: 'Compte à débiter' },
   { id: 'fournisseur', label: 'Fournisseur / Bénéficiaire' },
   { id: 'mercurial', label: 'Mercurial' },
   { id: 'montant', label: `Montant (${currencySuffix()})` },
@@ -63,6 +66,7 @@ const BROUILLON_CELL_DEFS: Record<BrouillonColumnId, { className?: string; rende
   dateCreation: { render: (b) => b.dateCreation },
   projet: { render: (b) => b.projet },
   ligneBudgetaire: { className: 'tr-name', render: (b) => b.ligneBudgetaire },
+  compte: { render: (b) => b.compte },
   fournisseur: { render: (b) => b.fournisseur },
   mercurial: { render: (b) => b.mercurial },
   montant: { className: 'tr-montant', render: (b) => fmtMontant(b.montant) },
@@ -83,6 +87,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
   const [search, setSearch] = useState('')
   const [records, setRecords] = useState<Paiement[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [comptes, setComptes] = useState<CompteTresorerie[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -94,8 +99,8 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
   const [dateTo, setDateTo] = useState('')
   useEffect(() => {
     let active = true
-    Promise.all([fetchPaiements(), fetchProjects()]).then(([payments, availableProjects]) => {
-      if (active) { setRecords(payments); setProjects(availableProjects) }
+    Promise.all([fetchPaiements(), fetchProjects(), fetchComptes()]).then(([payments, availableProjects, availableComptes]) => {
+      if (active) { setRecords(payments); setProjects(availableProjects); setComptes(availableComptes) }
     }).catch((err: unknown) => { if (active) setError(paiementError(err)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -121,7 +126,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
     .map((record) => ({
       id: record.id, numero: record.numero, dateCreation: paiementDate(record.created_at),
       projet: record.projet_nom || '—', ligneBudgetaire: record.ligne_budgetaire_nom || '—',
-      fournisseur: record.fournisseur || '—', mercurial: '—', montant: record.montant,
+      compte: record.compte_nom || '—', fournisseur: record.fournisseur || '—', mercurial: '—', montant: record.montant,
       devise: record.devise, statut: record.statut_libelle, dateMaj: paiementDate(record.updated_at),
     }))
   const historique = records.filter((record) => record.statut !== 'brouillon').map((record) => ({
@@ -154,6 +159,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
         fournisseur: form.fournisseur.trim(), type_depense: form.typeDepense,
         montant: Number(form.montant) || 0, date_depense: form.dateDepense || null,
         objet: form.objet.trim(), commentaires: form.commentaires, statut,
+        compte: form.compte ? Number(form.compte) : null,
         reference_demande: form.code.trim(), justificatif: form.justificatif,
       }
       const saved = editingId === null ? await createPaiement(data) : await updatePaiement(editingId, data)
@@ -168,6 +174,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
     if (!record) return
     setEditingId(id)
     setForm({ projet: record.projet ? String(record.projet) : '', ligneBudgetaire: record.ligne_budgetaire ? String(record.ligne_budgetaire) : '',
+      compte: record.compte ? String(record.compte) : '',
       fournisseur: record.fournisseur, typeDepense: record.type_depense, montant: String(record.montant),
       dateDepense: record.date_depense ?? '', objet: record.objet, commentaires: record.commentaires,
       code: record.reference_demande, justificatif: null })
@@ -230,6 +237,12 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
             </div>
 
             <div className="tr-request-grid four">
+              <label>Type de dépense <em>*</em>
+                <select value={form.typeDepense} onChange={(event) => updateField('typeDepense', event.target.value)}>
+                  <option value="">Sélectionner un type de dépense</option>
+                  {TYPES_DEPENSE_OPTIONS.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
               <label>Projet {!isTransversal && <em>*</em>}
                 <select value={form.projet} disabled={isTransversal} onChange={(event) => updateField('projet', event.target.value)}>
                   <option value="">{isTransversal ? 'Non applicable (dépense transversale)' : 'Sélectionner un projet'}</option>
@@ -245,26 +258,29 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
               <label>Fournisseur / Bénéficiaire <em>*</em>
                 <input value={form.fournisseur} maxLength={255} onChange={(event) => updateField('fournisseur', event.target.value)} placeholder="Nom du fournisseur ou bénéficiaire" />
               </label>
-              <label>Type de dépense <em>*</em>
-                <select value={form.typeDepense} onChange={(event) => updateField('typeDepense', event.target.value)}>
-                  <option value="">Sélectionner un type de dépense</option>
-                  {TYPES_DEPENSE_OPTIONS.map((type) => <option key={type}>{type}</option>)}
-                </select>
-              </label>
             </div>
             {isTransversal && (
               <p className="tr-hint">Une dépense transversale n'est rattachée à aucun projet ni ligne budgétaire en particulier.</p>
             )}
 
-            <div className="tr-request-grid three">
+            <div className="tr-request-grid four">
               <label>{`Montant demandé (${currencySuffix()}) `}<em>*</em>
                 <input type="number" min="0" value={form.montant} onChange={(event) => updateField('montant', event.target.value)} placeholder="0" />
               </label>
               <label>Devise
                 <input value={currencySuffix()} readOnly />
               </label>
+              <label>Compte à débiter <em>*</em>
+                <select value={form.compte} onChange={(event) => updateField('compte', event.target.value)}>
+                  <option value="">Sélectionner un compte</option>
+                  {comptes.map((compte) => <option key={compte.id} value={compte.id}>{compte.nom} ({compte.code}) — solde {fmtMontant(compte.solde_actuel)}</option>)}
+                </select>
+              </label>
               <DatePicker label={<>Date de la dépense <em>*</em></>} value={form.dateDepense} onChange={(v) => updateField('dateDepense', v)} />
             </div>
+            {comptes.length === 0 && !loading && (
+              <p className="tr-hint">Aucun compte de trésorerie n'existe encore : créez-le dans Comptes et opérations avant de soumettre une demande.</p>
+            )}
 
             <div className="tr-request-grid two">
               <label>Code

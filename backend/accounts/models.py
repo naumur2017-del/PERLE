@@ -972,6 +972,8 @@ class DemandePaiement(models.Model):
     commentaires = models.CharField(max_length=500, blank=True)
     mode_paiement = models.CharField(max_length=40, blank=True, choices=[('Virement bancaire', 'Virement bancaire'), ('Mobile Money', 'Mobile Money'), ('Espèces', 'Espèces'), ('Chèque', 'Chèque')])
     statut = models.CharField(max_length=12, default='brouillon', choices=[('brouillon', 'Brouillon'), ('attente', 'En attente d’exécution'), ('execute', 'Exécuté (Accepté)'), ('refuse', 'Refusé')])
+    # Compte à débiter à l'exécution (voir PaiementDecisionView) — obligatoire pour soumettre la demande.
+    compte = models.ForeignKey('CompteTresorerie', on_delete=models.PROTECT, null=True, blank=True, related_name='demandes_paiement')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
     decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
     commentaire_execution = models.TextField(blank=True)
@@ -982,6 +984,59 @@ class DemandePaiement(models.Model):
 
     class Meta:
         ordering = ['-updated_at', '-pk']
+
+
+class CompteTresorerie(models.Model):
+    """Compte de trésorerie de l'organisation (banque, caisse, mobile money), créé depuis
+    « Comptes et opérations ». Son solde actuel = solde initial + entrées − sorties, calculé à
+    partir de ses mouvements (voir MouvementTresorerie)."""
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='comptes_tresorerie')
+    nom = models.CharField(max_length=200)
+    code = models.CharField(max_length=30)
+    sous_libelle = models.CharField(max_length=100, blank=True)
+    solde_initial = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['code', 'pk']
+        unique_together = [('organisation', 'code')]
+
+    def __str__(self):
+        return f'{self.nom} ({self.code})'
+
+    def solde_actuel(self):
+        totaux = self.mouvements.aggregate(
+            entrees=models.Sum('montant', filter=models.Q(type_mouvement='Entrée')),
+            sorties=models.Sum('montant', filter=models.Q(type_mouvement='Sortie')),
+        )
+        return self.solde_initial + (totaux['entrees'] or 0) - (totaux['sorties'] or 0)
+
+
+class MouvementTresorerie(models.Model):
+    """Une opération qui touche un compte : approvisionnement (entrée) ou paiement exécuté
+    (sortie). C'est la source unique du tableau « Comptes et opérations » et du « Journal de la
+    trésorerie ». Le montant est toujours positif : le sens est porté par `type_mouvement`."""
+    TYPE_MOUVEMENT_CHOICES = [('Entrée', 'Entrée'), ('Sortie', 'Sortie')]
+    NATURE_CHOICES = [('Approvisionnement', 'Approvisionnement'), ('Paiement', 'Paiement')]
+
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, related_name='mouvements_tresorerie')
+    compte = models.ForeignKey(CompteTresorerie, on_delete=models.PROTECT, related_name='mouvements')
+    type_mouvement = models.CharField(max_length=10, choices=TYPE_MOUVEMENT_CHOICES)
+    nature = models.CharField(max_length=20, choices=NATURE_CHOICES)
+    libelle = models.CharField(max_length=255)
+    montant = models.DecimalField(max_digits=16, decimal_places=2)
+    # Fournisseur / bénéficiaire d'un paiement, ou origine des fonds d'un approvisionnement.
+    beneficiaire = models.CharField(max_length=255, blank=True)
+    projet = models.ForeignKey(Project, on_delete=models.PROTECT, null=True, blank=True, related_name='mouvements_tresorerie')
+    demande = models.OneToOneField(DemandePaiement, on_delete=models.SET_NULL, null=True, blank=True, related_name='mouvement_tresorerie')
+    initiateur = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    executeur = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    justificatif = models.FileField(upload_to='tresorerie/%Y/%m/', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
 
 
 class ProjectLigne(models.Model):

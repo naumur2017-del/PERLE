@@ -22,6 +22,9 @@ export interface Paiement {
   mode_paiement: string
   statut: 'brouillon' | 'attente' | 'execute' | 'refuse'
   statut_libelle: string
+  // Compte à débiter à l'exécution (voir PaiementSerializer) — obligatoire pour soumettre la demande.
+  compte: number | null
+  compte_nom: string
   initie_par: string
   commentaire_execution: string
   justificatif_nom: string
@@ -30,7 +33,7 @@ export interface Paiement {
   updated_at: string
 }
 
-export type PaiementForm = Pick<Paiement, 'projet' | 'ligne_budgetaire' | 'fournisseur' | 'type_depense' | 'montant' | 'date_depense' | 'objet' | 'commentaires' | 'reference_demande'> & {
+export type PaiementForm = Pick<Paiement, 'projet' | 'ligne_budgetaire' | 'compte' | 'fournisseur' | 'type_depense' | 'montant' | 'date_depense' | 'objet' | 'commentaires' | 'reference_demande'> & {
   statut: 'brouillon' | 'attente'
   // Justificatif déposé dès la création de la demande (image ou PDF) — voir PaiementSerializer.justificatif.
   justificatif?: File | null

@@ -177,3 +177,7 @@
 @media (max-width: 560px) {
   .jt-kpis { grid-template-columns: 1fr; }
 }
+
+/* =============== MESSAGES (chargement / erreur) =============== */
+.jt-message { margin: 0; padding: 10px 14px; border-radius: 8px; background: #efe9fd; color: #4c2f94; font-size: 14px; }
+.jt-message-error { background: #fdecec; color: #b42318; }

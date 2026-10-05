@@ -115,6 +115,15 @@ def can_view_treasury(user):
     return is_org_supervisor(user) or _manages_any_team(user)
 
 
+def can_manage_treasury_accounts(user):
+    """Créer un compte de trésorerie et le rapprovisionner (page « Comptes et opérations »).
+
+    Réservé au directeur et à l'admin, comme la décision d'exécution d'un paiement."""
+    if not _authenticated(user):
+        return False
+    return user.role in ('admin', 'directeur')
+
+
 def can_access_new_staffing(user):
     """Page « Nouveau staffing » (accepter/refuser une tâche, répartir une tâche acceptée).
 
@@ -159,6 +168,7 @@ FEATURE_CHECKS = {
     'staffing:new': can_access_new_staffing,
     'equipes:manage': can_manage_teams,
     'tresorerie:view': can_view_treasury,
+    'tresorerie:manage_comptes': can_manage_treasury_accounts,
     'config:view': can_access_config,
     'employes:contrat': can_manage_employee_documents,
     'employes:create': can_create_employee,

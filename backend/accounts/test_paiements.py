@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from .models import DemandePaiement, LigneBudgetaire, Organisation, Project, ProjectLigne, Team, User
+from .models import CompteTresorerie, DemandePaiement, LigneBudgetaire, MouvementTresorerie, Organisation, Project, ProjectLigne, Team, User
 
 
 class PaiementTests(APITestCase):
@@ -25,8 +25,10 @@ class PaiementTests(APITestCase):
         self.project = Project.objects.create(organisation=self.org, code='PRJ1', nom='Projet')
         self.line = LigneBudgetaire.objects.create(organisation=self.org, code='L1', nom='Achats', niveau=1, equipe=team)
         ProjectLigne.objects.create(project=self.project, ligne_budgetaire=self.line, code='PL1')
+        self.compte = CompteTresorerie.objects.create(organisation=self.org, nom='BICEC', code='521100', solde_initial=1000)
         self.data = dict(projet=self.project.pk, ligne_budgetaire=self.line.pk, fournisseur='Fournisseur',
-                         montant=150.25, type_depense='Non Transversal', date_depense='2026-09-08', objet='Achat', statut='attente')
+                         montant=150.25, type_depense='Non Transversal', date_depense='2026-09-08', objet='Achat', statut='attente',
+                         compte=self.compte.pk)
 
     def create_payment(self, **overrides):
         response = self.client.post('/api/paiements/', {**self.data, **overrides}, format='json')

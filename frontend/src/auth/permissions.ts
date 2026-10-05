@@ -10,6 +10,7 @@ export type Feature =
   | 'staffing:new'   // Accepter/refuser et répartir les tâches (page « Nouveau staffing »)
   | 'equipes:manage' // Créer / modifier / supprimer les équipes et leurs membres (page « Équipes »)
   | 'tresorerie:view' // Voir les pages Trésorerie
+  | 'tresorerie:manage_comptes' // Créer un compte de trésorerie et le rapprovisionner — réservé à la direction
   | 'config:view'     // Voir / configurer les pages Architecture et Paramètres
   | 'employes:contrat' // Téléverser le contrat de travail d'un salarié (page Profil › Documents)
   | 'employes:create'  // Ajouter un employé (page Gestion des équipes) — réservé aux Ressources

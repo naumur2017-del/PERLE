@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .access import CanViewTreasury
-from .models import DemandePaiement, LigneBudgetaire, Project, ProjectLigne
+from .models import CompteTresorerie, DemandePaiement, LigneBudgetaire, MouvementTresorerie, Project, ProjectLigne
 
 
 def _validate_justificatif(fichier):
@@ -28,6 +28,7 @@ class PaiementSerializer(serializers.ModelSerializer):
     paiement_numero = serializers.SerializerMethodField()
     projet_nom = serializers.CharField(source='projet.nom', read_only=True, default='')
     ligne_budgetaire_nom = serializers.SerializerMethodField()
+    compte_nom = serializers.CharField(source='compte.nom', read_only=True, default='')
     initie_par = serializers.SerializerMethodField()
     statut_libelle = serializers.CharField(source='get_statut_display', read_only=True)
     justificatif_nom = serializers.SerializerMethodField()
@@ -41,7 +42,7 @@ class PaiementSerializer(serializers.ModelSerializer):
         fields = ['id', 'numero', 'paiement_numero', 'reference_demande', 'projet', 'projet_nom', 'ligne_budgetaire',
                   'ligne_budgetaire_nom', 'fournisseur', 'type_depense', 'montant', 'devise',
                   'date_depense', 'objet', 'commentaires', 'mode_paiement', 'statut',
-                  'statut_libelle', 'initie_par', 'commentaire_execution', 'justificatif', 'justificatif_nom',
+                  'statut_libelle', 'compte', 'compte_nom', 'initie_par', 'commentaire_execution', 'justificatif', 'justificatif_nom',
                   'decided_at', 'created_at', 'updated_at']
         read_only_fields = ['devise', 'commentaire_execution', 'decided_at', 'created_at', 'updated_at']
 
@@ -68,6 +69,7 @@ class PaiementSerializer(serializers.ModelSerializer):
         org_id = self.context['request'].user.organisation_id
         self.fields['projet'].queryset = Project.objects.filter(organisation_id=org_id)
         self.fields['ligne_budgetaire'].queryset = LigneBudgetaire.objects.filter(organisation_id=org_id)
+        self.fields['compte'].queryset = CompteTresorerie.objects.filter(organisation_id=org_id)
 
     def validate(self, attrs):
         value = lambda key, default=None: attrs.get(key, getattr(self.instance, key, default))
@@ -89,8 +91,9 @@ class PaiementSerializer(serializers.ModelSerializer):
             if ligne and (not projet or not ProjectLigne.objects.filter(project=projet, ligne_budgetaire=ligne).exists()):
                 raise ValidationError({'ligne_budgetaire': 'Cette ligne doit appartenir au projet sélectionné.'})
         if statut == 'attente':
-            required_keys = ('fournisseur', 'type_depense', 'date_depense', 'objet') if is_transversal else (
-                'projet', 'ligne_budgetaire', 'fournisseur', 'type_depense', 'date_depense', 'objet')
+            # Le compte à débiter est exigé dès la soumission : c'est lui qui recevra la sortie à l'exécution.
+            required_keys = ('compte', 'fournisseur', 'type_depense', 'date_depense', 'objet') if is_transversal else (
+                'projet', 'ligne_budgetaire', 'compte', 'fournisseur', 'type_depense', 'date_depense', 'objet')
             errors = {key: 'Ce champ est obligatoire.' for key in required_keys if not value(key)}
             if value('montant', 0) <= 0:
                 errors['montant'] = 'Le montant doit être strictement positif.'
@@ -162,6 +165,25 @@ class DecisionSerializer(serializers.Serializer):
         return attrs
 
 
+def _debiter_compte(paiement, executeur):
+    """Enregistre la sortie de trésorerie d'un paiement exécuté, sur le compte choisi à la demande.
+
+    Appelé dans la transaction de la décision : le compte est verrouillé pour que deux paiements
+    ne puissent pas consommer le même solde en parallèle, et un solde insuffisant annule la décision."""
+    if not paiement.compte_id:
+        raise ValidationError({'compte': 'Aucun compte à débiter n’est renseigné pour cette demande.'})
+    compte = CompteTresorerie.objects.select_for_update(of=('self',)).get(pk=paiement.compte_id)
+    solde = compte.solde_actuel()
+    if paiement.montant > solde:
+        raise ValidationError({'compte': f'Solde insuffisant sur {compte.nom} : {solde} disponible pour {paiement.montant}.'})
+    MouvementTresorerie.objects.create(
+        organisation_id=paiement.organisation_id, compte=compte, type_mouvement='Sortie', nature='Paiement',
+        libelle=paiement.objet, montant=paiement.montant, beneficiaire=paiement.fournisseur,
+        projet=paiement.projet, demande=paiement, initiateur=paiement.created_by, executeur=executeur,
+        justificatif=paiement.justificatif,
+    )
+
+
 class PaiementDecisionView(PaiementScope, APIView):
     def post(self, request, pk):
         if request.user.role not in ('admin', 'directeur'):
@@ -180,6 +202,8 @@ class PaiementDecisionView(PaiementScope, APIView):
                 paiement.justificatif = data['fichier']
             paiement.decided_by = request.user
             paiement.decided_at = timezone.now()
+            if paiement.statut == 'execute':
+                _debiter_compte(paiement, request.user)
             paiement.save()
         return Response(PaiementSerializer(paiement, context={'request': request}).data)
 

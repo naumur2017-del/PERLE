@@ -190,3 +190,39 @@
 @media (max-width: 560px) {
   .co-kpis { grid-template-columns: 1fr; }
 }
+
+/* =============== MESSAGES & ETAT VIDE =============== */
+.co-message { margin: 0; padding: 10px 14px; border-radius: 8px; background: #efe9fd; color: #4c2f94; font-size: 14px; }
+.co-message-error { background: #fdecec; color: #b42318; }
+.co-empty-accounts {
+  display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px dashed #c9bdf0;
+  border-radius: 12px; background: #faf9ff; color: #6b46c1;
+}
+.co-empty-accounts strong { display: block; color: #1f1d3a; font-size: 15px; }
+.co-empty-accounts p { margin: 4px 0 0; color: #6c6c85; font-size: 13.5px; }
+
+/* =============== MODALES (nouveau compte, rapprovisionnement) =============== */
+.co-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(20, 18, 58, 0.45); padding: 20px; }
+.co-modal {
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; border-radius: 14px; background: #ffffff;
+  box-shadow: 0 20px 50px rgba(20, 18, 58, 0.25);
+}
+.co-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #eae7f6; }
+.co-modal-head h3 { margin: 0; font-size: 17px; color: #1f1d3a; }
+.co-modal-head p { margin: 4px 0 0; color: #6c6c85; font-size: 13px; }
+.co-modal-close { display: grid; place-items: center; width: 30px; height: 30px; border: none; border-radius: 8px; background: transparent; color: #6c6c85; cursor: pointer; }
+.co-modal-close:hover { background: #f3f1fb; }
+.co-modal-body { display: grid; gap: 14px; padding: 18px 20px; }
+.co-modal-body label { display: grid; gap: 6px; color: #4a4a63; font-size: 13px; font-weight: 600; }
+.co-modal-body em { color: #dc2626; font-style: normal; }
+.co-modal-body input,
+.co-modal-body select {
+  height: 38px; padding: 0 10px; border: 1px solid #d9d4ec; border-radius: 8px; background: #ffffff;
+  color: #1f1d3a; font-size: 14px; font-weight: 400;
+}
+.co-modal-body input[type='file'] { height: auto; padding: 8px 0; border: none; }
+.co-modal-body input:focus,
+.co-modal-body select:focus { outline: none; border-color: #6b46c1; box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.15); }
+.co-form-error { margin: 0 20px; padding: 10px 14px; border-radius: 8px; background: #fdecec; color: #b42318; font-size: 13.5px; }
+.co-modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; border-top: 1px solid #eae7f6; }
+.co-modal-actions .co-btn-primary:disabled { opacity: 0.6; cursor: wait; }
