@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPostUpload, ApiError } from './client'
+import { getSession } from '../auth/session'
 
 export interface CompteTresorerie {
   id: number
@@ -21,7 +22,10 @@ export interface MouvementTresorerie {
   nature: 'Approvisionnement' | 'Paiement'
   libelle: string
   montant: number
+  // Entrée : la structure elle-même. Sortie : le fournisseur payé.
   beneficiaire: string
+  // Origine des fonds d'un approvisionnement (vide pour un paiement).
+  origine: string
   projet: number | null
   projet_code: string
   projet_nom: string
@@ -62,4 +66,23 @@ export function tresorerieError(error: unknown): string {
     return flatten(error.payload)
   }
   return error instanceof Error ? error.message : 'Une erreur est survenue.'
+}
+
+export type FormatExport = 'csv' | 'xlsx' | 'pdf'
+
+// Télécharge le journal de la période pour les mouvements affichés dans le tableau (filtres appliqués).
+export async function exporterJournal(format: FormatExport, dateDebut: string, dateFin: string, mouvementIds: number[]) {
+  const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
+  const response = await fetch(`${base}/tresorerie/journal/export/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Token ${getSession()?.token ?? ''}` },
+    body: JSON.stringify({ format, date_debut: dateDebut, date_fin: dateFin, mouvement_ids: mouvementIds }),
+  })
+  if (!response.ok) throw new Error('Impossible d’exporter le journal. Vérifiez la période puis réessayez.')
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `journal-tresorerie_${dateDebut}_${dateFin}.${format}`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

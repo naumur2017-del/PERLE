@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
-  CircleDot, Download, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
+  CircleDot, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
 import DatePicker from '../components/DatePicker'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import { fetchProjects, type Project } from '../api/projects'
 import { createPaiement, updatePaiement, deletePaiement, fetchPaiements, paiementDate, paiementError, type Paiement } from '../api/paiements'
 import { fetchComptes, type CompteTresorerie } from '../api/tresorerie'
@@ -202,14 +204,14 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
       || brouillon.ligneBudgetaire.toLowerCase().includes(q)
   })
 
-  const exportDrafts = () => {
-    const cell = (value: unknown) => '"' + String(value).replace(/^[=+@-]/, "'$&").replace(/"/g, '""') + '"'
-    const rows = [['Numéro', 'Projet', 'Ligne budgétaire', 'Bénéficiaire', 'Montant', 'Devise'],
-      ...filteredBrouillons.map((draft) => [draft.numero, draft.projet, draft.ligneBudgetaire, draft.fournisseur, draft.montant, draft.devise])]
-    const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map((row) => row.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }))
-    const link = document.createElement('a'); link.href = url; link.download = 'brouillons-paiements.csv'; link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
+  const tableauBrouillons = (): TableauExport => ({
+    nom: 'brouillons-paiements',
+    titre: 'Brouillons de demandes de paiement',
+    colonnes: ['N° demande', 'Date de création', 'Projet', 'Ligne budgétaire', 'Compte à débiter', 'Fournisseur / Bénéficiaire', 'Montant', 'Devise', 'Statut', 'Dernière mise à jour'],
+    lignes: filteredBrouillons.map((b) => [
+      b.numero, b.dateCreation, b.projet, b.ligneBudgetaire, b.compte, b.fournisseur, fmtMontant(b.montant), b.devise, b.statut, b.dateMaj,
+    ]),
+  })
 
   return (
     <section className="tr-page">
@@ -352,7 +354,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
                     <input placeholder="Rechercher une demande..." value={search} onChange={(event) => setSearch(event.target.value)} />
                   </label>
                   <ColumnsMenu columns={BROUILLON_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="tr-reset" />
-                  <button type="button" className="tr-btn-primary" onClick={exportDrafts}><Download size={14} />Exporter</button>
+                  <ExportButtons tableau={tableauBrouillons()} disabled={filteredBrouillons.length === 0} className="tr-btn-primary" />
                 </div>
 
                 <div className="tr-table-panel">

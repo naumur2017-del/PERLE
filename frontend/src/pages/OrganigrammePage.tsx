@@ -2,7 +2,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Building2, Crown, FileDown, Lock, UserX } from 'lucide-react'
 import { fetchEmployees, fetchTeams, type Employee, type Team, type TeamMember } from '../api/employees'
 import type { Session } from '../auth/session'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import './OrganigrammePage.css'
+
+// Liste des employés et de leur équipe : fichier exporté (PDF, Excel, CSV) de la structure affichée.
+const tableauOrganigramme = (employes: Employee[], equipes: Team[]): TableauExport => ({
+  nom: `organigramme-${new Date().toISOString().slice(0, 10)}`,
+  titre: 'Organigramme',
+  colonnes: ['Nom', 'Fonction', 'Équipe', 'Matricule', 'Email', 'Téléphone', 'Statut'],
+  lignes: employes.map((e) => [
+    `${e.first_name} ${e.last_name}`.trim(),
+    e.fonction || '—',
+    e.team ? (equipes.find((t) => t.id === e.team?.id)?.name ?? e.team.name) : 'Sans équipe',
+    e.matricule || '—',
+    e.email,
+    e.phone || '—',
+    e.statut,
+  ]),
+})
 
 const AVATAR_COLORS = ['#4338ca', '#16a34a', '#f59e0b', '#db2777', '#0ea5e9', '#dc2626', '#0d9488', '#a855f7', '#6b7280', '#ea580c']
 const initiales = (first: string, last: string) => `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase()
@@ -128,7 +146,8 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
   return (
     <section className="og-page">
       <div className="og-toolbar">
-        <button type="button" className="og-export-btn" onClick={handleExportPdf}><FileDown size={14} />Exporter en PDF</button>
+        <ExportButtons tableau={tableauOrganigramme(employees, teams)} disabled={loading || employees.length === 0} className="og-export-btn" avecImpression={false} />
+        <button type="button" className="og-export-btn" onClick={handleExportPdf}><FileDown size={14} />Imprimer l'organigramme</button>
       </div>
 
       <div className="og-print-area" ref={printAreaRef}>

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Briefcase, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Columns3, Download, Gauge, GripVertical, Hourglass, Info, MoreVertical,
+  ClipboardList, Columns3, Gauge, GripVertical, Hourglass, Info, MoreVertical,
   RotateCcw, Search, Users, Wallet,
 } from 'lucide-react'
 import { fetchProjects, type Project as ApiProject, type ProjectLigne as ApiProjectLigne } from '../api/projects'
@@ -10,6 +10,8 @@ import { fetchOrganisationEhs } from '../api/organisation'
 import { ApiError } from '../api/client'
 import { currencySuffix } from '../utils/currency'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './PilotagePage.css'
 
@@ -300,6 +302,38 @@ const CELL_DEFS: Record<ColumnId, { className?: string; render: (p: Project) => 
   },
 }
 
+// Valeur texte de chaque colonne : ce que le tableau affiche, pour l'export et l'impression.
+const TEXTE_COLONNE: Record<ColumnId, (p: Project) => string> = {
+  code: (p) => p.code,
+  name: (p) => p.name,
+  client: (p) => p.client,
+  createdBy: (p) => p.createdBy,
+  equipe: (p) => p.equipes,
+  debut: (p) => fmtDateOrDash(p.debut),
+  fin: (p) => fmtDateOrDash(p.fin),
+  duree: (p) => (p.dureePrevue !== null ? `${p.dureePrevue} jours` : '—'),
+  ehsPrevu: (p) => fmtEhs(p.ehsPrevu),
+  ehsConsomme: (p) => fmtEhs(p.ehsConsomme),
+  ehsRestant: (p) => fmtEhs(p.ehsRestant),
+  ehsPct: (p) => `${pctOf(p.ehsConsomme, p.ehsPrevu)} %`,
+  budgetPrevu: (p) => fmtInt(p.budgetPrevu),
+  budgetConsomme: (p) => fmtInt(p.budgetConsomme),
+  budgetRestant: (p) => fmtInt(p.budgetRestant),
+  budgetPct: (p) => `${pctOf(p.budgetConsomme, p.budgetPrevu)} %`,
+  progTemporelle: (p) => `${Math.round(p.progTemporelle)} %`,
+  progEhs: (p) => `${Math.round(p.progEhs)} %`,
+  progOperationnelle: (p) => `${Math.round(p.progOperationnelle)} %`,
+  statutRisque: (p) => `${classifyRisk(pctOf(p.ehsConsomme, p.ehsPrevu)).letter} / ${classifyRisk(pctOf(p.budgetConsomme, p.budgetPrevu)).letter}`,
+  statutGlobal: (p) => p.statutGlobal,
+}
+
+const tableauPilotage = (projets: Project[], colonnes: { id: ColumnId; label: string }[]): TableauExport => ({
+  nom: `pilotage-projets-${new Date().toISOString().slice(0, 10)}`,
+  titre: 'Pilotage des projets',
+  colonnes: colonnes.map((c) => c.label),
+  lignes: projets.map((p) => colonnes.map((c) => TEXTE_COLONNE[c.id](p))),
+})
+
 export interface PilotageFocusTarget {
   projetCode: string
   ligneCode: string
@@ -323,7 +357,6 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
   const [equipe, setEquipe] = useState('Toutes')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(8)
-  const [exportOpen, setExportOpen] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnId>>(new Set())
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
@@ -460,18 +493,7 @@ export default function PilotagePage({ navigateTo, focusTarget, onFocusConsumed 
 
       <div className="pil-toolbar">
         <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
-        <div className="pil-export-wrap">
-          <button type="button" className="pil-btn-primary" onClick={() => setExportOpen((open) => !open)}>
-            <Download size={14} />Exporter<ChevronDown size={12} />
-          </button>
-          {exportOpen && (
-            <ul className="pil-export-menu" onMouseLeave={() => setExportOpen(false)}>
-              <li><button type="button" disabled title="Fonctionnalité à venir">Exporter en PDF</button></li>
-              <li><button type="button" disabled title="Fonctionnalité à venir">Exporter en Excel</button></li>
-              <li><button type="button" disabled title="Fonctionnalité à venir">Exporter en CSV</button></li>
-            </ul>
-          )}
-        </div>
+        <ExportButtons tableau={tableauPilotage(filtered, visibleColumns)} disabled={filtered.length === 0} className="pil-btn-primary" />
       </div>
 
       {loading && <p className="pil-empty">Chargement du portefeuille de projets…</p>}

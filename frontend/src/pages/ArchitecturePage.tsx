@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import {
-  Archive, Building2, ChevronDown, ChevronRight, Download, Folder, FolderOpen,
+  Archive, Building2, ChevronDown, ChevronRight, Folder, FolderOpen,
   ListChecks, Pencil, Plus, Search, Trash2, Upload, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
@@ -11,6 +11,8 @@ import {
 } from '../api/taskTemplates'
 import { ApiError } from '../api/client'
 import ExcelImportModal from '../components/ExcelImportModal'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import './ArchitecturePage.css'
 
 const errorMessage = (error: unknown): string => {
@@ -51,23 +53,16 @@ function buildTemplateTree(templates: TaskTemplate[]): TemplateNode[] {
   return roots
 }
 
-function exportTemplatesCsv(templates: TaskTemplate[]) {
-  const header = ['Code', 'Nom', 'Niveau', 'Parent', 'Équipe', 'Type', 'Attribuable', 'Statut', 'Créée le']
-  const rows = templates.map((t) => [
-    t.code, t.nom, String(t.niveau), t.parent_code ?? '', t.equipe_nom ? `${t.equipe_code} — ${t.equipe_nom}` : '',
-    t.type_element_display, t.attribuable ? 'Oui' : 'Non', t.actif ? 'Actif' : 'Inactif', formatDate(t.created_at),
-  ])
-  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
-  const bom = String.fromCharCode(0xfeff)
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `catalogue-des-taches-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+function tableauTemplates(templates: TaskTemplate[]): TableauExport {
+  return {
+    nom: `catalogue-des-taches-${new Date().toISOString().slice(0, 10)}`,
+    titre: 'Catalogue des tâches',
+    colonnes: ['Code', 'Nom', 'Niveau', 'Parent', 'Équipe', 'Type', 'Attribuable', 'Statut', 'Créée le'],
+    lignes: templates.map((t) => [
+      t.code, t.nom, String(t.niveau), t.parent_code ?? '', t.equipe_nom ? `${t.equipe_code} — ${t.equipe_nom}` : '',
+      t.type_element_display, t.attribuable ? 'Oui' : 'Non', t.actif ? 'Actif' : 'Inactif', formatDate(t.created_at),
+    ]),
+  }
 }
 
 function CatalogueTree({ nodes, depth = 0, expanded, onToggle, selectedId, onSelect }: {
@@ -450,7 +445,7 @@ function TaskTemplateBankTab({ templates, teams, loading, onCreated, onUpdated, 
       <div className="arch-toolbar-row">
         <button type="button" className="arch-btn-primary" onClick={handleNewClick}><Plus size={14} />Nouvelle tâche</button>
         <button type="button" className="arch-btn-outline" onClick={() => setImportOpen(true)}><Upload size={14} />Importer depuis Excel</button>
-        <button type="button" className="arch-btn-outline" onClick={() => exportTemplatesCsv(templates)} disabled={templates.length === 0}><Download size={14} />Exporter</button>
+        <ExportButtons tableau={tableauTemplates(templates)} disabled={templates.length === 0} className="arch-btn-outline" />
         <label className="arch-search">
           <Search size={13} />
           <input placeholder="Rechercher une tâche, un code..." value={search} onChange={(event) => setSearch(event.target.value)} />

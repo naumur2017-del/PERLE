@@ -57,6 +57,7 @@ class RapprovisionnementSerializer(serializers.Serializer):
 
 class MouvementSerializer(serializers.ModelSerializer):
     reference = serializers.SerializerMethodField()
+    beneficiaire = serializers.SerializerMethodField()
     compte_nom = serializers.CharField(source='compte.nom', read_only=True)
     compte_code = serializers.CharField(source='compte.code', read_only=True)
     projet_code = serializers.CharField(source='projet.code', read_only=True, default='')
@@ -68,13 +69,19 @@ class MouvementSerializer(serializers.ModelSerializer):
     class Meta:
         model = MouvementTresorerie
         fields = ['id', 'reference', 'created_at', 'compte', 'compte_nom', 'compte_code', 'type_mouvement', 'nature',
-                  'libelle', 'montant', 'beneficiaire', 'projet', 'projet_code', 'projet_nom', 'initiateur_nom',
+                  'libelle', 'montant', 'beneficiaire', 'origine', 'projet', 'projet_code', 'projet_nom', 'initiateur_nom',
                   'executeur_nom', 'justificatif_nom']
 
     def get_reference(self, obj):
         if obj.demande_id:
             return f'PAY-{obj.created_at.year}-{obj.demande_id:06d}'
         return f'MVT-{obj.created_at.year}-{obj.pk:06d}'
+
+    def get_beneficiaire(self, obj):
+        # Une entrée profite à la structure ; une sortie va au fournisseur payé.
+        if obj.type_mouvement == 'Entrée':
+            return obj.organisation.name
+        return obj.beneficiaire
 
     def get_initiateur_nom(self, obj):
         return _nom_utilisateur(obj.initiateur)
@@ -124,7 +131,7 @@ class CompteRapprovisionnerView(TresorerieScope, APIView):
             )
             mouvement = MouvementTresorerie.objects.create(
                 organisation=compte.organisation, compte=compte, type_mouvement='Entrée', nature='Approvisionnement',
-                libelle=data['libelle'], montant=data['montant'], beneficiaire=data['source'],
+                libelle=data['libelle'], montant=data['montant'], origine=data['source'],
                 initiateur=request.user, executeur=request.user, justificatif=data.get('justificatif') or '',
             )
         return Response(MouvementSerializer(mouvement, context={'request': request}).data, status=201)
@@ -137,5 +144,5 @@ class MouvementListView(TresorerieScope, generics.ListAPIView):
         if not self.organisation_id():
             return MouvementTresorerie.objects.none()
         return MouvementTresorerie.objects.filter(organisation_id=self.organisation_id()).select_related(
-            'compte', 'projet', 'initiateur', 'executeur',
+            'compte', 'projet', 'initiateur', 'executeur', 'organisation',
         )

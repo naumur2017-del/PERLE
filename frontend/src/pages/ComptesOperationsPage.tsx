@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  ArrowDownCircle, ArrowUpCircle, Calendar, Columns3, EyeOff, GripVertical,
-  Landmark, Plus, RotateCcw, Search, SlidersHorizontal, Wallet, X,
+  ArrowDownCircle, ArrowUpCircle, Columns3, EyeOff, GripVertical,
+  Landmark, Plus, RotateCcw, Search, Wallet, X,
 } from 'lucide-react'
 import { currencySuffix } from '../utils/currency'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { getSession } from '../auth/session'
+import ExportButtons from '../components/ExportButtons'
+import PeriodeSelector from '../components/PeriodeSelector'
+import type { TableauExport } from '../utils/exportTableau'
+import { isoLocal, isoVersFr, periodeDepuisEtat, periodeEtatInitial, type PeriodeEtat } from '../utils/periodes'
 import { can } from '../auth/permissions'
 import {
   createCompte, fetchComptes, fetchMouvements, rapprovisionnerCompte, tresorerieError,
@@ -160,6 +164,8 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
   const [message, setMessage] = useState('')
   const [modal, setModal] = useState<'nouveau' | 'rapprovisionner' | null>(null)
   const [search, setSearch] = useState('')
+  const [periodeEtat, setPeriodeEtat] = useState<PeriodeEtat>(() => periodeEtatInitial())
+  const periode = useMemo(() => periodeDepuisEtat(periodeEtat), [periodeEtat])
   const [projetFiltre, setProjetFiltre] = useState('Tous')
   const [typeFiltre, setTypeFiltre] = useState('Tous')
   const [sensFiltre, setSensFiltre] = useState<'Toutes' | 'Entrées' | 'Sorties'>('Toutes')
@@ -208,9 +214,11 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
       const matchesProjet = projetFiltre === 'Tous' || projetDe(mouvement) === projetFiltre
       const matchesType = typeFiltre === 'Tous' || mouvement.nature === typeFiltre
       const matchesSens = sensFiltre === 'Toutes' || (sensFiltre === 'Entrées' ? mouvement.type_mouvement === 'Entrée' : mouvement.type_mouvement === 'Sortie')
-      return matchesQuery && matchesProjet && matchesType && matchesSens
+      const dateIso = isoLocal(new Date(mouvement.created_at))
+      const matchesPeriode = dateIso >= periode.debut && dateIso <= periode.fin
+      return matchesQuery && matchesProjet && matchesType && matchesSens && matchesPeriode
     })
-  }, [mouvements, search, projetFiltre, typeFiltre, sensFiltre])
+  }, [mouvements, search, projetFiltre, typeFiltre, sensFiltre, periode])
 
   const visibles = filtered.slice(0, pageSize)
 
@@ -252,6 +260,23 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
     setPageSize(10)
   }
 
+  const tableau: TableauExport = {
+    nom: `comptes-operations_${periode.debut}_${periode.fin}`,
+    titre: 'Comptes et opérations',
+    periode: `${periode.libelle} — du ${isoVersFr(periode.debut)} au ${isoVersFr(periode.fin)}`,
+    kpis: [
+      ['Total entrées', fmtMontant(totaux.totalEntrees)],
+      ['Total sorties', fmtMontant(totaux.totalSorties)],
+      ['Solde net de la période', fmtMontant(totaux.totalEntrees + totaux.totalSorties)],
+    ],
+    colonnes: ['Date', 'Opération', 'Justificatif', 'Initiateur', 'Exécuteur', ...comptes.map((c) => `${c.nom} (${c.code})`), 'Total mouvement'],
+    lignes: filtered.map((m) => [
+      fmtDate(m.created_at), m.libelle, m.justificatif_nom ? 'Oui' : '—', m.initiateur_nom || '—', m.executeur_nom || '—',
+      ...comptes.map((c) => (m.compte === c.id ? fmtMontant(montantSigne(m)) : '—')),
+      fmtMontant(montantSigne(m)),
+    ]),
+  }
+
   return (
     <section className="co-page">
       <div className="co-title-row">
@@ -262,8 +287,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
         </div>
         <div className="co-toolbar">
           <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
-          <button type="button" className="co-daterange"><Calendar size={14} />01/05/2025 → 31/12/2025</button>
-          <button type="button" className="co-btn-outline"><SlidersHorizontal size={14} />Filtres avancés</button>
+          <ExportButtons tableau={tableau} disabled={loading} className="co-btn-outline" />
         </div>
       </div>
 
@@ -320,6 +344,9 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
       </article>
       )}
 
+      <div className="co-period-row">
+        <PeriodeSelector etat={periodeEtat} onChange={setPeriodeEtat} libelle={periode.libelle} />
+      </div>
       <div className="co-filters">
         <label>Projet
           <select value={projetFiltre} onChange={(event) => setProjetFiltre(event.target.value)}>

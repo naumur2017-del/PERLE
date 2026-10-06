@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import {
-  Archive, ArrowUpDown, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  Copy, Download, ListChecks, Pencil, Plus, Recycle, RotateCcw, Search, Trash2, TrendingUp, Upload,
+  Archive, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  Copy, ListChecks, Pencil, Plus, Recycle, RotateCcw, Trash2, TrendingUp, Upload,
 } from 'lucide-react'
 import { currencySuffix } from '../utils/currency'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import './MercurialesPage.css'
 
@@ -44,6 +46,13 @@ const KPIS = [
 ]
 
 const fmtPrix = (value: number) => value.toLocaleString('fr-FR')
+
+const tableauMercuriales = (liste: Mercuriale[]): TableauExport => ({
+  nom: `mercuriales-${new Date().toISOString().slice(0, 10)}`,
+  titre: 'Mercuriales',
+  colonnes: ['Code', 'Désignation', 'Catégorie', 'Sous-catégorie', 'Unité', 'Prix', 'Date d’effet', 'Date de fin', 'Statut'],
+  lignes: liste.map((m) => [m.code, m.designation, m.categorie, m.sousCategorie, m.unite, fmtPrix(m.prix), m.dateEffet, m.dateFin ?? '—', m.statut]),
+})
 const statutTone = (statut: Statut) => statut === 'Active' ? 'green' : statut === 'Expirée' ? 'orange' : 'blue'
 
 type SortKey = 'code' | 'designation' | 'unite' | 'prix' | 'dateEffet' | 'dateFin' | 'statut'
@@ -74,7 +83,6 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
   const [refQuery, setRefQuery] = useState('')
   const [designationQuery, setDesignationQuery] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'code', dir: 'asc' })
-  const [exportOpen, setExportOpen] = useState(false)
 
   const categories = useMemo(() => Array.from(new Set(MERCURIALES_INITIAL.map((m) => m.categorie))), [])
   const sousCategories = useMemo(() => Array.from(new Set(MERCURIALES_INITIAL.map((m) => m.sousCategorie))), [])
@@ -126,20 +134,9 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
         </div>
         <div className="mer-toolbar">
           <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
-          <button type="button" className="mer-btn-outline"><Upload size={14} />Importer</button>
-          <div className="mer-export-wrap">
-            <button type="button" className="mer-btn-outline" onClick={() => setExportOpen((o) => !o)}>
-              <Download size={14} />Exporter<ChevronDown size={12} />
-            </button>
-            {exportOpen && (
-              <ul className="mer-export-menu" onMouseLeave={() => setExportOpen(false)}>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en PDF</button></li>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en Excel</button></li>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en CSV</button></li>
-              </ul>
-            )}
-          </div>
-          <button type="button" className="mer-btn-primary"><Plus size={14} />Nouvelle mercuriale</button>
+          <button type="button" className="mer-btn-outline" disabled title="Fonctionnalité à venir"><Upload size={14} />Importer</button>
+          <ExportButtons tableau={tableauMercuriales(filtered)} disabled={filtered.length === 0} className="mer-btn-outline" />
+          <button type="button" className="mer-btn-primary" disabled title="Fonctionnalité à venir"><Plus size={14} />Nouvelle mercuriale</button>
         </div>
       </div>
 
@@ -169,7 +166,6 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
           </select>
         </label>
         <label>Période d'effet
-          <button type="button" className="mer-daterange"><Calendar size={14} />01/06/2025 → 30/06/2025</button>
         </label>
         <label>Référence / Code
           <input placeholder="Rechercher un code" value={refQuery} onChange={(e) => setRefQuery(e.target.value)} />
@@ -179,7 +175,6 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
         </label>
         <div className="mer-filters-actions">
           <button type="button" className="mer-btn-outline" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
-          <button type="button" className="mer-btn-primary"><Search size={14} />Rechercher</button>
         </div>
       </div>
 
@@ -231,8 +226,8 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
                   <td><span className={`mer-statut mer-statut-${statutTone(m.statut)}`}>{m.statut}</span></td>
                   <td>
                     <div className="mer-row-actions">
-                      <button type="button" className="mer-icon-btn" aria-label="Modifier"><Pencil size={13} /></button>
-                      <button type="button" className="mer-icon-btn" aria-label="Dupliquer"><Copy size={13} /></button>
+                      <button type="button" className="mer-icon-btn" aria-label="Modifier" disabled title="Fonctionnalité à venir"><Pencil size={13} /></button>
+                      <button type="button" className="mer-icon-btn" aria-label="Dupliquer" disabled title="Fonctionnalité à venir"><Copy size={13} /></button>
                       <button type="button" className="mer-icon-btn danger" aria-label="Supprimer" onClick={() => handleSupprimer(m.code)}><Trash2 size={13} /></button>
                     </div>
                   </td>
@@ -249,10 +244,6 @@ export default function MercurialesPage({ navigateTo }: { navigateTo: (page: str
               <button type="button" disabled><ChevronsLeft size={14} /></button>
               <button type="button" disabled><ChevronLeft size={14} /></button>
               <button type="button" className="is-active">1</button>
-              <button type="button">2</button>
-              <button type="button">3</button>
-              <button type="button">4</button>
-              <button type="button">5</button>
               <button type="button"><ChevronRight size={14} /></button>
               <button type="button"><ChevronsRight size={14} /></button>
             </nav>

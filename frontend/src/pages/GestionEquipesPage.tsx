@@ -5,6 +5,8 @@ import {
   History, Inbox, Info, Network, Pencil, Plus, RotateCcw, Search, Share2, Trash2, UploadCloud, Users, Users2, X, MoreVertical,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import {
   createEmployee, createGradeChangeRequest, editEmployee, fetchEmployees, fetchGradeChangeRequests, fetchTeams,
   updateEmployee, uploadEmployeeContract,
@@ -150,22 +152,15 @@ const statutClass = (statut: StatutLabel) => {
 const slugify = (text: string) =>
   text.normalize('NFKD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
-function exportEmployeesCsv(employes: Employe[]) {
-  const header = ['ID Employé', 'Nom', 'Email', 'Statut', 'Équipe', 'Rôle', 'Fonction', 'Grade', 'Manager', 'Téléphone', 'Matricule', "Date d'embauche"]
-  const rows = employes.map((e) => [
-    e.displayId, e.nom, e.email, e.statut, e.equipeNom, e.role, e.fonction, `G${e.grade}`, e.manager, e.telephone, e.matricule, e.dateEmbauche,
-  ])
-  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
-  const bom = String.fromCharCode(0xfeff)
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `employes-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+function tableauEmployes(employes: Employe[]): TableauExport {
+  return {
+    nom: `employes-${new Date().toISOString().slice(0, 10)}`,
+    titre: 'Liste des employés',
+    colonnes: ['ID Employé', 'Nom', 'Email', 'Statut', 'Équipe', 'Rôle', 'Fonction', 'Grade', 'Manager', 'Téléphone', 'Matricule', "Date d'embauche"],
+    lignes: employes.map((e) => [
+      e.displayId, e.nom, e.email, e.statut, e.equipeNom, e.role, e.fonction, `G${e.grade}`, e.manager, e.telephone, e.matricule, e.dateEmbauche,
+    ]),
+  }
 }
 
 type EmployeColumnId = 'id' | 'employe' | 'statut' | 'equipe' | 'fonction' | 'grade' | 'dateEmbauche'
@@ -1402,7 +1397,7 @@ export default function GestionEquipesPage({ navigateTo, session }: { navigateTo
           {canCreateEmployee && (
             <button type="button" className="ge-btn-primary" onClick={() => setCreateModalOpen(true)}><Plus size={14} />Ajouter un employé</button>
           )}
-          <button type="button" className="ge-btn-outline" onClick={() => exportEmployeesCsv(filtered)} disabled={filtered.length === 0}><Download size={14} />Exporter</button>
+          <ExportButtons tableau={tableauEmployes(filtered)} disabled={filtered.length === 0} className="ge-btn-outline" />
         </div>
       </div>
 

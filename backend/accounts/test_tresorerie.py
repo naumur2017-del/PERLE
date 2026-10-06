@@ -70,7 +70,9 @@ class TresorerieComptesTests(APITestCase):
         journal = self.client.get('/api/tresorerie/mouvements/').data
         self.assertEqual(len(journal), 1)
         self.assertEqual(journal[0]['compte_nom'], 'BICEC')
-        self.assertEqual(journal[0]['beneficiaire'], 'Siège')
+        # Une entrée profite à la structure ; la source des fonds est dans `origine`.
+        self.assertEqual(journal[0]['beneficiaire'], self.org.name)
+        self.assertEqual(journal[0]['origine'], 'Siège')
         self.assertEqual(journal[0]['initiateur_nom'], '')  # le directeur de test n'a pas de nom renseigné
 
     def test_replenish_rejects_non_positive_amount(self):

@@ -16,6 +16,9 @@ import JournalTresoreriePage from './pages/JournalTresoreriePage'
 import MercurialesPage from './pages/MercurialesPage'
 import GuidePage from './pages/GuidePage'
 import GuideStaffingPage from './pages/GuideStaffingPage'
+import GuideModulePage from './pages/GuideModulePage'
+import { GUIDE_ARCHITECTURE, GUIDE_GESTION, GUIDE_MESSAGERIE, GUIDE_TRESORERIE } from './pages/guidesModules'
+import { WORKFLOW_ARCHITECTURE, WORKFLOW_GESTION, WORKFLOW_MESSAGERIE, WORKFLOW_TRESORERIE } from './pages/guidesWorkflow'
 import GuideSalariePage from './pages/GuideSalariePage'
 import CentreAssistancePage from './pages/CentreAssistancePage'
 import CreationProjetPage from './pages/CreationProjetPage'
@@ -86,7 +89,8 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'guide-gestion': { path: '/guide-utilisation/gestion-des-equipes', title: 'Guide - Gestion des équipes', description: 'Gérez les équipes, les rôles et les accès.' },
   'guide-tresorerie': { path: '/guide-utilisation/tresorerie', title: 'Guide - Trésorerie', description: 'Suivez les encaissements, décaissements et budgets.' },
   'guide-salarie': { path: '/guide-utilisation/salarie', title: 'Guide - Salarié', description: 'Consultez vos fiches de paie et informations personnelles.' },
-  'guide-architecture': { path: '/guide-utilisation/architecture', title: 'Guide - Architecture des tâches', description: 'Comprenez l’arborescence et l’organisation des tâches.' },
+  'guide-architecture': { path: '/guide-utilisation/architecture', title: 'Guide - Architecture', description: 'Catalogue des tâches et architecture monétaire : arborescence, lignes budgétaires, import et export.' },
+  'guide-messagerie': { path: '/guide-utilisation/messagerie', title: 'Guide - Messagerie', description: 'Conversations, annuaire et groupes de discussion.' },
   'guide-parametres': { path: '/guide-utilisation/parametres', title: 'Guide - Paramètres', description: 'Personnalisez PERLE selon les besoins de votre organisation.' },
   parametres: { path: '/parametres', title: 'Paramètres', description: 'Configurez les préférences et les paramètres de PERLE.' },
 }
@@ -503,6 +507,7 @@ function App() {
         { id: 'guide-gestion', label: 'Gestion des équipes' },
         { id: 'guide-tresorerie', label: 'Trésorerie' },
         { id: 'guide-salarie', label: 'Salarié' },
+        { id: 'guide-messagerie', label: 'Messagerie' },
         { id: 'guide-architecture', label: 'Architecture' },
         { id: 'guide-parametres', label: 'Paramètres' },
       ],
@@ -643,10 +648,11 @@ function App() {
       case 'guide': return <GuidePage navigateTo={navigateTo} />
       case 'guide-pilotage': return <ModulePage title={pageConfig['guide-pilotage'].title} description={pageConfig['guide-pilotage'].description} icon={icons.guide} />
       case 'guide-staffing': return <GuideStaffingPage navigateTo={navigateTo} />
-      case 'guide-gestion': return <ModulePage title={pageConfig['guide-gestion'].title} description={pageConfig['guide-gestion'].description} icon={icons.guide} />
-      case 'guide-tresorerie': return <ModulePage title={pageConfig['guide-tresorerie'].title} description={pageConfig['guide-tresorerie'].description} icon={icons.guide} />
+      case 'guide-gestion': return <GuideModulePage contenu={GUIDE_GESTION} workflow={WORKFLOW_GESTION} />
+      case 'guide-tresorerie': return <GuideModulePage contenu={GUIDE_TRESORERIE} workflow={WORKFLOW_TRESORERIE} />
+      case 'guide-messagerie': return <GuideModulePage contenu={GUIDE_MESSAGERIE} workflow={WORKFLOW_MESSAGERIE} />
       case 'guide-salarie': return <GuideSalariePage navigateTo={navigateTo} />
-      case 'guide-architecture': return <ModulePage title={pageConfig['guide-architecture'].title} description={pageConfig['guide-architecture'].description} icon={icons.guide} />
+      case 'guide-architecture': return <GuideModulePage contenu={GUIDE_ARCHITECTURE} workflow={WORKFLOW_ARCHITECTURE} />
       case 'guide-parametres': return <ModulePage title={pageConfig['guide-parametres'].title} description={pageConfig['guide-parametres'].description} icon={icons.guide} />
       case 'parametres': return can(session, 'config:view')
         ? <ParametresPage />

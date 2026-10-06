@@ -3,6 +3,8 @@ import {
   MessageCircle, PlayCircle, ShieldCheck, UserCheck, Users,
 } from 'lucide-react'
 import './GuideStaffingPage.css'
+import { ActeursGrille, FluxChronologie } from './GuideModulePage'
+import { WORKFLOW_STAFFING } from './guidesWorkflow'
 
 const CYCLE = [
   {
@@ -51,6 +53,7 @@ const PAGES = [
       "Attribue les tâches du catalogue aux équipes (seule la fonction qui crée réellement une tâche).",
       "Sélecteur En cours / En revue / Terminée sur chaque tâche acceptée : peut basculer librement entre les deux premiers (même avant la validation du manager), à tout moment.",
       "Une fois « Terminée » posée, le sélecteur disparaît : la tâche est verrouillée, plus aucun changement manuel n'est possible — ni ici, ni ailleurs.",
+      "Exporter : PDF, Excel ou CSV du staffing affiché (filtres appliqués ; si des tâches sont sélectionnées, seules celles-ci sont exportées). Imprimer : rapport A4 paysage identique au PDF.",
     ],
   },
   {
@@ -152,6 +155,15 @@ export default function GuideStaffingPage({ navigateTo }: { navigateTo: (page: s
         <span>À chaque étape, la même discussion de tâche (champs + historique + échanges) reste accessible à toutes les personnes engagées — manager, employés staffés et, une fois validée, le Pilotage.</span>
         <button type="button" className="gst-link-btn" onClick={() => navigateTo('guide')}>Retour au guide <ArrowRight size={13} /></button>
       </div>
+      <section className="gst-panel">
+        <h3>Qui intervient</h3>
+        <ActeursGrille workflow={WORKFLOW_STAFFING} />
+      </section>
+
+      <section className="gst-panel">
+        <h3>Le flux, étape par étape</h3>
+        <FluxChronologie workflow={WORKFLOW_STAFFING} />
+      </section>
     </section>
   )
 }

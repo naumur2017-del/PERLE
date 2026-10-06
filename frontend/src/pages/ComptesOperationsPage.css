@@ -226,3 +226,6 @@
 .co-form-error { margin: 0 20px; padding: 10px 14px; border-radius: 8px; background: #fdecec; color: #b42318; font-size: 13.5px; }
 .co-modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; border-top: 1px solid #eae7f6; }
 .co-modal-actions .co-btn-primary:disabled { opacity: 0.6; cursor: wait; }
+
+/* =============== PERIODE =============== */
+.co-period-row { display: flex; flex-wrap: wrap; align-items: flex-end; }

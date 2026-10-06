@@ -4,7 +4,7 @@
 // normalement (le manager l'accepte ou la refuse, puis répartit les heures).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ChevronLeft, ChevronRight, Copy, Download, Eye, Filter, Info, Lock, Pencil, Plus, Search,
+  ChevronLeft, ChevronRight, Copy, Eye, Filter, Info, Lock, Pencil, Plus, Search,
   Star, Trash2, X,
 } from 'lucide-react'
 import { fetchTeams, type Team } from '../api/employees'
@@ -17,6 +17,8 @@ import {
 import { rateTaskAssignment } from '../api/taskAssignments'
 import { ApiError } from '../api/client'
 import DatePicker from '../components/DatePicker'
+import ExportButtons from '../components/ExportButtons'
+import type { TableauExport } from '../utils/exportTableau'
 import TaskDetailModal from '../components/TaskDetailModal'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
@@ -72,24 +74,17 @@ type PanelMode = { kind: 'create'; from?: Task } | { kind: 'edit'; task: Task } 
 
 interface LigneOption { value: number; label: string }
 
-function exportTasksCsv(tasks: Task[]) {
-  const header = ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Sous-ligne', 'Date de début', 'Échéance', 'Priorité', 'Statut', 'Créé le']
-  const rows = tasks.map((t) => [
-    t.code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
-    `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
-    t.ligne_budgetaire_declinaison, formatDate(t.date_debut), formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
-  ])
-  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n')
-  const bom = String.fromCharCode(0xfeff)
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `staffing-des-equipes-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+function tableauTasks(tasks: Task[]): TableauExport {
+  return {
+    nom: `staffing-des-equipes-${new Date().toISOString().slice(0, 10)}`,
+    titre: 'Staffing des équipes',
+    colonnes: ['Code', 'Tâche', 'Projet', 'Équipe', 'Manager', 'Ligne budgétaire', 'Sous-ligne', 'Date de début', 'Échéance', 'Priorité', 'Statut', 'Créé le'],
+    lignes: tasks.map((t) => [
+      t.code, t.template_nom, t.project_nom ? `${t.project_code} — ${t.project_nom}` : 'Transversale',
+      `${t.equipe_code} — ${t.equipe_nom}`, t.equipe_manager_nom ?? '', `${t.ligne_budgetaire_code} — ${t.ligne_budgetaire_nom}`,
+      t.ligne_budgetaire_declinaison, formatDate(t.date_debut), formatDate(t.echeance), t.priorite_display, t.statut_display, formatDate(t.created_at),
+    ]),
+  }
 }
 
 function TaskPanel({ mode, teams, projects, lignes, onClose, onCreated, onUpdated, onDeleteRequest }: {
@@ -528,10 +523,6 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
     setPanel({ kind: 'create', from: selectedTasks[0] })
   }
 
-  const handleExport = () => {
-    exportTasksCsv(selectedTasks.length > 0 ? selectedTasks : filtered)
-  }
-
   const handleCreated = (task: Task) => {
     setTasks((prev) => [task, ...prev])
     setPanel(null)
@@ -722,7 +713,7 @@ export default function StaffingEquipesPage({ navigateTo, focusTaskId, onFocusCo
         <div className="arch-toolbar-row">
           <button type="button" className="arch-btn-primary" onClick={() => setPanel({ kind: 'create' })}><Plus size={14} />Attribuer une tâche</button>
           <button type="button" className="arch-btn-outline" onClick={handleDuplicate} disabled={selectedTasks.length !== 1}><Copy size={14} />Dupliquer</button>
-          <button type="button" className="arch-btn-outline" onClick={handleExport} disabled={filtered.length === 0}><Download size={14} />Exporter</button>
+          <ExportButtons tableau={tableauTasks(selectedTasks.length > 0 ? selectedTasks : filtered)} disabled={filtered.length === 0} className="arch-btn-outline" />
 
           <select className="arch-select-sm" value={filterStatut} onChange={(event) => changeFilter(() => setFilterStatut(event.target.value as TaskStatut | 'tous'))}>
             <option value="tous">Tous statuts</option>

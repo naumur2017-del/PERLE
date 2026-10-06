@@ -3,6 +3,8 @@ from django.urls import path
 from . import views
 from . import paiements
 from . import tresorerie
+from . import exports
+from . import tresorerie_export
 from . import dashboard
 from . import imports as excel_imports
 
@@ -17,6 +19,8 @@ urlpatterns = [
     path('tresorerie/comptes/', tresorerie.CompteListCreateView.as_view()),
     path('tresorerie/comptes/<int:pk>/rapprovisionner/', tresorerie.CompteRapprovisionnerView.as_view()),
     path('tresorerie/mouvements/', tresorerie.MouvementListView.as_view()),
+    path('tresorerie/journal/export/', tresorerie_export.JournalExportView.as_view()),
+    path('exports/tableau/', exports.TableauExportView.as_view()),
     path('organisations/search/', views.OrganisationSearchView.as_view()),
     path('organisations/levels/', views.OrganisationLevelsView.as_view()),
     path('organisations/ehs/', views.OrganisationEhsView.as_view()),

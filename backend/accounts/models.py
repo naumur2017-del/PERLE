@@ -1028,8 +1028,11 @@ class MouvementTresorerie(models.Model):
     nature = models.CharField(max_length=20, choices=NATURE_CHOICES)
     libelle = models.CharField(max_length=255)
     montant = models.DecimalField(max_digits=16, decimal_places=2)
-    # Fournisseur / bénéficiaire d'un paiement, ou origine des fonds d'un approvisionnement.
+    # Fournisseur d'un paiement exécuté. Vide pour une entrée : le bénéficiaire d'une entrée est la
+    # structure elle-même (voir MouvementSerializer.get_beneficiaire).
     beneficiaire = models.CharField(max_length=255, blank=True)
+    # Origine des fonds d'un approvisionnement (siège, bailleur, client…).
+    origine = models.CharField(max_length=255, blank=True)
     projet = models.ForeignKey(Project, on_delete=models.PROTECT, null=True, blank=True, related_name='mouvements_tresorerie')
     demande = models.OneToOneField(DemandePaiement, on_delete=models.SET_NULL, null=True, blank=True, related_name='mouvement_tresorerie')
     initiateur = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')

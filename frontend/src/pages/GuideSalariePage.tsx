@@ -3,6 +3,8 @@ import {
   ListChecks, Send, ShieldCheck, Thermometer, User, UserCheck, Wallet,
 } from 'lucide-react'
 import './GuideSalariePage.css'
+import { ActeursGrille, FluxChronologie } from './GuideModulePage'
+import { WORKFLOW_SALARIE } from './guidesWorkflow'
 
 const SECTIONS = [
   {
@@ -165,11 +167,40 @@ export default function GuideSalariePage({ navigateTo }: { navigateTo: (page: st
         </div>
       </section>
 
+      <section className="gsa-panel">
+        <h3><Info size={15} />Détails à connaître</h3>
+        <ul>
+          <li><strong>Congés :</strong> pour chaque type de congé standard, la page affiche les jours acquis, les jours pris et le solde restant. Le quota mensuel s'accumule à partir de votre date d'embauche (ou de la fin de votre dernier congé pris) ; après 12 mois sans congé pris, le compteur repart de zéro.</li>
+          <li><strong>Gestion de responsabilité :</strong> à la demande de congé, désignez le collègue à qui vos tâches sont déléguées pendant votre absence. Il est prévenu à l'approbation.</li>
+          <li><strong>Fermeture technique :</strong> les fermetures collectives décidées par l'entreprise apparaissent dans la page Congés.</li>
+          <li><strong>Avances sur salaire :</strong> vous choisissez un remboursement sur 1, 2, 3 ou 6 salaires.</li>
+          <li><strong>Rémunération :</strong> le récapitulatif affiche le Net à payer, calculé comme A − B − C : A le salaire de base, B les déductions légales, C les pénalités.</li>
+          <li><strong>Mon profil :</strong> vous consultez vos informations personnelles et professionnelles, vos contacts d'urgence, vos coordonnées bancaires, votre N° CNPS et votre N° contribuable, ainsi que vos documents officiels.</li>
+          <li><strong>Activités :</strong> l'historique de vos tâches terminées, vos tâches en cours et les EHS consommés sur le mois.</li>
+          <li><strong>Export et impression :</strong> la page Salarié ne propose ni export ni impression. Pour un document officiel, passez par vos documents dans Mon profil.</li>
+        </ul>
+      </section>
+
       <div className="gsa-footer-note">
         <Info size={14} />
         <span>Vos congés, avances et modifications de profil sont réservés à vous seul — vos collègues ne voient jamais vos informations personnelles ou financières.</span>
         <button type="button" className="gsa-link-btn" onClick={() => navigateTo('guide')}>Retour au guide <ArrowRight size={13} /></button>
       </div>
+      <section className="gsa-panel">
+        <h3>Qui intervient</h3>
+        <ActeursGrille workflow={WORKFLOW_SALARIE} />
+      </section>
+
+      <section className="gsa-panel">
+        <h3>Le flux, étape par étape</h3>
+        <FluxChronologie workflow={WORKFLOW_SALARIE} />
+        {WORKFLOW_SALARIE.alternative && (
+          <div className="gm-alternative">
+            <strong>{WORKFLOW_SALARIE.alternative.titre}</strong>
+            <p>{WORKFLOW_SALARIE.alternative.description}</p>
+          </div>
+        )}
+      </section>
     </section>
   )
 }

@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Calendar, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronsLeft, ChevronsRight, Download, FileText, ListChecks, MoreVertical, Printer, RotateCcw,
-  Search, X,
+  ArrowDownToLine, ArrowLeftRight, ArrowUpRight, FileText, ListChecks, MoreVertical, RotateCcw,
+  X,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
+import ExportButtons from '../components/ExportButtons'
+import PeriodeSelector from '../components/PeriodeSelector'
 import { currencySuffix } from '../utils/currency'
 import KpiVisibilityToggle from '../components/KpiVisibilityToggle'
 import { useKpiVisibility } from '../hooks/useKpiVisibility'
 import { fetchMouvements, tresorerieError, type MouvementTresorerie } from '../api/tresorerie'
+import { isoLocal, isoVersFr, periodeDepuisEtat, periodeEtatInitial, type PeriodeEtat } from '../utils/periodes'
+import type { TableauExport } from '../utils/exportTableau'
 import './JournalTresoreriePage.css'
 
 type TypeOperation = 'Entrée' | 'Sortie' | 'Transfert'
 
 interface OperationJournal {
+  id: number
   reference: string
   date: string
+  dateIso: string
   heure: string
-  codeActivite: string
   codeProjet: string
   libelle: string
   type: TypeOperation
@@ -26,8 +30,6 @@ interface OperationJournal {
   ordonnateur: string
   beneficiaire: string
   beneficiaireType: string
-  mercuriale: string | null
-  mercurialeLibelle: string | null
   montant: number
   justificatif: string | null
   executeur: string
@@ -37,14 +39,16 @@ const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 const typeTone = (type: TypeOperation) => type === 'Entrée' ? 'green' : type === 'Sortie' ? 'red' : 'neutral'
 
 // Chaque mouvement de « Comptes et opérations » (approvisionnement ou paiement exécuté) est une ligne du journal.
+// Pour une entrée, le bénéficiaire est la structure elle-même ; pour une sortie, le fournisseur payé.
 const toOperation = (mouvement: MouvementTresorerie): OperationJournal => {
   const date = new Date(mouvement.created_at)
-  const isPaiement = mouvement.nature === 'Paiement'
+  const isEntree = mouvement.type_mouvement === 'Entrée'
   return {
+    id: mouvement.id,
     reference: mouvement.reference,
     date: date.toLocaleDateString('fr-FR'),
+    dateIso: isoLocal(date),
     heure: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    codeActivite: '—',
     codeProjet: mouvement.projet_code || '—',
     libelle: mouvement.libelle,
     type: mouvement.type_mouvement,
@@ -52,9 +56,7 @@ const toOperation = (mouvement: MouvementTresorerie): OperationJournal => {
     initiateur: mouvement.initiateur_nom || '—',
     ordonnateur: mouvement.initiateur_nom || '—',
     beneficiaire: mouvement.beneficiaire || '—',
-    beneficiaireType: isPaiement ? 'Fournisseur' : 'Source',
-    mercuriale: null,
-    mercurialeLibelle: null,
+    beneficiaireType: isEntree ? 'Structure' : 'Fournisseur',
     montant: mouvement.montant,
     justificatif: mouvement.justificatif_nom || null,
     executeur: mouvement.executeur_nom || '—',
@@ -62,38 +64,34 @@ const toOperation = (mouvement: MouvementTresorerie): OperationJournal => {
 }
 
 type JournalColumnId =
-  | 'date' | 'reference' | 'codeActivite' | 'codeProjet' | 'libelle' | 'type'
-  | 'ordonnateur' | 'beneficiaire' | 'mercuriale' | 'montant' | 'justificatif' | 'executeur'
+  | 'date' | 'reference' | 'codeProjet' | 'libelle' | 'type'
+  | 'ordonnateur' | 'beneficiaire' | 'montant' | 'justificatif' | 'executeur'
 
 const JOURNAL_COLUMNS: ColumnDef<JournalColumnId>[] = [
   { id: 'date', label: 'Date' },
   { id: 'reference', label: 'Référence' },
-  { id: 'codeActivite', label: 'Code activité' },
   { id: 'codeProjet', label: 'Code projet' },
   { id: 'libelle', label: "Libellé de l'opération" },
   { id: 'type', label: "Type d'opération" },
   { id: 'ordonnateur', label: 'Ordonnateur' },
   { id: 'beneficiaire', label: 'Bénéficiaire' },
-  { id: 'mercuriale', label: 'Mercuriale' },
   { id: 'montant', label: `Montant (${currencySuffix()})` },
   { id: 'justificatif', label: 'Justificatif' },
   { id: 'executeur', label: 'Exécuteur' },
 ]
 
+// Colonnes du fichier exporté et imprimé : fixes, identiques à l'écran.
+const COLONNES_EXPORT = ['Date', 'Heure', 'Référence', 'Code projet', 'Libellé', 'Type', 'Compte',
+  'Ordonnateur', 'Bénéficiaire', 'Montant', 'Justificatif', 'Exécuteur']
+
 const JOURNAL_CELL_DEFS: Record<JournalColumnId, { className?: string; render: (op: OperationJournal) => ReactNode }> = {
   date: { render: (op) => <><strong>{op.date}</strong><small className="jt-sub">{op.heure}</small></> },
   reference: { className: 'jt-code', render: (op) => op.reference },
-  codeActivite: { render: (op) => op.codeActivite },
   codeProjet: { render: (op) => op.codeProjet },
   libelle: { className: 'jt-name', render: (op) => op.libelle },
   type: { render: (op) => <span className={`jt-type jt-type-${typeTone(op.type)}`}>{op.type}</span> },
   ordonnateur: { render: (op) => op.ordonnateur },
   beneficiaire: { render: (op) => <><strong>{op.beneficiaire}</strong><small className="jt-sub">({op.beneficiaireType})</small></> },
-  mercuriale: {
-    render: (op) => op.mercuriale
-      ? <><strong>{op.mercuriale}</strong><small className="jt-sub">{op.mercurialeLibelle}</small></>
-      : <span className="jt-empty">—</span>,
-  },
   montant: { className: 'jt-montant-cell', render: (op) => <span className={`jt-montant jt-montant-${typeTone(op.type)}`}>{fmtMontant(op.montant)}</span> },
   justificatif: {
     render: (op) => op.justificatif
@@ -122,14 +120,12 @@ function OperationDetailModal({ operation, onClose }: { operation: OperationJour
 
         <dl className="jt-modal-grid">
           <div><dt>Date</dt><dd>{operation.date} · {operation.heure}</dd></div>
-          <div><dt>Code activité</dt><dd>{operation.codeActivite}</dd></div>
           <div><dt>Code projet</dt><dd>{operation.codeProjet}</dd></div>
           <div className="jt-modal-full"><dt>Libellé</dt><dd>{operation.libelle}</dd></div>
           <div><dt>Compte</dt><dd>{operation.compte}</dd></div>
           <div><dt>Initiateur</dt><dd>{operation.initiateur}</dd></div>
           <div><dt>Ordonnateur</dt><dd>{operation.ordonnateur}</dd></div>
           <div><dt>Bénéficiaire</dt><dd>{operation.beneficiaire}<small>{operation.beneficiaireType}</small></dd></div>
-          <div><dt>Mercuriale</dt><dd>{operation.mercuriale ? `${operation.mercuriale} — ${operation.mercurialeLibelle}` : '—'}</dd></div>
           <div><dt>Justificatif</dt><dd>{operation.justificatif ?? '—'}</dd></div>
           <div><dt>Exécuteur</dt><dd>{operation.executeur}</dd></div>
         </dl>
@@ -142,15 +138,14 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
   const [operations, setOperations] = useState<OperationJournal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [periodeEtat, setPeriodeEtat] = useState<PeriodeEtat>(() => periodeEtatInitial())
   const [filterCompte, setFilterCompte] = useState('Tous')
   const [filterType, setFilterType] = useState('Toutes')
   const [filterInitiateur, setFilterInitiateur] = useState('Tous')
   const [filterBeneficiaire, setFilterBeneficiaire] = useState('Tous')
-  const [filterMercuriale, setFilterMercuriale] = useState('Toutes')
   const [filterOrdonnateur, setFilterOrdonnateur] = useState('Tous')
   const [reference, setReference] = useState('')
   const [libelleQuery, setLibelleQuery] = useState('')
-  const [exportOpen, setExportOpen] = useState(false)
   const [selected, setSelected] = useState<OperationJournal | null>(null)
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(JOURNAL_COLUMNS)
   const { visible: showKpis, toggle: toggleKpis } = useKpiVisibility('jt-kpis-hidden')
@@ -164,34 +159,48 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
     return () => { active = false }
   }, [])
 
+  const periode = useMemo(() => periodeDepuisEtat(periodeEtat), [periodeEtat])
+
   const comptes = useMemo(() => Array.from(new Set(operations.map((op) => op.compte))), [operations])
   const initiateurs = useMemo(() => Array.from(new Set(operations.map((op) => op.initiateur))), [operations])
   const beneficiaires = useMemo(() => Array.from(new Set(operations.map((op) => op.beneficiaire))), [operations])
-  const mercuriales = useMemo(() => Array.from(new Set(operations.map((op) => op.mercuriale).filter((m): m is string => m !== null))), [operations])
   const ordonnateurs = useMemo(() => Array.from(new Set(operations.map((op) => op.ordonnateur))), [operations])
 
+  // Période d'abord : tableau, KPI et export portent sur les mêmes lignes.
   const filtered = useMemo(() => operations.filter((op) => (
-    (filterCompte === 'Tous' || op.compte === filterCompte)
+    op.dateIso >= periode.debut && op.dateIso <= periode.fin
+    && (filterCompte === 'Tous' || op.compte === filterCompte)
     && (filterType === 'Toutes' || op.type === filterType)
     && (filterInitiateur === 'Tous' || op.initiateur === filterInitiateur)
     && (filterBeneficiaire === 'Tous' || op.beneficiaire === filterBeneficiaire)
-    && (filterMercuriale === 'Toutes' || op.mercuriale === filterMercuriale)
     && (filterOrdonnateur === 'Tous' || op.ordonnateur === filterOrdonnateur)
     && (reference.trim() === '' || op.reference.toLowerCase().includes(reference.trim().toLowerCase()))
     && (libelleQuery.trim() === '' || op.libelle.toLowerCase().includes(libelleQuery.trim().toLowerCase()))
-  )), [operations, filterCompte, filterType, filterInitiateur, filterBeneficiaire, filterMercuriale, filterOrdonnateur, reference, libelleQuery])
+  )), [operations, periode, filterCompte, filterType, filterInitiateur, filterBeneficiaire, filterOrdonnateur, reference, libelleQuery])
 
-  const sommeType = (type: TypeOperation) => operations.filter((op) => op.type === type).reduce((sum, op) => sum + op.montant, 0)
+  const sommeType = (type: TypeOperation) => filtered.filter((op) => op.type === type).reduce((sum, op) => sum + op.montant, 0)
   const kpis = [
     { icon: ArrowDownToLine, tone: 'blue', label: 'Total entrées', value: `${fmtMontant(sommeType('Entrée'))} ${currencySuffix()}` },
     { icon: ArrowUpRight, tone: 'red', label: 'Total sorties', value: `${fmtMontant(sommeType('Sortie'))} ${currencySuffix()}` },
     { icon: ArrowLeftRight, tone: 'green', label: 'Total transferts', value: `${fmtMontant(sommeType('Transfert'))} ${currencySuffix()}` },
-    { icon: ListChecks, tone: 'purple', label: "Nombre d'opérations", value: String(operations.length) },
+    { icon: ListChecks, tone: 'purple', label: "Nombre d'opérations", value: String(filtered.length) },
   ]
+
+  const tableau: TableauExport = {
+    nom: `journal-tresorerie_${periode.debut}_${periode.fin}`,
+    titre: 'Journal de la trésorerie',
+    periode: `${periode.libelle} — du ${isoVersFr(periode.debut)} au ${isoVersFr(periode.fin)}`,
+    kpis: kpis.map((kpi) => [kpi.label, kpi.value]),
+    colonnes: COLONNES_EXPORT,
+    lignes: filtered.map((op) => [
+      op.date, op.heure, op.reference, op.codeProjet, op.libelle, op.type, op.compte, op.ordonnateur,
+      op.beneficiaire, fmtMontant(op.montant), op.justificatif ?? '—', op.executeur,
+    ]),
+  }
 
   const resetFiltres = () => {
     setFilterCompte('Tous'); setFilterType('Toutes'); setFilterInitiateur('Tous')
-    setFilterBeneficiaire('Tous'); setFilterMercuriale('Toutes'); setFilterOrdonnateur('Tous')
+    setFilterBeneficiaire('Tous'); setFilterOrdonnateur('Tous')
     setReference(''); setLibelleQuery('')
   }
 
@@ -206,29 +215,18 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         <div className="jt-toolbar">
           <KpiVisibilityToggle visible={showKpis} onToggle={toggleKpis} />
           <ColumnsMenu columns={JOURNAL_COLUMNS} hiddenColumns={hiddenColumns} onToggle={toggleColumn} buttonClassName="jt-btn-outline" />
-          <div className="jt-export-wrap">
-            <button type="button" className="jt-btn-outline" onClick={() => setExportOpen((o) => !o)}>
-              <Download size={14} />Exporter<ChevronDown size={12} />
-            </button>
-            {exportOpen && (
-              <ul className="jt-export-menu" onMouseLeave={() => setExportOpen(false)}>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en PDF</button></li>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en Excel</button></li>
-                <li><button type="button" onClick={() => setExportOpen(false)}>Exporter en CSV</button></li>
-              </ul>
-            )}
-          </div>
-          <button type="button" className="jt-btn-outline" onClick={() => window.print()}><Printer size={14} />Imprimer</button>
+          <ExportButtons tableau={tableau} disabled={loading} className="jt-btn-outline" />
         </div>
       </div>
 
       {error && <p role="alert" className="jt-message jt-message-error">{error}</p>}
       {loading && <p role="status" className="jt-message">Chargement du journal…</p>}
 
+      <div className="jt-period">
+        <PeriodeSelector etat={periodeEtat} onChange={setPeriodeEtat} libelle={periode.libelle} />
+      </div>
+
       <div className="jt-filters">
-        <label>Période
-          <button type="button" className="jt-daterange"><Calendar size={14} />01/06/2025 - 30/06/2025</button>
-        </label>
         <label>Compte
           <select value={filterCompte} onChange={(e) => setFilterCompte(e.target.value)}>
             <option>Tous</option>
@@ -253,12 +251,6 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
             {beneficiaires.map((b) => <option key={b}>{b}</option>)}
           </select>
         </label>
-        <label>Mercuriale
-          <select value={filterMercuriale} onChange={(e) => setFilterMercuriale(e.target.value)}>
-            <option>Toutes</option>
-            {mercuriales.map((m) => <option key={m}>{m}</option>)}
-          </select>
-        </label>
         <label>Référence
           <input placeholder="Rechercher une référence" value={reference} onChange={(e) => setReference(e.target.value)} />
         </label>
@@ -273,7 +265,6 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         </label>
         <div className="jt-filters-actions">
           <button type="button" className="jt-btn-outline" onClick={resetFiltres}><RotateCcw size={14} />Réinitialiser</button>
-          <button type="button" className="jt-btn-primary"><Search size={14} />Rechercher</button>
         </div>
       </div>
 
@@ -302,10 +293,10 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={visibleColumns.length + 1} className="jt-empty-row">{operations.length === 0 && !loading ? 'Aucune opération enregistrée pour le moment.' : 'Aucune opération ne correspond à ces filtres.'}</td></tr>
+                <tr><td colSpan={visibleColumns.length + 1} className="jt-empty-row">{operations.length === 0 && !loading ? 'Aucune opération enregistrée pour le moment.' : 'Aucune opération sur cette période ne correspond à ces filtres.'}</td></tr>
               )}
               {filtered.map((op) => (
-                <tr key={op.reference}>
+                <tr key={op.id}>
                   {visibleColumns.map((c) => {
                     const def = JOURNAL_CELL_DEFS[c.id]
                     return <td key={c.id} className={def.className}>{def.render(op)}</td>
@@ -322,20 +313,7 @@ export default function JournalTresoreriePage({ navigateTo }: { navigateTo: (pag
         </div>
 
         <div className="jt-table-foot">
-          <span>Affichage de 1 à {filtered.length} sur {operations.length} opérations</span>
-          <div className="jt-table-foot-right">
-            <nav className="jt-pagination" aria-label="Pagination">
-              <button type="button" disabled><ChevronsLeft size={14} /></button>
-              <button type="button" disabled><ChevronLeft size={14} /></button>
-              <button type="button" className="is-active">1</button>
-              <button type="button" disabled><ChevronRight size={14} /></button>
-              <button type="button" disabled><ChevronsRight size={14} /></button>
-            </nav>
-            <label className="jt-page-size">
-              <select defaultValue={20}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>
-              / page
-            </label>
-          </div>
+          <span>{filtered.length} opération{filtered.length > 1 ? 's' : ''} sur la période{filtered.length !== operations.length ? ` (sur ${operations.length} au total)` : ''}</span>
         </div>
       </section>
 
