@@ -211,7 +211,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     # Informations professionnelles
-    date_embauche = models.DateField(null=True, blank=True)
+    # Jamais vide : à défaut de date saisie, l'embauche est comptée à partir du jour de création
+    # du compte (voir aussi compute_conge_solde, qui se rabat sur aujourd'hui).
+    date_embauche = models.DateField(default=timezone.localdate)
     type_contrat = models.CharField(max_length=20, choices=TYPE_CONTRAT_CHOICES, blank=True)
     periode_essai = models.CharField(max_length=20, choices=PERIODE_ESSAI_CHOICES, blank=True)
     temps_travail = models.CharField(max_length=20, choices=TEMPS_TRAVAIL_CHOICES, blank=True)
