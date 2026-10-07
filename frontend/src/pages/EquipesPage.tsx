@@ -352,11 +352,13 @@ export default function EquipesPage({ navigateTo, session }: { navigateTo: (page
   const [levelsCount, setLevelsCount] = useState(4)
   const [levelsError, setLevelsError] = useState<string | null>(null)
   const [levelsBusy, setLevelsBusy] = useState(false)
+  const [structureEnPlace, setStructureEnPlace] = useState(false)
 
   const loadData = () => Promise.all([fetchTeams(), fetchEmployees(), fetchOrganisationLevels()]).then(([teamsData, employeesData, levels]) => {
     setEquipes(teamsData)
     setEmployees(employeesData)
     setLevelsCount(levels.team_levels_count)
+    setStructureEnPlace(levels.structure_en_place)
   })
 
   useEffect(() => {
@@ -496,7 +498,9 @@ export default function EquipesPage({ navigateTo, session }: { navigateTo: (page
       </div>
 
       {!canManage && (
-        <p className="eq-readonly-banner"><Lock size={13} strokeWidth={2} />Lecture seule — seuls le directeur, le Pilotage et les Ressources peuvent modifier les équipes.</p>
+        <p className="eq-readonly-banner"><Lock size={13} strokeWidth={2} />{structureEnPlace
+          ? "Lecture seule — la structure de l’organisation est en place : seules les Ressources créent et modifient désormais les équipes. La Direction valide les demandes qui lui remontent (grades, exécutions de paiement…)."
+          : "Lecture seule — seuls le directeur, le Pilotage et les Ressources peuvent modifier les équipes."}</p>
       )}
 
       <div className="eq-levels-bar">

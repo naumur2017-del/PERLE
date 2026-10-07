@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Building2, Crown, FileDown, Lock, UserX } from 'lucide-react'
+import { Building2, Crown, Lock, Printer, UserX } from 'lucide-react'
 import { fetchEmployees, fetchTeams, type Employee, type Team, type TeamMember } from '../api/employees'
 import type { Session } from '../auth/session'
 import ExportButtons from '../components/ExportButtons'
 import type { TableauExport } from '../utils/exportTableau'
+import { exporterOrganigrammePdf, imprimerOrganigramme } from '../utils/exportOrganigramme'
 import './OrganigrammePage.css'
 
 // Liste des employés et de leur équipe : fichier exporté (PDF, Excel, CSV) de la structure affichée.
@@ -124,30 +125,37 @@ export default function OrganigrammePage({ session }: { navigateTo: (page: strin
 
   const printAreaRef = useRef<HTMLDivElement>(null)
 
-  /* Avant d'imprimer, on réduit tout l'organigramme (légende + arbre) à l'échelle exacte qui le
-     fait tenir sur une seule page A4 paysage — voir @page dans App.css. On ne compte pas sur le
-     « ajuster à la page » du navigateur (pas garanti selon les navigateurs/imprimantes, surtout
-     en hauteur) : on mesure la taille réelle du contenu et on calcule le facteur d'échelle
-     nous-mêmes, appliqué en CSS pendant l'impression (voir .og-print-area dans le CSS d'impression). */
-  const handleExportPdf = () => {
-    const el = printAreaRef.current
-    if (el) {
-      const PAGE_WIDTH_PX = 1040
-      const PAGE_HEIGHT_PX = 700
-      const naturalWidth = el.scrollWidth
-      const naturalHeight = el.scrollHeight
-      const scale = Math.min(1, PAGE_WIDTH_PX / naturalWidth, PAGE_HEIGHT_PX / naturalHeight)
-      el.style.setProperty('--og-print-scale', String(scale))
-      el.style.setProperty('--og-print-height', `${naturalHeight * scale}px`)
-    }
-    window.print()
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState('')
+  const titreExport = `Organigramme — ${session.organisationName}`
+
+  /* PDF et impression capturent le schéma affiché (légende + arbre) et le posent sur une seule
+     page A4 avec marges — voir utils/exportOrganigramme. */
+  const handleExportPdf = async () => {
+    if (!printAreaRef.current) return
+    await exporterOrganigrammePdf(printAreaRef.current, titreExport, `organigramme-${new Date().toISOString().slice(0, 10)}`)
   }
+
+  const handlePrint = async () => {
+    if (!printAreaRef.current || printing) return
+    setPrinting(true); setPrintError('')
+    try {
+      await imprimerOrganigramme(printAreaRef.current, titreExport)
+    } catch (err) {
+      setPrintError(err instanceof Error ? err.message : 'Impression impossible.')
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  const nothingToExport = loading || !!loadError || isEmpty
 
   return (
     <section className="og-page">
       <div className="og-toolbar">
-        <ExportButtons tableau={tableauOrganigramme(employees, teams)} disabled={loading || employees.length === 0} className="og-export-btn" avecImpression={false} />
-        <button type="button" className="og-export-btn" onClick={handleExportPdf}><FileDown size={14} />Imprimer l'organigramme</button>
+        <ExportButtons tableau={tableauOrganigramme(employees, teams)} disabled={nothingToExport} className="og-export-btn" avecImpression={false} exporterPdf={handleExportPdf} />
+        <button type="button" className="og-export-btn" disabled={nothingToExport || printing} onClick={() => void handlePrint()}><Printer size={14} />{printing ? 'Préparation…' : "Imprimer l'organigramme"}</button>
+        {printError && <span role="alert" className="export-error">{printError}</span>}
       </div>
 
       <div className="og-print-area" ref={printAreaRef}>

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   BadgeCheck, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp,
-  CircleDot, Info, Pencil, Receipt, RotateCcw, Save, Search, Trash2, Wallet,
+  CircleDot, Info, Pencil, Receipt, RotateCcw, Save, Search, ShieldCheck, Trash2, Wallet,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
@@ -11,6 +11,8 @@ import type { TableauExport } from '../utils/exportTableau'
 import { fetchProjects, type Project } from '../api/projects'
 import { createPaiement, updatePaiement, deletePaiement, fetchPaiements, paiementDate, paiementError, type Paiement } from '../api/paiements'
 import { fetchComptes, type CompteTresorerie } from '../api/tresorerie'
+import { getSession } from '../auth/session'
+import { can } from '../auth/permissions'
 import './TresoreriePage.css'
 
 interface Brouillon {
@@ -31,6 +33,19 @@ interface Brouillon {
 const TYPES_DEPENSE_OPTIONS = ['Transversal', 'Non Transversal']
 
 const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
+
+const HISTORIQUE_PILL: Record<Paiement['statut'], string> = {
+  brouillon: 'brouillon', attente: 'attente', valide: 'pret', execute: 'paye', refuse: 'refuse',
+}
+
+// Étape suivante / dernière décision, lisible par l'auteur de la demande.
+function suiviPaiement(record: Paiement): string {
+  if (record.statut === 'attente') return 'En attente de la validation de la Direction'
+  if (record.statut === 'valide') return `Validé par ${record.valide_par_nom || 'la Direction'} le ${paiementDate(record.valide_le)} — en attente d’exécution par les Ressources`
+  if (record.statut === 'refuse') return `Refusé par ${record.valide_par_nom || 'la Direction'} le ${paiementDate(record.valide_le)} — Motif : ${record.motif_refus || '—'}`
+  if (record.statut === 'execute') return `Exécuté par ${record.execute_par_nom || 'les Ressources'} le ${paiementDate(record.decided_at)}${record.mode_paiement ? ` (${record.mode_paiement})` : ''}`
+  return ''
+}
 
 const statutClass = (statut: string) => {
   if (statut === 'Payé' || statut.startsWith('Exécuté')) return 'paye'
@@ -84,7 +99,9 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
   prefillCode?: string | null
   onPrefillConsumed?: () => void
 }) {
-  const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>('nouveau')
+  // Les ordonnances sont établies par les Ressources ; les autres profils consultent l'historique.
+  const canCreate = can(getSession(), 'tresorerie:ordonnances')
+  const [innerTab, setInnerTab] = useState<'nouveau' | 'historique'>(canCreate ? 'nouveau' : 'historique')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [search, setSearch] = useState('')
   const [records, setRecords] = useState<Paiement[]>([])
@@ -109,7 +126,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
   }, [])
 
   useEffect(() => {
-    if (!prefillCode) return
+    if (!prefillCode || !canCreate) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- réagit à une demande de navigation externe (prefillCode), pas dérivé du rendu
     setInnerTab('nouveau')
     setForm((current) => ({ ...current, code: prefillCode }))
@@ -131,9 +148,11 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
       compte: record.compte_nom || '—', fournisseur: record.fournisseur || '—', mercurial: '—', montant: record.montant,
       devise: record.devise, statut: record.statut_libelle, dateMaj: paiementDate(record.updated_at),
     }))
+  // Historique : l'auteur suit l'évolution de sa demande (soumise → validée/refusée → exécutée).
   const historique = records.filter((record) => record.statut !== 'brouillon').map((record) => ({
     reference: record.numero, projet: record.projet_nom, libelle: record.objet, montant: record.montant,
     initiePar: record.initie_par, date: paiementDate(record.created_at), statut: record.statut_libelle,
+    pill: HISTORIQUE_PILL[record.statut], suivi: suiviPaiement(record),
   }))
   const { hiddenColumns, toggleColumn, visibleColumns } = useColumnVisibility(BROUILLON_COLUMNS)
   const [draftSectionOpen, setDraftSectionOpen] = useState(true)
@@ -167,7 +186,7 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
       const saved = editingId === null ? await createPaiement(data) : await updatePaiement(editingId, data)
       setRecords((current) => [saved, ...current.filter((record) => record.id !== saved.id)])
       resetForm()
-      setMessage(statut === 'brouillon' ? 'Brouillon enregistré.' : 'Demande soumise et disponible dans les exécutions des paiements.')
+      setMessage(statut === 'brouillon' ? 'Brouillon enregistré.' : 'Demande soumise : elle est transmise à la Direction pour validation. Suivez son évolution dans l’Historique.')
     } catch (err) { setError(paiementError(err)) }
     finally { setBusy(false) }
   }
@@ -220,17 +239,18 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
       {message && <p role="status">{message}</p>}
       <nav className="tr-subtabs">
         <button className="active" onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Ordonnances des paiements</button>
+        <button onClick={() => navigateTo('tresorerie-validation')}><ShieldCheck size={14} />Validation des paiements</button>
         <button onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Exécutions des paiements</button>
         <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et opérations</button>
         <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Journal de la trésorerie</button>
       </nav>
 
       <nav className="tr-request-tabs">
-        <button className={innerTab === 'nouveau' ? 'active' : ''} onClick={() => setInnerTab('nouveau')}>Nouvelle demande</button>
+        {canCreate && <button className={innerTab === 'nouveau' ? 'active' : ''} onClick={() => setInnerTab('nouveau')}>Nouvelle demande</button>}
         <button className={innerTab === 'historique' ? 'active' : ''} onClick={() => setInnerTab('historique')}>Historique</button>
       </nav>
 
-      {innerTab === 'nouveau' && (
+      {canCreate && innerTab === 'nouveau' && (
         <>
           <div className="tr-request-card">
             <div className="tr-request-heading">
@@ -409,10 +429,10 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
           <div className="tr-table-wrap">
             <table className="tr-table">
               <thead>
-                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>{`Montant (${currencySuffix()})`}</th><th>Initié par</th><th>Date</th><th>Statut</th></tr>
+                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>{`Montant (${currencySuffix()})`}</th><th>Initié par</th><th>Date</th><th>Statut</th><th>Suivi</th></tr>
               </thead>
               <tbody>
-                {historique.length === 0 && <tr><td colSpan={7} className="tr-empty">{loading ? 'Chargement…' : 'Aucune demande soumise.'}</td></tr>}
+                {historique.length === 0 && <tr><td colSpan={8} className="tr-empty">{loading ? 'Chargement…' : 'Aucune demande soumise.'}</td></tr>}
                 {historique.map((entry) => (
                   <tr key={entry.reference}>
                     <td className="tr-code">{entry.reference}</td>
@@ -421,7 +441,8 @@ export default function TresoreriePage({ navigateTo, prefillCode, onPrefillConsu
                     <td className="tr-montant">{fmtMontant(entry.montant)}</td>
                     <td>{entry.initiePar}</td>
                     <td>{entry.date}</td>
-                    <td><span className={`tr-pill tr-pill-${statutClass(entry.statut)}`}>{entry.statut}</span></td>
+                    <td><span className={`tr-pill tr-pill-${entry.pill}`}>{entry.statut}</span></td>
+                    <td className="tr-suivi">{entry.suivi}</td>
                   </tr>
                 ))}
               </tbody>

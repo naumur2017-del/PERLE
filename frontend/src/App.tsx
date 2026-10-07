@@ -11,6 +11,7 @@ import PerformanceStaffingPage from './pages/PerformanceStaffingPage'
 import WorkspaceOverviewPage from './pages/WorkspaceOverviewPage'
 import ExecuteStaffingPage from './pages/ExecuteStaffingPage'
 import PaiementsExecutesPage from './pages/PaiementsExecutesPage'
+import ValidationPaiementsPage from './pages/ValidationPaiementsPage'
 import ComptesOperationsPage from './pages/ComptesOperationsPage'
 import JournalTresoreriePage from './pages/JournalTresoreriePage'
 import MercurialesPage from './pages/MercurialesPage'
@@ -68,7 +69,8 @@ const pageConfig: Record<string, { path: string; title: string; description: str
   'gestion-historique': { path: '/gestion-equipes/historique', title: 'Historique des employés', description: 'Consultez l’historique des changements de grade et d’affectation de tous les employés.' },
   'gestion-demandes': { path: '/gestion-equipes/demandes', title: 'Demandes des employés', description: 'Consultez et traitez les demandes de congé et d’avance sur salaire de tous les employés.' },
   tresorerie: { path: '/tresorerie', title: 'Ordonnances des paiements', description: 'Gestion des paiements et suivi des validations.' },
-  'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Exécutions des paiements', description: 'Consultez l’historique des paiements déjà exécutés et leurs justificatifs.' },
+  'tresorerie-validation': { path: '/tresorerie/validation', title: 'Validation des paiements', description: 'Acceptez ou refusez les ordonnances de paiement soumises par les managers et les Ressources.' },
+  'tresorerie-paiements': { path: '/tresorerie/paiements-executes', title: 'Exécutions des paiements', description: 'Exécutez les ordonnances validées en y joignant le justificatif, et consultez les paiements déjà exécutés.' },
   'tresorerie-comptes': { path: '/tresorerie/comptes-operations', title: 'Comptes et opérations', description: "Suivez tous les mouvements financiers par compte. Les montants négatifs (–) indiquent des sorties d'argent." },
   'tresorerie-rapports': { path: '/tresorerie/journal', title: 'Journal de la trésorerie', description: "Enregistrement chronologique de toutes les opérations de trésorerie (entrées, sorties et transferts)." },
   'tresorerie-mercuriales': { path: '/tresorerie/mercuriales', title: 'Mercuriales', description: 'Gestion des mercuriales (prix de référence) utilisées pour le contrôle des dépenses de trésorerie.' },
@@ -471,9 +473,10 @@ function App() {
       id: 'tresorerie', label: 'Trésorerie', icon: icons.tresorerie, feature: 'tresorerie:view',
       children: [
         { id: 'tresorerie', label: 'Ordonnances des paiements' },
+        { id: 'tresorerie-validation', label: 'Validation des paiements' },
         { id: 'tresorerie-paiements', label: 'Exécutions des paiements' },
         { id: 'tresorerie-comptes', label: 'Comptes et opérations' },
-        { id: 'tresorerie-rapports', label: 'Journal de la trésorerie' },
+        { id: 'tresorerie-rapports', label: 'Journal de la trésorerie', feature: 'tresorerie:journal' },
         { id: 'tresorerie-mercuriales', label: 'Mercuriales' },
       ],
     },
@@ -610,6 +613,7 @@ function App() {
       case 'gestion-historique': return <HistoriqueEmployesPage navigateTo={navigateTo} />
       case 'gestion-demandes': return <DemandesEmployesPage navigateTo={navigateTo} onOpenPaiementForAvance={openPaiementForAvance} />
       case 'tresorerie':
+      case 'tresorerie-validation':
       case 'tresorerie-paiements':
       case 'tresorerie-comptes':
       case 'tresorerie-rapports':
@@ -624,9 +628,12 @@ function App() {
           prefillCode={paiementPrefillCode}
           onPrefillConsumed={() => setPaiementPrefillCode(null)}
         />
+        if (activeNav === 'tresorerie-validation') return <ValidationPaiementsPage navigateTo={navigateTo} onNotify={addNotification} />
         if (activeNav === 'tresorerie-paiements') return <PaiementsExecutesPage navigateTo={navigateTo} onNotify={addNotification} />
         if (activeNav === 'tresorerie-comptes') return <ComptesOperationsPage navigateTo={navigateTo} />
-        if (activeNav === 'tresorerie-rapports') return <JournalTresoreriePage navigateTo={navigateTo} />
+        if (activeNav === 'tresorerie-rapports') return can(session, 'tresorerie:journal')
+          ? <JournalTresoreriePage navigateTo={navigateTo} />
+          : <RestrictedPage title="Journal de la trésorerie" message="Le journal de la trésorerie est réservé à la Direction, au Pilotage et aux Ressources." navigateTo={navigateTo} />
         return <MercurialesPage navigateTo={navigateTo} />
       case 'salarie': return <SalariePage session={session!} onSessionUpdate={updateSession} />
       case 'architecture':
@@ -839,6 +846,14 @@ function App() {
                         } else if (notification.cible_type === 'task_envoyee' && notification.cible_id != null) {
                           setStaffingFocusTaskId(notification.cible_id)
                           navigateTo('staffing')
+                        } else if (notification.cible_type === 'paiement_validation' || notification.cible_type === 'paiement_execute') {
+                          navigateTo('tresorerie-validation')
+                        } else if (notification.cible_type === 'paiement_execution') {
+                          navigateTo('tresorerie-paiements')
+                        } else if (notification.cible_type === 'paiement') {
+                          navigateTo('tresorerie')
+                        } else if (notification.cible_type === 'mouvement') {
+                          navigateTo('tresorerie-comptes')
                         } else if (notification.cible_type === 'grade_demande') {
                           navigateTo('gestion-demandes')
                         } else {

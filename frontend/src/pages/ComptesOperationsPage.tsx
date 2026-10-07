@@ -26,8 +26,11 @@ const fmtDate = (value: string) => new Date(value).toLocaleDateString('fr-FR')
 const montantSigne = (mouvement: MouvementTresorerie) => (mouvement.type_mouvement === 'Entrée' ? mouvement.montant : -mouvement.montant)
 const projetDe = (mouvement: MouvementTresorerie) => mouvement.projet_code || 'Général'
 
+// Les mouvements forment le journal de la trésorerie, réservé à la Direction, au Pilotage et aux
+// Ressources : un simple manager d'équipe ne voit que les comptes et leurs soldes.
 async function chargerDonnees() {
-  return Promise.all([fetchComptes(), fetchMouvements()])
+  const avecJournal = can(getSession(), 'tresorerie:journal')
+  return Promise.all([fetchComptes(), avecJournal ? fetchMouvements() : Promise.resolve([] as MouvementTresorerie[])])
 }
 
 function MontantCell({ value }: { value?: number }) {
@@ -323,7 +326,7 @@ export default function ComptesOperationsPage({ navigateTo }: { navigateTo: (pag
           <Wallet size={18} />
           <div>
             <strong>Aucun compte de trésorerie</strong>
-            <p>{canManage ? 'Créez le premier compte (banque, caisse ou mobile money) pour commencer à suivre les opérations.' : 'Un directeur ou un administrateur doit créer les comptes de trésorerie.'}</p>
+            <p>{canManage ? 'Créez le premier compte (banque, caisse ou mobile money) pour commencer à suivre les opérations.' : 'Les comptes de trésorerie sont créés par la Direction ou les Ressources.'}</p>
           </div>
         </article>
       ) : (

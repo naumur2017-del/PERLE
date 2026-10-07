@@ -1,7 +1,10 @@
+import tempfile
+
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from .models import CompteTresorerie, DemandePaiement, LigneBudgetaire, MouvementTresorerie, Organisation, Project, ProjectLigne, Team, User
+from .models import CompteTresorerie, DemandePaiement, LigneBudgetaire, MouvementTresorerie, Notification, Organisation, Project, ProjectLigne, Team, User
 
 
 class TresorerieComptesTests(APITestCase):
@@ -12,6 +15,10 @@ class TresorerieComptesTests(APITestCase):
         self.employee = User.objects.create_user(email='employee@treso.test', password='test', role='salarie', organisation=self.org)
         self.stranger = User.objects.create_user(email='stranger@treso.test', password='test', role='salarie', organisation=self.org)
         self.outsider = User.objects.create_user(email='outsider@treso.test', password='test', role='directeur', organisation=self.other_org)
+        ressources_team = Team.objects.create(organisation=self.org, code='RES', name='Ressources', niveau=3, is_protected=True)
+        pilotage_team = Team.objects.create(organisation=self.org, code='PIL', name='Pilotage', niveau=2, is_protected=True)
+        self.ressources = User.objects.create_user(email='res@treso.test', password='test', role='salarie', organisation=self.org, team=ressources_team)
+        self.pilotage = User.objects.create_user(email='pil@treso.test', password='test', role='salarie', organisation=self.org, team=pilotage_team)
         team = Team.objects.create(organisation=self.org, code='T1', name='Finance', manager=self.employee)
         self.employee.team = team
         self.employee.save(update_fields=['team'])
@@ -25,6 +32,13 @@ class TresorerieComptesTests(APITestCase):
         response = self.client.post('/api/tresorerie/comptes/', data, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         return response.data
+
+    def post_payment(self, data):
+        """Ordonnance établie par les Ressources ; le client revient ensuite à la Direction."""
+        self.client.force_authenticate(self.ressources)
+        response = self.client.post('/api/paiements/', data, format='json')
+        self.client.force_authenticate(self.director)
+        return response
 
     def payment_data(self, compte, **overrides):
         return {
@@ -42,13 +56,29 @@ class TresorerieComptesTests(APITestCase):
         negative = self.client.post('/api/tresorerie/comptes/', {'nom': 'Neg', 'code': '1', 'solde_initial': -5}, format='json')
         self.assertEqual(negative.status_code, 400)
 
-    def test_only_director_or_admin_creates_and_replenishes(self):
+    def test_only_direction_and_ressources_create_and_replenish(self):
         compte = self.create_compte()
+        self.client.force_authenticate(self.ressources)
+        self.assertEqual(self.client.post('/api/tresorerie/comptes/', {'nom': 'Caisse', 'code': '571'}, format='json').status_code, 201)
+        self.assertEqual(self.client.post(f"/api/tresorerie/comptes/{compte['id']}/rapprovisionner/", {'montant': 10, 'libelle': 'Apport'}, format='json').status_code, 201)
+        self.client.force_authenticate(self.pilotage)
+        self.assertEqual(self.client.post('/api/tresorerie/comptes/', {'nom': 'Y', 'code': 'Y'}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(f"/api/tresorerie/comptes/{compte['id']}/rapprovisionner/", {'montant': 10, 'libelle': 'Apport'}, format='json').status_code, 403)
         self.client.force_authenticate(self.employee)
         self.assertEqual(self.client.post('/api/tresorerie/comptes/', {'nom': 'X', 'code': 'X'}, format='json').status_code, 403)
         self.assertEqual(self.client.post(f"/api/tresorerie/comptes/{compte['id']}/rapprovisionner/", {'montant': 10, 'libelle': 'Apport'}, format='json').status_code, 403)
         self.client.force_authenticate(self.stranger)
         self.assertEqual(self.client.get('/api/tresorerie/comptes/').status_code, 403)
+
+    def test_journal_reserved_to_direction_pilotage_ressources(self):
+        self.assertEqual(self.client.get('/api/tresorerie/mouvements/').status_code, 200)
+        for user in (self.pilotage, self.ressources):
+            self.client.force_authenticate(user)
+            self.assertEqual(self.client.get('/api/tresorerie/mouvements/').status_code, 200)
+        # Un simple manager d'équipe voit les comptes mais pas le journal.
+        self.client.force_authenticate(self.employee)
+        self.assertEqual(self.client.get('/api/tresorerie/comptes/').status_code, 200)
+        self.assertEqual(self.client.get('/api/tresorerie/mouvements/').status_code, 403)
 
     def test_organisation_isolation(self):
         compte = self.create_compte()
@@ -74,6 +104,9 @@ class TresorerieComptesTests(APITestCase):
         self.assertEqual(journal[0]['beneficiaire'], self.org.name)
         self.assertEqual(journal[0]['origine'], 'Siège')
         self.assertEqual(journal[0]['initiateur_nom'], '')  # le directeur de test n'a pas de nom renseigné
+        # Alerte à chaque mouvement : les Ressources sont prévenues, pas l'auteur du rapprovisionnement.
+        self.assertEqual(Notification.objects.filter(user=self.ressources, cible_type='mouvement').count(), 1)
+        self.assertFalse(Notification.objects.filter(user=self.director, cible_type='mouvement').exists())
 
     def test_replenish_rejects_non_positive_amount(self):
         compte = self.create_compte()
@@ -82,18 +115,29 @@ class TresorerieComptesTests(APITestCase):
 
     def test_submission_requires_account(self):
         data = self.payment_data(None)
-        response = self.client.post('/api/paiements/', data, format='json')
+        response = self.post_payment(data)
         self.assertEqual(response.status_code, 400)
         self.assertIn('compte', response.data)
-        draft = self.client.post('/api/paiements/', {**data, 'statut': 'brouillon'}, format='json')
+        draft = self.post_payment({**data, 'statut': 'brouillon'})
         self.assertEqual(draft.status_code, 201, draft.data)
+
+    def validate_and_execute(self, payment_id, mode='Virement bancaire'):
+        """Direction valide, puis Ressources exécutent avec le justificatif ; le client revient à la Direction."""
+        response = self.client.post(f'/api/paiements/{payment_id}/validation/', {'decision': 'accepte'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.client.force_authenticate(self.ressources)
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            response = self.client.post(f'/api/paiements/{payment_id}/execution/', {
+                'fichier': SimpleUploadedFile('preuve.pdf', b'%PDF-1.4 test', content_type='application/pdf'),
+                'mode_paiement': mode, 'commentaire': 'Payé',
+            }, format='multipart')
+        self.client.force_authenticate(self.director)
+        return response
 
     def test_execution_debits_chosen_account_and_journals_it(self):
         compte = self.create_compte(solde_initial=1000)
-        payment = self.client.post('/api/paiements/', self.payment_data(compte['id']), format='json').data
-        response = self.client.post(f"/api/paiements/{payment['id']}/decision/", {
-            'decision': 'accepte', 'commentaire': 'Payé', 'mode_paiement': 'Virement bancaire',
-        }, format='json')
+        payment = self.post_payment(self.payment_data(compte['id'])).data
+        response = self.validate_and_execute(payment['id'])
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['compte_nom'], 'BICEC')
         self.assertEqual(self.client.get('/api/tresorerie/comptes/').data[0]['solde_actuel'], 600)
@@ -103,27 +147,25 @@ class TresorerieComptesTests(APITestCase):
         self.assertEqual(movement.montant, 400)
         self.assertEqual(movement.beneficiaire, 'ETS Bureautique')
         self.assertEqual(movement.projet, self.project)
-        self.assertEqual(movement.executeur, self.director)
+        self.assertEqual(movement.executeur, self.ressources)
         journal = self.client.get('/api/tresorerie/mouvements/').data
         self.assertEqual(journal[0]['reference'], f"PAY-{movement.created_at.year}-{payment['id']:06d}")
         self.assertEqual(journal[0]['projet_code'], 'PRJ1')
 
     def test_execution_refused_when_balance_is_insufficient(self):
         compte = self.create_compte(solde_initial=100)
-        payment = self.client.post('/api/paiements/', self.payment_data(compte['id']), format='json').data
-        response = self.client.post(f"/api/paiements/{payment['id']}/decision/", {
-            'decision': 'accepte', 'commentaire': 'Payé', 'mode_paiement': 'Espèces',
-        }, format='json')
+        payment = self.post_payment(self.payment_data(compte['id'])).data
+        response = self.validate_and_execute(payment['id'], mode='Espèces')
         self.assertEqual(response.status_code, 400)
         self.assertIn('compte', response.data)
-        self.assertEqual(DemandePaiement.objects.get(pk=payment['id']).statut, 'attente')
+        self.assertEqual(DemandePaiement.objects.get(pk=payment['id']).statut, 'valide')
         self.assertFalse(MouvementTresorerie.objects.exists())
         self.assertEqual(self.client.get('/api/tresorerie/comptes/').data[0]['solde_actuel'], 100)
 
     def test_refusal_does_not_debit(self):
         compte = self.create_compte()
-        payment = self.client.post('/api/paiements/', self.payment_data(compte['id']), format='json').data
-        response = self.client.post(f"/api/paiements/{payment['id']}/decision/", {'decision': 'refuse', 'commentaire': 'Non'}, format='json')
+        payment = self.post_payment(self.payment_data(compte['id'])).data
+        response = self.client.post(f"/api/paiements/{payment['id']}/validation/", {'decision': 'refuse', 'motif': 'Non'}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(MouvementTresorerie.objects.exists())
         self.assertEqual(self.client.get('/api/tresorerie/comptes/').data[0]['solde_actuel'], 1000)

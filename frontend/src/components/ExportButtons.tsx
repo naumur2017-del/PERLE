@@ -44,12 +44,14 @@ const FORMATS: { format: FormatExport; label: string }[] = [
 
 // Boutons Exporter (PDF, Excel, CSV) et Imprimer, identiques sur toutes les pages : ils travaillent
 // sur le tableau tel qu'il est affiché (filtres et période appliqués).
-export default function ExportButtons({ tableau, disabled = false, className = 'export-btn', avecImpression = true }: {
+export default function ExportButtons({ tableau, disabled = false, className = 'export-btn', avecImpression = true, exporterPdf }: {
   tableau: TableauExport
   disabled?: boolean
   className?: string
   // false quand la page propose déjà sa propre impression (ex. organigramme).
   avecImpression?: boolean
+  // Remplace l'export PDF du tableau quand la page exporte autre chose (ex. le schéma de l'organigramme).
+  exporterPdf?: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -60,7 +62,8 @@ export default function ExportButtons({ tableau, disabled = false, className = '
     if (busy) return
     setBusy(true); setError('')
     try {
-      await exporterTableau(format, tableau)
+      if (format === 'pdf' && exporterPdf) await exporterPdf()
+      else await exporterTableau(format, tableau)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export impossible.')
     } finally {

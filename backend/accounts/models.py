@@ -973,10 +973,21 @@ class DemandePaiement(models.Model):
     objet = models.TextField(blank=True)
     commentaires = models.CharField(max_length=500, blank=True)
     mode_paiement = models.CharField(max_length=40, blank=True, choices=[('Virement bancaire', 'Virement bancaire'), ('Mobile Money', 'Mobile Money'), ('Espèces', 'Espèces'), ('Chèque', 'Chèque')])
-    statut = models.CharField(max_length=12, default='brouillon', choices=[('brouillon', 'Brouillon'), ('attente', 'En attente d’exécution'), ('execute', 'Exécuté (Accepté)'), ('refuse', 'Refusé')])
-    # Compte à débiter à l'exécution (voir PaiementDecisionView) — obligatoire pour soumettre la demande.
+    # Circuit : brouillon → attente (soumise, à valider par la Direction) → valide (acceptée, à
+    # exécuter par les Ressources) → execute ; ou attente → refuse (motif obligatoire).
+    # Voir PaiementValidationView et PaiementExecutionView.
+    statut = models.CharField(max_length=12, default='brouillon', choices=[
+        ('brouillon', 'Brouillon'), ('attente', 'En attente de validation'),
+        ('valide', 'Validé — en attente d’exécution'), ('execute', 'Exécuté'), ('refuse', 'Refusé'),
+    ])
+    # Compte à débiter à l'exécution (voir PaiementExecutionView) — obligatoire pour soumettre la demande.
     compte = models.ForeignKey('CompteTresorerie', on_delete=models.PROTECT, null=True, blank=True, related_name='demandes_paiement')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    # Validation (ou refus) par la Direction.
+    valide_par = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    valide_le = models.DateTimeField(null=True, blank=True)
+    motif_refus = models.TextField(blank=True)
+    # Exécution par les Ressources (decided_* : nom historique, conservé pour le tableau de bord).
     decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
     commentaire_execution = models.TextField(blank=True)
     justificatif = models.FileField(upload_to='paiements/%Y/%m/', blank=True)

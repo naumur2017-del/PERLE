@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
   BadgeCheck, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  CircleDot, FileText, Info, MoreVertical, Paperclip, Receipt, Search, Upload, Wallet, X,
+  CircleDot, FileText, Info, Paperclip, Receipt, Search, ShieldCheck, Upload, Wallet, X,
 } from 'lucide-react'
 import { ColumnsMenu, useColumnVisibility, type ColumnDef } from '../components/ColumnsMenu'
 import { currencySuffix } from '../utils/currency'
-import { fetchPaiements, decidePaiement, downloadJustificatif, paiementDate, paiementError, type Paiement } from '../api/paiements'
+import { MODES_PAIEMENT, executerPaiement, fetchPaiements, downloadJustificatif, paiementDate, paiementError, type Paiement } from '../api/paiements'
 import { getSession } from '../auth/session'
+import { can } from '../auth/permissions'
 import DatePicker from '../components/DatePicker'
 import './PaiementsExecutesPage.css'
 
@@ -32,6 +33,7 @@ const fmtMontant = (value: number) => value.toLocaleString('fr-FR')
 const statutClass = (statut: string) => {
   if (statut === 'Refusé') return 'refuse'
   if (statut.startsWith('Exécuté')) return 'execute'
+  if (statut.startsWith('Validé')) return 'valide'
   return 'attente'
 }
 
@@ -76,10 +78,12 @@ const PAIEMENT_CELL_DEFS: Record<PaiementColumnId, { className?: string; render:
   statut: { render: (p) => <span className={`pe-pill pe-pill-${statutClass(p.statut)}`}>{p.statut}</span> },
 }
 
-function JustificatifModal({ paiement, onClose, onDecision, busy, error }: {
+// Exécution par les Ressources : l'ordonnance a déjà été validée par la Direction ; il reste à
+// joindre le justificatif du paiement (obligatoire) et à préciser le mode de paiement.
+function ExecutionModal({ paiement, onClose, onExecute, busy, error }: {
   paiement: PaiementAExecuter
   onClose: () => void
-  onDecision: (decision: 'accepte' | 'refuse', commentaire: string, fichier: File | null, mode: string) => void
+  onExecute: (fichier: File, mode: string, commentaire: string) => void
   busy: boolean
   error: string
 }) {
@@ -88,48 +92,45 @@ function JustificatifModal({ paiement, onClose, onDecision, busy, error }: {
   const [fichier, setFichier] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const hasJustificatif = commentaire.trim() !== '' || fichier !== null
-
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setFichier(event.target.files?.[0] ?? null)
   }
 
   return (
-    <div className="pe-modal-overlay" role="dialog" aria-modal="true" aria-label="Justificatif du paiement" onMouseDown={() => { if (!busy) onClose() }}>
+    <div className="pe-modal-overlay" role="dialog" aria-modal="true" aria-label="Exécuter le paiement" onMouseDown={() => { if (!busy) onClose() }}>
       <div className="pe-modal" onMouseDown={(event) => event.stopPropagation()}>
         <div className="pe-modal-head">
           <div>
-            <h3>Justificatif</h3>
+            <h3>Exécuter le paiement</h3>
             <p>{paiement.numero} · {paiement.fournisseur} · {fmtMontant(paiement.montant)} {paiement.devise}</p>
           </div>
           <button type="button" className="pe-modal-close" disabled={busy} onClick={onClose} aria-label="Fermer"><X size={16} /></button>
         </div>
 
         {error && <p role="alert">{error}</p>}
-        <label className="pe-modal-field">Mode de paiement
-          <select value={mode} onChange={(event) => setMode(event.target.value)} disabled={busy}>
-            <option value="">Sélectionner un mode de paiement</option>
-            {['Virement bancaire', 'Mobile Money', 'Espèces', 'Chèque'].map((item) => <option key={item}>{item}</option>)}
-          </select>
-        </label>
-        <label className="pe-modal-field">Commentaire / description
-          <textarea rows={4} value={commentaire} onChange={(event) => setCommentaire(event.target.value)} placeholder="Ajouter un commentaire justifiant l'exécution..." />
-        </label>
-
         <div className="pe-modal-upload">
           <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" className="pe-hidden-input" onChange={handleFileChange} />
           <button type="button" className="pe-modal-upload-btn" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={14} />Joindre une image ou un document
+            <Upload size={14} />{fichier ? 'Changer le justificatif' : 'Joindre le justificatif (obligatoire)'}
           </button>
           {fichier && <span className="pe-modal-file"><Paperclip size={12} />{fichier.name}</span>}
         </div>
+        <label className="pe-modal-field">Mode de paiement
+          <select value={mode} onChange={(event) => setMode(event.target.value)} disabled={busy}>
+            <option value="">Sélectionner un mode de paiement</option>
+            {MODES_PAIEMENT.map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </label>
+        <label className="pe-modal-field">Commentaire (facultatif)
+          <textarea rows={3} value={commentaire} onChange={(event) => setCommentaire(event.target.value)} placeholder="Référence du virement, remarque…" />
+        </label>
 
-        {hasJustificatif && (
-          <div className="pe-modal-actions">
-            <button type="button" className="pe-modal-refuse" disabled={busy} onClick={() => onDecision('refuse', commentaire, fichier, mode)}>Refuser</button>
-            <button type="button" className="pe-modal-accept" disabled={busy || !mode} onClick={() => onDecision('accepte', commentaire, fichier, mode)}>Accepter</button>
-          </div>
-        )}
+        <div className="pe-modal-actions">
+          <button type="button" className="pe-modal-refuse" disabled={busy} onClick={onClose}>Annuler</button>
+          <button type="button" className="pe-modal-accept" disabled={busy || !mode || !fichier} onClick={() => { if (fichier) onExecute(fichier, mode, commentaire) }}>
+            {busy ? 'Exécution…' : 'Exécuter le paiement'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -145,7 +146,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
   const [filters, setFilters] = useState({ projet: '', ligneBudgetaire: '', fournisseur: '', modePaiement: '', from: '', to: '' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const canDecide = ['admin', 'directeur'].includes(getSession()?.role ?? '')
+  const canExecute = can(getSession(), 'tresorerie:execution')
   useEffect(() => {
     let active = true
     fetchPaiements().then((data) => { if (active) setRecords(data) })
@@ -153,15 +154,16 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
-  const paiements: PaiementAExecuter[] = records.filter((record) => record.statut === 'attente').map((record) => ({
+  // À exécuter : uniquement les ordonnances validées par la Direction.
+  const paiements: PaiementAExecuter[] = records.filter((record) => record.statut === 'valide').map((record) => ({
     id: record.id, numero: record.paiement_numero, echeance: paiementDate(record.date_depense), demandeCode: record.numero,
     projet: record.projet_nom, ligneBudgetaire: record.ligne_budgetaire_nom, fournisseur: record.fournisseur,
     mercurial: '—', montant: record.montant, devise: record.devise, modePaiement: record.mode_paiement || '—',
     justificatifNom: record.justificatif_nom || '—', justificatifTaille: '', statut: record.statut_libelle,
   }))
-  const historique = records.filter((record) => record.statut === 'execute' || record.statut === 'refuse').map((record) => ({
+  const historique = records.filter((record) => record.statut === 'execute').map((record) => ({
     record, reference: record.paiement_numero, projet: record.projet_nom, libelle: record.objet, beneficiaire: record.fournisseur,
-    montant: record.montant, date: paiementDate(record.decided_at), statut: record.statut_libelle,
+    montant: record.montant, date: paiementDate(record.decided_at), statut: record.statut_libelle, executePar: record.execute_par_nom,
   }))
   const [search, setSearch] = useState('')
   const [activeNumero, setActiveNumero] = useState<string | null>(null)
@@ -187,17 +189,18 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
   const currentPage = Math.min(page, pageCount)
   const visiblePaiements = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const updateFilter = (key: keyof typeof filters, value: string) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1) }
-  const handleDecision = async (decision: 'accepte' | 'refuse', commentaire: string, fichier: File | null, mode: string) => {
+  const handleExecute = async (fichier: File, mode: string, commentaire: string) => {
     if (!activePaiement || busy) return
     setBusy(true); setDecisionError('')
     try {
-      const saved = await decidePaiement(activePaiement.id, decision, commentaire, fichier, mode)
+      const saved = await executerPaiement(activePaiement.id, fichier, mode, commentaire)
       setRecords((current) => current.map((record) => record.id === saved.id ? saved : record))
-      onNotify(`Paiement ${saved.paiement_numero} : ${saved.statut_libelle}.`)
+      onNotify(`Paiement ${saved.paiement_numero} exécuté : le compte ${saved.compte_nom} a été débité.`)
       setActiveNumero(null)
     } catch (err) { setDecisionError(paiementError(err)) }
     finally { setBusy(false) }
   }
+  const ouvrir = (numero: string) => { if (!canExecute) return; setDecisionError(''); setActiveNumero(numero) }
   const download = async (record: Paiement) => {
     try { await downloadJustificatif(record) }
     catch (err) { setError(paiementError(err)) }
@@ -209,6 +212,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
       {error && <p role="alert">{error}</p>}
       <nav className="pe-subtabs">
         <button onClick={() => navigateTo('tresorerie')}><Receipt size={14} />Ordonnances des paiements</button>
+        <button onClick={() => navigateTo('tresorerie-validation')}><ShieldCheck size={14} />Validation des paiements</button>
         <button className="active" onClick={() => navigateTo('tresorerie-paiements')}><BadgeCheck size={14} />Exécutions des paiements</button>
         <button onClick={() => navigateTo('tresorerie-comptes')}><Wallet size={14} />Comptes et opérations</button>
         <button onClick={() => navigateTo('tresorerie-rapports')}><CircleDot size={14} />Journal de la trésorerie</button>
@@ -223,7 +227,9 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
         <>
           <div className="pe-exec-heading">
             <h2>Nouvelle exécution (paiements à exécuter) <Info size={13} /></h2>
-            <p>Liste des demandes soumises en attente d’exécution.</p>
+            <p>{canExecute
+              ? 'Ordonnances validées par la Direction. Cliquez sur une ligne pour joindre le justificatif et exécuter le paiement.'
+              : 'Ordonnances validées par la Direction, en attente d’exécution par les Ressources.'}</p>
           </div>
 
           <div className="pe-filters">
@@ -251,20 +257,20 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
                 </thead>
                 <tbody>
                   {visiblePaiements.map((paiement) => (
-                    <tr key={paiement.numero}>
+                    <tr key={paiement.numero} className={canExecute ? 'pe-row-clickable' : undefined} onClick={() => ouvrir(paiement.numero)}>
                       {visibleColumns.map((c) => {
                         const def = PAIEMENT_CELL_DEFS[c.id]
                         return <td key={c.id} className={def.className}>{def.render(paiement)}</td>
                       })}
                       <td>
-                        <button type="button" className="pe-row-action" aria-label="Décider de l’exécution" disabled={!canDecide} title={canDecide ? 'Décider de l’exécution' : 'Réservé aux administrateurs et directeurs'} onClick={() => { setDecisionError(''); setActiveNumero(paiement.numero) }}>
-                          <MoreVertical size={14} />
+                        <button type="button" className="pe-row-action" aria-label="Exécuter le paiement" disabled={!canExecute} title={canExecute ? 'Joindre le justificatif et exécuter' : 'Réservé aux Ressources'} onClick={(event) => { event.stopPropagation(); ouvrir(paiement.numero) }}>
+                          <Upload size={14} />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={visibleColumns.length + 1} className="pe-empty">Aucun paiement ne correspond à cette recherche.</td></tr>
+                    <tr><td colSpan={visibleColumns.length + 1} className="pe-empty">{paiements.length === 0 ? 'Aucune ordonnance validée en attente d’exécution.' : 'Aucun paiement ne correspond à cette recherche.'}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -297,10 +303,10 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
           <div className="pe-table-wrap">
             <table className="pe-table">
               <thead>
-                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Bénéficiaire</th><th>{`Montant (${currencySuffix()})`}</th><th>Date</th><th>Statut</th><th>Justificatif / commentaire</th></tr>
+                <tr><th>Référence</th><th>Projet</th><th>Libellé</th><th>Bénéficiaire</th><th>{`Montant (${currencySuffix()})`}</th><th>Date</th><th>Exécuté par</th><th>Statut</th><th>Justificatif / commentaire</th></tr>
               </thead>
               <tbody>
-                {historique.length === 0 && <tr><td colSpan={8} className="pe-empty">{loading ? 'Chargement…' : 'Aucune exécution enregistrée.'}</td></tr>}
+                {historique.length === 0 && <tr><td colSpan={9} className="pe-empty">{loading ? 'Chargement…' : 'Aucune exécution enregistrée.'}</td></tr>}
                 {historique.map((entry) => (
                   <tr key={entry.reference}>
                     <td className="pe-code">{entry.reference}</td>
@@ -309,6 +315,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
                     <td>{entry.beneficiaire}</td>
                     <td className="pe-montant">{fmtMontant(entry.montant)}</td>
                     <td>{entry.date}</td>
+                    <td>{entry.executePar || '—'}</td>
                     <td><span className={`pe-pill pe-pill-${statutClass(entry.statut)}`}>{entry.statut}</span></td>
                     <td>{entry.record.commentaire_execution}{entry.record.justificatif_nom && <button type="button" onClick={() => void download(entry.record)}><FileText size={14} />{entry.record.justificatif_nom}</button>}</td>
                   </tr>
@@ -320,7 +327,7 @@ export default function PaiementsExecutesPage({ navigateTo, onNotify }: { naviga
       )}
 
       {activePaiement && (
-        <JustificatifModal paiement={activePaiement} onClose={() => setActiveNumero(null)} onDecision={handleDecision} busy={busy} error={decisionError} />
+        <ExecutionModal paiement={activePaiement} onClose={() => setActiveNumero(null)} onExecute={(fichier, mode, commentaire) => void handleExecute(fichier, mode, commentaire)} busy={busy} error={decisionError} />
       )}
     </section>
   )

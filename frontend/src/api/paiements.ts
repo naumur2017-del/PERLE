@@ -20,8 +20,14 @@ export interface Paiement {
   objet: string
   commentaires: string
   mode_paiement: string
-  statut: 'brouillon' | 'attente' | 'execute' | 'refuse'
+  // Circuit : brouillon → attente (à valider par la Direction) → valide (à exécuter par les
+  // Ressources) → execute ; ou attente → refuse (motif_refus renseigné).
+  statut: 'brouillon' | 'attente' | 'valide' | 'execute' | 'refuse'
   statut_libelle: string
+  valide_par_nom: string
+  valide_le: string | null
+  motif_refus: string
+  execute_par_nom: string
   // Compte à débiter à l'exécution (voir PaiementSerializer) — obligatoire pour soumettre la demande.
   compte: number | null
   compte_nom: string
@@ -53,15 +59,24 @@ export const fetchPaiements = () => apiGet<Paiement[]>('/paiements/')
 export const createPaiement = (data: PaiementForm) => apiPostUpload<Paiement>('/paiements/', paiementFormData(data))
 export const updatePaiement = (id: number, data: PaiementForm) => apiUpload<Paiement>(`/paiements/${id}/`, paiementFormData(data))
 export const deletePaiement = (id: number) => apiDelete(`/paiements/${id}/`)
-export const decidePaiement = (id: number, decision: 'accepte' | 'refuse', commentaire: string, fichier: File | null, mode: string) => {
+export const MODES_PAIEMENT = ['Virement bancaire', 'Mobile Money', 'Espèces', 'Chèque']
+
+// Direction : accepter, ou refuser avec la raison du refus (obligatoire).
+export const validerPaiement = (id: number, decision: 'accepte' | 'refuse', motif = '') => {
   const data = new FormData()
   data.append('decision', decision)
-  data.append('commentaire', commentaire)
-  if (mode) data.append('mode_paiement', mode)
-  if (fichier) data.append('fichier', fichier)
-  return apiPostUpload<Paiement>(`/paiements/${id}/decision/`, data)
+  data.append('motif', motif)
+  return apiPostUpload<Paiement>(`/paiements/${id}/validation/`, data)
 }
 
+// Ressources : exécuter une ordonnance validée en y joignant le justificatif du paiement.
+export const executerPaiement = (id: number, fichier: File, mode: string, commentaire: string) => {
+  const data = new FormData()
+  data.append('fichier', fichier)
+  data.append('mode_paiement', mode)
+  data.append('commentaire', commentaire)
+  return apiPostUpload<Paiement>(`/paiements/${id}/execution/`, data)
+}
 export async function downloadJustificatif(paiement: Paiement) {
   const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api'
   const response = await fetch(`${base}/paiements/${paiement.id}/justificatif/`, {

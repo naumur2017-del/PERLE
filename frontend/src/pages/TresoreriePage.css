@@ -208,6 +208,7 @@
 .tr-pill-correction { background: #fef3c7; color: #b45309; }
 .tr-pill-paye { background: #dcfce7; color: #15803d; }
 .tr-pill-brouillon { background: #fef1d8; color: #c2740a; }
+.tr-suivi { max-width: 340px; font-size: 13px; color: #5b5b76; line-height: 1.35; }
 
 .tr-draft-actions { display: flex; align-items: center; gap: 6px; }
 

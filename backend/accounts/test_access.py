@@ -6,8 +6,9 @@ from rest_framework.test import APITestCase
 
 from .access import (
     can_access_config, can_access_new_staffing, can_manage_employee_documents,
-    can_manage_projects, can_manage_teams, can_view_treasury, feature_permissions,
-    is_org_supervisor,
+    can_create_payment_orders, can_manage_projects, can_manage_teams, can_manage_treasury_accounts,
+    can_view_treasury_journal, can_view_treasury, feature_permissions,
+    is_org_supervisor, is_team_structure_in_place,
 )
 from .models import Organisation, Team, User, create_default_teams
 
@@ -135,9 +136,9 @@ class ProjectAccessTests(APITestCase):
     # --- payload session -------------------------------------------
     def test_login_exposes_permissions(self):
         for email, expected in (
-            ('pil@acc.test', ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:view']),
-            ('res@acc.test', ['employes:contrat', 'equipes:manage', 'staffing:new', 'tresorerie:view']),
-            ('dg@acc.test', ['config:view', 'projets:create', 'staffing:new', 'tresorerie:view']),
+            ('pil@acc.test', ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:journal', 'tresorerie:view']),
+            ('res@acc.test', ['employes:contrat', 'employes:create', 'equipes:manage', 'staffing:new', 'tresorerie:execution', 'tresorerie:journal', 'tresorerie:manage_comptes', 'tresorerie:ordonnances', 'tresorerie:view']),
+            ('dg@acc.test', ['config:view', 'projets:create', 'staffing:new', 'tresorerie:journal', 'tresorerie:manage_comptes', 'tresorerie:validation', 'tresorerie:view']),
             ('none@acc.test', []),
         ):
             response = self.client.post('/api/auth/login/', {'email': email, 'password': 'x'}, format='json')
@@ -147,15 +148,15 @@ class ProjectAccessTests(APITestCase):
     def test_feature_permissions_helper(self):
         self.assertEqual(
             feature_permissions(self.pilotage_member),
-            ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:view'],
+            ['config:view', 'equipes:manage', 'projets:create', 'staffing:new', 'tresorerie:journal', 'tresorerie:view'],
         )
         self.assertEqual(
             feature_permissions(self.ressources_member),
-            ['employes:contrat', 'equipes:manage', 'staffing:new', 'tresorerie:view'],
+            ['employes:contrat', 'employes:create', 'equipes:manage', 'staffing:new', 'tresorerie:execution', 'tresorerie:journal', 'tresorerie:manage_comptes', 'tresorerie:ordonnances', 'tresorerie:view'],
         )
         self.assertEqual(
             feature_permissions(self.direction_member),
-            ['config:view', 'projets:create', 'staffing:new', 'tresorerie:view'],
+            ['config:view', 'projets:create', 'staffing:new', 'tresorerie:journal', 'tresorerie:manage_comptes', 'tresorerie:validation', 'tresorerie:view'],
         )
         self.assertEqual(feature_permissions(self.no_team), [])
 
@@ -284,3 +285,101 @@ class EmployeeContractAccessTests(APITestCase):
             response = self.client.get('/api/employees/me/')
             self.assertEqual(response.status_code, 200, response.data)
             self.assertTrue(response.data['contrat_document'])
+
+
+class TeamStructureLockTests(APITestCase):
+    """Une fois les équipes créées et les managers du Pilotage et des Ressources nommés, la
+    Direction et le Pilotage perdent la gestion des équipes : seules les Ressources la gardent."""
+
+    def setUp(self):
+        self.org = Organisation.objects.create(name='Lock', org_type='company', currency_code='EUR')
+        self.director = User.objects.create_user(
+            email='dir@lock.test', password='x', role='directeur', organisation=self.org,
+            first_name='D', last_name='I')
+        create_default_teams(self.org, self.director)
+        self.pilotage = Team.objects.get(organisation=self.org, code='PIL')
+        self.ressources = Team.objects.get(organisation=self.org, code='RES')
+        self.pil_manager = User.objects.create_user(
+            email='pil@lock.test', password='x', role='salarie', organisation=self.org,
+            first_name='P', last_name='M', team=self.pilotage)
+        self.res_manager = User.objects.create_user(
+            email='res@lock.test', password='x', role='salarie', organisation=self.org,
+            first_name='R', last_name='M', team=self.ressources)
+        self.res_member = User.objects.create_user(
+            email='res2@lock.test', password='x', role='salarie', organisation=self.org,
+            first_name='R', last_name='2', team=self.ressources)
+
+    def _put_structure_in_place(self):
+        Team.objects.create(organisation=self.org, code='OPS', name='Opérations', niveau=4)
+        self.pilotage.manager = self.pil_manager
+        self.pilotage.save(update_fields=['manager'])
+        self.ressources.manager = self.res_manager
+        self.ressources.save(update_fields=['manager'])
+
+    def test_before_structure_direction_and_pilotage_manage_teams(self):
+        self.assertFalse(is_team_structure_in_place(self.org))
+        self.assertTrue(can_manage_teams(self.director))
+        self.assertTrue(can_manage_teams(self.pil_manager))
+        self.assertTrue(can_manage_teams(self.res_member))
+
+    def test_managers_without_extra_team_do_not_lock(self):
+        self.pilotage.manager = self.pil_manager
+        self.pilotage.save(update_fields=['manager'])
+        self.ressources.manager = self.res_manager
+        self.ressources.save(update_fields=['manager'])
+        self.assertFalse(is_team_structure_in_place(self.org))
+        self.assertTrue(can_manage_teams(self.director))
+
+    def test_after_structure_only_ressources_manage_teams(self):
+        self._put_structure_in_place()
+        self.assertTrue(is_team_structure_in_place(self.org))
+        self.assertFalse(can_manage_teams(self.director))
+        self.assertFalse(can_manage_teams(self.pil_manager))
+        self.assertTrue(can_manage_teams(self.res_manager))
+        self.assertTrue(can_manage_teams(self.res_member))
+        self.assertNotIn('equipes:manage', feature_permissions(self.director))
+        # La Direction garde sa vue globale.
+        self.assertTrue(is_org_supervisor(self.director))
+
+    def test_director_cannot_create_team_once_structure_in_place(self):
+        self._put_structure_in_place()
+        self.client.force_authenticate(self.director)
+        response = self.client.post('/api/teams/', {'name': 'Nouvelle', 'niveau': 4}, format='json')
+        self.assertEqual(response.status_code, 403)
+        self.client.force_authenticate(self.res_member)
+        response = self.client.post('/api/teams/', {'name': 'Nouvelle', 'niveau': 4}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_removing_a_manager_unlocks(self):
+        self._put_structure_in_place()
+        self.ressources.manager = None
+        self.ressources.save(update_fields=['manager'])
+        self.assertFalse(is_team_structure_in_place(self.org))
+        self.assertTrue(can_manage_teams(self.director))
+
+    def test_direction_keeps_projects_and_config_after_structure(self):
+        self._put_structure_in_place()
+        self.assertTrue(can_manage_projects(self.director))
+        self.assertTrue(can_access_config(self.director))
+
+    def test_treasury_rules(self):
+        self._put_structure_in_place()
+        # Comptes (création, rapprovisionnement) : Direction + Ressources.
+        self.assertTrue(can_manage_treasury_accounts(self.director))
+        self.assertTrue(can_manage_treasury_accounts(self.res_member))
+        self.assertFalse(can_manage_treasury_accounts(self.pil_manager))
+        # Ordonnances de paiement : managers d'équipe et Ressources ; la Direction les valide.
+        self.assertTrue(can_create_payment_orders(self.res_member))
+        self.assertTrue(can_create_payment_orders(self.pil_manager))
+        self.assertFalse(can_create_payment_orders(self.director))
+        # Journal : Direction, Pilotage et Ressources — pas un simple manager d'équipe.
+        ops = Team.objects.get(organisation=self.org, code='OPS')
+        ops_manager = User.objects.create_user(
+            email='ops@lock.test', password='x', role='salarie', organisation=self.org,
+            first_name='O', last_name='M')
+        ops.manager = ops_manager
+        ops.save(update_fields=['manager'])
+        for user in (self.director, self.pil_manager, self.res_member):
+            self.assertTrue(can_view_treasury_journal(user))
+        self.assertFalse(can_view_treasury_journal(ops_manager))
+        self.assertTrue(can_view_treasury(ops_manager))

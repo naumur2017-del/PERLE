@@ -9,9 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .access import CanViewTreasury, can_manage_treasury_accounts
+from .access import CanViewTreasury, CanViewTreasuryJournal, can_manage_treasury_accounts
 from .models import CompteTresorerie, MouvementTresorerie
-from .paiements import _validate_justificatif
+from .paiements import _alerter, _direction, _ressources, _validate_justificatif
 
 
 def _nom_utilisateur(user):
@@ -110,7 +110,7 @@ class CompteListCreateView(TresorerieScope, generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         if not can_manage_treasury_accounts(request.user):
-            raise PermissionDenied('Seuls les administrateurs et directeurs peuvent créer un compte.')
+            raise PermissionDenied('Seules la Direction et les Ressources peuvent créer un compte.')
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -120,7 +120,7 @@ class CompteListCreateView(TresorerieScope, generics.ListCreateAPIView):
 class CompteRapprovisionnerView(TresorerieScope, APIView):
     def post(self, request, pk):
         if not can_manage_treasury_accounts(request.user):
-            raise PermissionDenied('Seuls les administrateurs et directeurs peuvent rapprovisionner un compte.')
+            raise PermissionDenied('Seules la Direction et les Ressources peuvent rapprovisionner un compte.')
         serializer = RapprovisionnementSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -134,10 +134,19 @@ class CompteRapprovisionnerView(TresorerieScope, APIView):
                 libelle=data['libelle'], montant=data['montant'], origine=data['source'],
                 initiateur=request.user, executeur=request.user, justificatif=data.get('justificatif') or '',
             )
+        # Alerte à chaque mouvement : la Direction et les Ressources sont prévenues de l'entrée.
+        montant = f'{mouvement.montant:,.0f}'.replace(',', ' ')
+        _alerter(
+            list(_direction(compte.organisation_id)) + list(_ressources(compte.organisation_id)),
+            f'Rapprovisionnement de {compte.nom} : +{montant} {compte.organisation.currency_code} ({mouvement.libelle}).',
+            'mouvement', mouvement, sauf=request.user,
+        )
         return Response(MouvementSerializer(mouvement, context={'request': request}).data, status=201)
 
 
 class MouvementListView(TresorerieScope, generics.ListAPIView):
+    # Mouvements = journal de la trésorerie : Direction, Pilotage et Ressources seulement.
+    permission_classes = [IsAuthenticated, CanViewTreasuryJournal]
     serializer_class = MouvementSerializer
 
     def get_queryset(self):

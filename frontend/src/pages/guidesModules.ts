@@ -130,38 +130,48 @@ export const GUIDE_GESTION: GuideModule = {
 
 export const GUIDE_TRESORERIE: GuideModule = {
   titre: 'Trésorerie',
-  intro: 'La Trésorerie suit l’argent de l’organisation de la demande de paiement jusqu’au journal : ordonnances, exécutions, comptes, journal et mercuriales. Les pages sont visibles par la Direction, le Pilotage, les Ressources et les managers.',
+  intro: 'La Trésorerie suit l’argent de l’organisation de l’ordonnance de paiement jusqu’au journal : ordonnances (managers et Ressources), validation (Direction), exécutions (Ressources), comptes, journal et mercuriales. Une alerte est envoyée à chaque étape et à chaque mouvement. Les pages sont visibles par la Direction, le Pilotage, les Ressources et les managers.',
   pages: [
     {
       nom: 'Ordonnances des paiements',
-      acces: 'Toute personne ayant accès à la Trésorerie peut créer une demande.',
+      acces: 'Les managers d’équipe et les Ressources établissent les ordonnances ; chacun suit les siennes dans l’Historique.',
       description: 'Création des demandes de paiement, brouillons et historique.',
       actions: [
         'Nouvelle demande : Type de dépense (Transversal ou Non Transversal) en premier, puis Projet et Ligne budgétaire, Fournisseur / Bénéficiaire, Montant, Compte à débiter, Date de la dépense, Objet et commentaires.',
         'Une dépense Transversale n’est rattachée à aucun projet ni ligne budgétaire : les champs sont alors désactivés.',
         'Compte à débiter : obligatoire pour soumettre la demande. La liste affiche le solde de chaque compte.',
         'Justificatif (image ou PDF, 10 Mo maximum) et Code de la demande d’avance (rempli automatiquement quand la demande vient d’une avance sur salaire approuvée).',
-        'Enregistrer le brouillon pour reprendre plus tard, ou Soumettre la demande pour l’envoyer à l’exécution.',
+        'Enregistrer le brouillon pour reprendre plus tard, ou Soumettre la demande pour l’envoyer à la Direction (qui reçoit une alerte).',
         'Brouillons : liste filtrable par dates, projet, ligne budgétaire et recherche ; Modifier ou Supprimer chaque brouillon.',
-        'Historique : toutes les demandes soumises, avec leur statut.',
+        'Historique : vos ordonnances soumises, avec leur statut (En attente de validation, Validé — en attente d’exécution, Exécuté, Refusé) et une colonne Suivi (qui a validé, motif du refus, date d’exécution).',
         'Exporter les brouillons : PDF, Excel ou CSV (N° demande, projet, ligne, compte à débiter, bénéficiaire, montant, devise, statut).',
       ],
     },
     {
+      nom: 'Validation des paiements',
+      acces: 'Réservée à la Direction (directeur et équipe Direction Générale).',
+      description: 'Les ordonnances soumises attendent ici la décision de la Direction : accepter ou refuser.',
+      actions: [
+        'À valider : liste des ordonnances soumises, avec le demandeur, le projet, le fournisseur, le montant, le compte et la pièce jointe (téléchargeable).',
+        'Accepter : l’ordonnance passe dans Exécutions des paiements ; le demandeur et les Ressources sont alertés.',
+        'Refuser : la raison du refus est obligatoire ; le demandeur est alerté avec ce motif.',
+        'Historique : toutes les décisions, avec leur date, leur auteur, le statut actuel et le motif des refus.',
+      ],
+    },
+    {
       nom: 'Exécutions des paiements',
-      acces: 'La décision d’exécution est réservée à l’administrateur et au directeur.',
-      description: 'Les demandes soumises attendent ici une décision : accepter (et payer) ou refuser.',
+      acces: 'L’exécution est réservée aux Ressources.',
+      description: 'Les ordonnances validées par la Direction attendent ici leur exécution.',
       actions: [
         'Filtrer par projet, ligne budgétaire, fournisseur, mode de paiement et dates.',
-        'Ouvrir une demande pour voir son détail et son justificatif (téléchargeable).',
-        'Accepter : choisir le mode de paiement (Virement bancaire, Mobile Money, Espèces, Chèque), ajouter une preuve d’exécution ou un commentaire, puis valider.',
-        'Refuser : indiquer un commentaire ou joindre un justificatif.',
-        'Chaque décision acceptée enregistre une sortie sur le compte choisi (voir Comptes et opérations).',
+        'Cliquer sur une ligne : joindre le justificatif du paiement (obligatoire), choisir le mode de paiement (Virement bancaire, Mobile Money, Espèces, Chèque), ajouter un commentaire si besoin, puis « Exécuter le paiement ».',
+        'L’exécution enregistre une sortie sur le compte choisi (voir Comptes et opérations) et alerte le demandeur et la Direction.',
+        'Historique : paiements exécutés, avec l’exécutant et le justificatif téléchargeable.',
       ],
     },
     {
       nom: 'Comptes et opérations',
-      acces: 'Création de compte et rapprovisionnement réservés à l’administrateur et au directeur.',
+      acces: 'Création de compte et rapprovisionnement réservés à la Direction et aux Ressources. Chaque rapprovisionnement envoie une alerte.',
       description: 'Les comptes de l’organisation (banque, caisse, mobile money) et leur solde.',
       actions: [
         'Nouveau compte : Nom, Code (unique), Sous-libellé et Solde initial.',
@@ -175,7 +185,7 @@ export const GUIDE_TRESORERIE: GuideModule = {
     },
     {
       nom: 'Journal de la trésorerie',
-      acces: 'Lecture seule de toutes les opérations de la trésorerie.',
+      acces: 'Lecture seule de toutes les opérations de la trésorerie, réservée à la Direction, au Pilotage et aux Ressources.',
       description: 'Enregistrement chronologique de chaque entrée et sortie, y compris les paiements exécutés et les rapprovisionnements.',
       actions: [
         'Choisir la période : Mensuelle (un mois), Trimestrielle (T1 à T4 et une année), Annuelle, ou Date de début et de fin.',
@@ -202,8 +212,10 @@ export const GUIDE_TRESORERIE: GuideModule = {
   ],
   regles: [
     'Une demande soumise doit avoir un compte à débiter, un projet et une ligne budgétaire (sauf dépense transversale), un fournisseur, un type de dépense, une date et un objet.',
-    'Une demande acceptée ne peut être exécutée que si le solde du compte couvre le montant. Sinon la décision est refusée et rien n’est débité.',
-    'Un refus n’enregistre aucune sortie.',
+    'Circuit d’une ordonnance : soumise (En attente de validation) → validée par la Direction (Validé — en attente d’exécution) → exécutée par les Ressources (Exécuté). Seule une ordonnance validée peut être exécutée.',
+    'Une ordonnance validée ne peut être exécutée que si le solde du compte couvre le montant. Sinon l’exécution est refusée et rien n’est débité.',
+    'Un refus doit être motivé et n’enregistre aucune sortie.',
+    'Une alerte est envoyée à chaque étape (soumission, validation ou refus, exécution) et à chaque rapprovisionnement ; personne n’est alerté de sa propre action.',
     'Une demande soumise avant l’obligation du compte à débiter est repassée en brouillon : elle doit être refaite avec un compte choisi.',
     'Un paiement exécuté ne peut plus être modifié.',
   ],

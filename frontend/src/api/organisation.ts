@@ -2,6 +2,8 @@ import { apiGet, apiPatch } from './client'
 
 export interface OrganisationLevels {
   team_levels_count: number
+  // Équipes créées et managers du Pilotage et des Ressources nommés : seules les Ressources gèrent alors les équipes.
+  structure_en_place: boolean
 }
 
 export const fetchOrganisationLevels = () => apiGet<OrganisationLevels>('/organisations/levels/')

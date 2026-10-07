@@ -1,7 +1,7 @@
 // Fenêtre « toutes les alertes » ouverte depuis la cloche de l'en-tête — remplace l'ancien petit
 // menu déroulant par une présentation large, groupée par catégorie, pour qu'on distingue au
 // premier coup d'œil messages de tâches, conversations et notifications système.
-import { BellOff, CheckCircle2, ClipboardCheck, MessageCircle, MessagesSquare, TriangleAlert, UserCog, X } from 'lucide-react'
+import { BellOff, CheckCircle2, ClipboardCheck, MessageCircle, MessagesSquare, TriangleAlert, UserCog, Wallet, X } from 'lucide-react'
 import type { SystemNotification } from '../api/notifications'
 import type { UnreadConversationEntry, UnreadTaskEntry } from '../api/notifications'
 import './NotificationsPanel.css'
@@ -25,6 +25,7 @@ function systemNotificationIcon(cibleType: string) {
   if (cibleType === 'task_mention') return <MessageCircle size={16} />
   if (cibleType === 'task' || cibleType === 'task_envoyee') return <ClipboardCheck size={16} />
   if (cibleType === 'grade_demande') return <UserCog size={16} />
+  if (cibleType.startsWith('paiement') || cibleType === 'mouvement') return <Wallet size={16} />
   return <CheckCircle2 size={16} />
 }
 

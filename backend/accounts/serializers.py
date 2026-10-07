@@ -41,7 +41,7 @@ from .models import (
     next_team_code,
     vat_rate_for_country,
 )
-from .access import feature_permissions
+from .access import feature_permissions, is_team_structure_in_place
 from .holidays_utils import sync_public_holidays
 
 
@@ -57,9 +57,16 @@ class OrganisationSearchSerializer(serializers.ModelSerializer):
 
 
 class OrganisationLevelsSerializer(serializers.ModelSerializer):
+    # Structure en place : la gestion des équipes est désormais réservée aux Ressources
+    # (voir accounts.access.is_team_structure_in_place).
+    structure_en_place = serializers.SerializerMethodField()
+
     class Meta:
         model = Organisation
-        fields = ['team_levels_count']
+        fields = ['team_levels_count', 'structure_en_place']
+
+    def get_structure_en_place(self, obj):
+        return is_team_structure_in_place(obj)
 
     def validate_team_levels_count(self, value):
         current = self.instance.team_levels_count

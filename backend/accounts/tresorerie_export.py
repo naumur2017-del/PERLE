@@ -12,7 +12,7 @@ from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from .access import CanViewTreasury
+from .access import CanViewTreasuryJournal
 from .exports import MIME, reponse_tableau
 from .models import MouvementTresorerie
 from .tresorerie import MouvementSerializer
@@ -69,7 +69,7 @@ class JournalExportSerializer(serializers.Serializer):
 class JournalExportView(APIView):
     """POST : télécharge le journal (CSV, Excel ou PDF) pour les mouvements affichés dans le tableau.
     Seuls les mouvements de l'organisation de l'utilisateur sont retenus, même si d'autres identifiants sont envoyés."""
-    permission_classes = [IsAuthenticated, CanViewTreasury]
+    permission_classes = [IsAuthenticated, CanViewTreasuryJournal]
 
     def post(self, request):
         serializer = JournalExportSerializer(data=request.data)

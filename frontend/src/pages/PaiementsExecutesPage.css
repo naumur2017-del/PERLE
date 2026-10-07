@@ -135,6 +135,9 @@
 .pe-pill-attente { background: #fef1d8; color: #c2740a; }
 .pe-pill-execute { background: #dcfce7; color: #15803d; }
 .pe-pill-refuse { background: #fee2e2; color: #b91c1c; }
+.pe-pill-valide { background: #ede9fe; color: #7c3aed; }
+.pe-row-clickable { cursor: pointer; }
+.pe-row-clickable:hover td { background: #f7f5ff; }
 
 .pe-row-action { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 6px; background: none; color: #8f8fa6; cursor: pointer; }
 .pe-row-action:hover { background: #f0eef8; color: #6b46c1; }

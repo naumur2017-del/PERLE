@@ -37,19 +37,24 @@ export interface Workflow {
 export const WORKFLOW_TRESORERIE: Workflow = {
   acteurs: [
     {
-      nom: 'Direction / Admin', ton: 'purple', role: 'Décide de l’exécution des paiements, crée les comptes et approuve les avances.',
-      peut: ['Créer un compte de trésorerie', 'Rapprovisionner un compte', 'Accepter ou refuser une demande de paiement', 'Approuver les avances et les congés'],
-      interagitAvec: ['Demandeur (reçoit les demandes soumises)', 'Salarié (approuve ses avances)', 'Système (déclenche le débit)'],
+      nom: 'Direction / Admin', ton: 'purple', role: 'Valide ou refuse les ordonnances soumises, crée et rapprovisionne les comptes, approuve les avances.',
+      peut: ['Accepter ou refuser une ordonnance (raison obligatoire en cas de refus)', 'Créer un compte de trésorerie', 'Rapprovisionner un compte', 'Approuver les avances et les congés'],
+      interagitAvec: ['Demandeur (reçoit ses ordonnances à valider)', 'Ressources (leur transmet les ordonnances validées)', 'Salarié (approuve ses avances)'],
     },
     {
-      nom: 'Demandeur', ton: 'blue', role: 'Membre du back-office ou manager qui saisit les demandes de paiement.',
-      peut: ['Créer une demande (brouillon ou soumise)', 'Modifier et supprimer ses brouillons', 'Consulter l’historique et le journal'],
-      interagitAvec: ['Direction / Admin (soumet la demande)', 'Salarié (reprend le code de son avance)'],
+      nom: 'Demandeur', ton: 'blue', role: 'Manager d’équipe (ou membre des Ressources) qui établit les ordonnances de paiement.',
+      peut: ['Créer une ordonnance (brouillon ou soumise)', 'Modifier et supprimer ses brouillons', 'Suivre le statut de ses ordonnances dans l’Historique'],
+      interagitAvec: ['Direction / Admin (valide ou refuse l’ordonnance)', 'Ressources (exécutent le paiement)', 'Salarié (reprend le code de son avance)'],
     },
     {
-      nom: 'Pilotage / Ressources', ton: 'teal', role: 'Back-office : consulte la trésorerie, le journal et les comptes sans décider des exécutions.',
+      nom: 'Ressources', ton: 'teal', role: 'Exécutent les ordonnances validées en joignant le justificatif ; créent et rapprovisionnent les comptes.',
+      peut: ['Exécuter une ordonnance validée (justificatif et mode de paiement)', 'Créer et rapprovisionner un compte', 'Consulter le journal, les comptes et les mercuriales'],
+      interagitAvec: ['Direction / Admin (reçoit les ordonnances validées)', 'Demandeur (alerté à l’exécution)', 'Système (déclenche le débit)'],
+    },
+    {
+      nom: 'Pilotage', ton: 'green', role: 'Back-office : consulte la trésorerie et le journal sans intervenir dans le circuit des ordonnances.',
       peut: ['Consulter ordonnances, comptes, journal et mercuriales', 'Exporter et imprimer les tableaux'],
-      interagitAvec: ['Demandeur (suit les demandes)', 'Direction / Admin (vérifie les décisions)'],
+      interagitAvec: ['Direction / Admin (suit les décisions)', 'Ressources (suit les exécutions)'],
     },
     {
       nom: 'Salarié', ton: 'gray', role: 'Demande une avance sur salaire depuis son espace ; ne saisit pas de paiement lui-même.',
@@ -57,22 +62,23 @@ export const WORKFLOW_TRESORERIE: Workflow = {
       interagitAvec: ['Direction / Admin (approuve l’avance)', 'Demandeur (la demande de paiement de l’avance est créée à partir du code)'],
     },
     {
-      nom: 'Système', ton: 'orange', role: 'Contrôle les soldes, enregistre les mouvements et calcule les soldes.',
-      peut: ['Refuser une exécution si le solde est insuffisant', 'Créer la sortie sur le compte à l’exécution', 'Ajouter chaque opération au journal'],
-      interagitAvec: ['Direction / Admin (exécution)', 'Comptes et opérations (soldes)', 'Journal (historique)'],
+      nom: 'Système', ton: 'orange', role: 'Contrôle les soldes, enregistre les mouvements et alerte les intervenants à chaque étape.',
+      peut: ['Refuser une exécution si le solde est insuffisant', 'Créer la sortie sur le compte à l’exécution', 'Ajouter chaque opération au journal', 'Envoyer une alerte (cloche) à chaque étape et à chaque mouvement'],
+      interagitAvec: ['Ressources (exécution)', 'Comptes et opérations (soldes)', 'Journal (historique)'],
     },
   ],
   flux: [
-    { titre: 'Avance approuvée', acteur: 'Direction / Admin', page: 'Gestion des équipes › Demandes', action: 'Approuve la demande d’avance du salarié.', resultat: 'L’avance reçoit un code (ex. AV-2026-001), réutilisable dans la demande de paiement.' },
-    { titre: 'Nouvelle demande', acteur: 'Demandeur', page: 'Ordonnances des paiements', action: 'Saisit le type de dépense, le projet, la ligne, le fournisseur, le montant, la date et le compte à débiter.', resultat: 'Demande enregistrée en brouillon, modifiable.' },
-    { titre: 'Soumission', acteur: 'Demandeur', page: 'Ordonnances des paiements', action: 'Clique sur « Soumettre la demande » (compte à débiter obligatoire).', resultat: 'Statut « En attente d’exécution ». Elle apparaît dans Exécutions des paiements.' },
-    { titre: 'Décision', acteur: 'Direction / Admin', page: 'Exécutions des paiements', action: 'Choisit le mode de paiement (virement, Mobile Money, espèces, chèque) et accepte.', resultat: 'Statut « Exécuté ».' },
-    { titre: 'Débit du compte', acteur: 'Système', page: 'Comptes et opérations', action: 'Vérifie le solde du compte choisi puis enregistre la sortie.', resultat: 'Solde du compte diminué ; mouvement « Paiement » créé.' },
-    { titre: 'Suivi', acteur: 'Pilotage / Ressources', page: 'Journal de la trésorerie', action: 'Consulte la période, filtre et exporte le journal.', resultat: 'Chaque transaction est visible, avec sa référence PAY- ou MVT-.' },
+    { titre: 'Avance approuvée', acteur: 'Direction / Admin', page: 'Gestion des équipes › Demandes', action: 'Approuve la demande d’avance du salarié.', resultat: 'L’avance reçoit un code (ex. AV-2026-001), réutilisable dans l’ordonnance de paiement.' },
+    { titre: 'Nouvelle ordonnance', acteur: 'Demandeur', page: 'Ordonnances des paiements', action: 'Saisit le type de dépense, le projet, la ligne, le fournisseur, le montant, la date et le compte à débiter.', resultat: 'Ordonnance enregistrée en brouillon, modifiable.' },
+    { titre: 'Soumission', acteur: 'Demandeur', page: 'Ordonnances des paiements', action: 'Clique sur « Soumettre la demande » (compte à débiter obligatoire).', resultat: 'Statut « En attente de validation ». La Direction reçoit une alerte.' },
+    { titre: 'Validation', acteur: 'Direction / Admin', page: 'Validation des paiements', action: 'Vérifie l’ordonnance puis clique sur « Accepter ».', resultat: 'Statut « Validé — en attente d’exécution ». Le demandeur et les Ressources sont alertés.' },
+    { titre: 'Exécution', acteur: 'Ressources', page: 'Exécutions des paiements', action: 'Clique sur la ligne, joint le justificatif du paiement et choisit le mode (virement, Mobile Money, espèces, chèque).', resultat: 'Statut « Exécuté ». Le demandeur et la Direction sont alertés.' },
+    { titre: 'Débit du compte', acteur: 'Système', page: 'Comptes et opérations', action: 'Vérifie le solde du compte choisi puis enregistre la sortie.', resultat: 'Solde du compte diminué ; mouvement « Paiement » créé dans le journal.' },
+    { titre: 'Suivi', acteur: 'Demandeur', page: 'Ordonnances des paiements › Historique', action: 'Suit le statut et la colonne « Suivi » de chacune de ses ordonnances.', resultat: 'Il voit qui a validé, la raison d’un refus et la date d’exécution.' },
   ],
   alternative: {
-    titre: 'Si la demande est refusée',
-    description: 'La Direction refuse la demande avec un commentaire ou un justificatif. Le statut passe à « Refusé », aucune sortie n’est enregistrée et le solde ne bouge pas.',
+    titre: 'Si l’ordonnance est refusée',
+    description: 'La Direction clique sur « Refuser » et indique obligatoirement la raison du refus. Le statut passe à « Refusé », le demandeur est alerté avec ce motif (visible aussi dans son Historique), aucune sortie n’est enregistrée et le solde ne bouge pas.',
   },
   pages: {
     'Ordonnances des paiements': {
@@ -82,22 +88,31 @@ export const WORKFLOW_TRESORERIE: Workflow = {
         'Renseignez le Projet et la Ligne budgétaire (désactivés pour une dépense transversale), puis le Fournisseur et le Montant.',
         'Choisissez le Compte à débiter : il doit exister dans Comptes et opérations.',
         'Renseignez la Date de la dépense et l’Objet, joignez le justificatif si besoin.',
-        'Enregistrez un brouillon pour continuer plus tard, ou soumettez la demande.',
-        'Suivez le brouillon dans la liste, modifiez-le ou supprimez-le ; l’Historique garde les demandes soumises.',
+        'Enregistrez un brouillon pour continuer plus tard, ou soumettez la demande : la Direction est alertée.',
+        'Suivez vos ordonnances dans l’Historique : le statut et la colonne « Suivi » indiquent la validation, le motif d’un refus ou l’exécution.',
+      ],
+    },
+    'Validation des paiements': {
+      intervenants: ['Direction / Admin', 'Demandeur', 'Ressources'],
+      pasAPas: [
+        'L’onglet « À valider » liste les ordonnances soumises : vérifiez le montant, le fournisseur, le compte et la pièce jointe.',
+        'Accepter : l’ordonnance passe en exécution chez les Ressources ; le demandeur et les Ressources sont alertés.',
+        'Refuser : indiquez la raison du refus (obligatoire). Le demandeur est alerté avec ce motif.',
+        'L’onglet « Historique » garde toutes les décisions, avec leur date, leur auteur et le motif des refus.',
       ],
     },
     'Exécutions des paiements': {
-      intervenants: ['Direction / Admin', 'Demandeur', 'Système'],
+      intervenants: ['Ressources', 'Demandeur', 'Système'],
       pasAPas: [
-        'Ouvrez une demande « En attente » : vérifiez le montant, le fournisseur et le justificatif.',
-        'Choisissez le mode de paiement.',
-        'Accepter : ajoutez éventuellement une preuve ou un commentaire. Le système vérifie le solde puis débite le compte.',
-        'Refuser : ajoutez un commentaire ou un justificatif. Aucun débit n’a lieu.',
-        'Si le solde est insuffisant, la décision est refusée avec le montant disponible affiché : rapprovisionnez le compte puis recommencez.',
+        'La liste ne contient que les ordonnances validées par la Direction.',
+        'Cliquez sur la ligne, joignez le justificatif du paiement (obligatoire) et choisissez le mode de paiement.',
+        'Cliquez sur « Exécuter le paiement » : le système vérifie le solde puis débite le compte ; le demandeur et la Direction sont alertés.',
+        'Si le solde est insuffisant, l’exécution est refusée avec le montant disponible affiché : rapprovisionnez le compte puis recommencez.',
+        'L’Historique liste les paiements exécutés, avec leur justificatif téléchargeable.',
       ],
     },
     'Comptes et opérations': {
-      intervenants: ['Direction / Admin', 'Système', 'Pilotage / Ressources'],
+      intervenants: ['Direction / Admin', 'Ressources', 'Système'],
       pasAPas: [
         'Créez le compte (Nom, Code unique, Sous-libellé, Solde initial) avant toute demande.',
         'Rapprovisionnez le compte : montant, libellé, origine des fonds et justificatif facultatif. L’entrée apparaît immédiatement.',
@@ -106,7 +121,7 @@ export const WORKFLOW_TRESORERIE: Workflow = {
       ],
     },
     'Journal de la trésorerie': {
-      intervenants: ['Pilotage / Ressources', 'Direction / Admin', 'Système'],
+      intervenants: ['Direction / Admin', 'Pilotage', 'Ressources', 'Système'],
       pasAPas: [
         'Choisissez la période (mois, trimestre, année ou dates libres).',
         'Filtrez par compte, type, initiateur, bénéficiaire ou ordonnateur, ou recherchez une référence.',
@@ -115,7 +130,7 @@ export const WORKFLOW_TRESORERIE: Workflow = {
       ],
     },
     'Mercuriales': {
-      intervenants: ['Direction / Admin', 'Pilotage / Ressources'],
+      intervenants: ['Direction / Admin', 'Pilotage', 'Ressources'],
       pasAPas: [
         'Consultez la liste et filtrez par catégorie, sous-catégorie, unité et statut.',
         'Recherchez un code ou une désignation.',

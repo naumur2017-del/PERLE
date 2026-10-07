@@ -1,0 +1,12 @@
+/* Validation des paiements : reprend la mise en page des Exécutions (PaiementsExecutesPage.css,
+   classes pe-*) et n'ajoute ici que les boutons Accepter / Refuser et la colonne du motif. */
+.vp-row-buttons { display: flex; gap: 6px; }
+.vp-btn-accept, .vp-btn-refuse {
+  height: 30px; padding: 0 12px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.vp-btn-accept { border: 1px solid #16a34a; background: #16a34a; color: #ffffff; }
+.vp-btn-accept:hover:not(:disabled) { background: #128a3e; }
+.vp-btn-refuse { border: 1px solid #f3c4c4; background: #ffffff; color: #b91c1c; }
+.vp-btn-refuse:hover:not(:disabled) { background: #fee2e2; }
+.vp-btn-accept:disabled, .vp-btn-refuse:disabled { opacity: 0.55; cursor: not-allowed; }
+.vp-motif { max-width: 320px; font-size: 13px; color: #5b5b76; }
